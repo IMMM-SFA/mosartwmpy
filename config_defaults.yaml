@@ -1,0 +1,179 @@
+---
+#####################################
+### MOSART Configuration Defaults ###
+#####################################
+### READ ONLY
+### To override configuration defaults, edit config.yaml
+
+###
+### Batch
+###
+batch:
+    # whether to run in batch mode using slurm (otherwise runs in default mode)
+    enabled: false
+    # which job queue to use, i.e. slurm or short
+    queue: slurm
+    # project to charge the time to
+    project: IM3
+    # cores per job
+    cores: 24
+    # memory to allocate
+    memory: 500 GB
+    # number of jobs
+    jobs: 1
+
+###
+### Simulation
+###
+simulation:
+    # name this simulation
+    name: Mosart Validation
+    # date to begin the simulation
+    start_date: 1980-01-01
+    # date to end the simulation
+    end_date: 1986-12-31
+    # mosart timestep in seconds
+    timestep: 10800
+    # mosart subtimestep in seconds
+    sub_timestep: 3600
+    # routing method to use
+    # TODO only 1 is implemented so far
+    # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?  ( 1 -- Kinematic wave method; 4 -- Diffusion wave method. --Inund. )
+    routing_method: 1
+    # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
+    log_level: INFO
+    # resume simulation from restart file
+    restart_file: ~
+    # output write frequency in simulation seconds; must be a multiple of simulation.sub_timestep; values will be averaged or summed appropriately
+    output_frequency: 86400 # output values once each day
+    # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
+    output_file_frequency: monthly
+    # how often to write a restart file; one of 'daily', 'monthly', 'yearly', 'end' -- 'end' meaning only at the end of the simulation
+    restart_file_frequency: end
+
+### 
+### Grid
+###
+grid:
+    # path to the grid domain file; can be absolute or relative to the source code root
+    path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+    # longitude field name
+    longitude: lon
+    # latitude field name
+    latitude: lat
+    # fraction of unit draining to outlet field
+    drainage_fraction: frac
+    # local drainage area field name
+    local_drainage_area: area
+    # total upstream drainage area using concept of multi flow direction field name [m2]
+    total_drainage_area_multi: areaTotal
+    # total upstream drainage area using concept of single flow direction field name [m2]
+    total_drainage_area_single: areaTotal2
+    # grid cell id field name
+    id: ID
+    # downstream ID field name
+    downstream_id: dnID
+    # flow direction field name
+    flow_direction: fdir
+    # Manning roughness coefficient for overland flow field name
+    hillslope_manning: nh
+    # Manning's roughness coefficient for tributary channel flow
+    subnetwork_manning: nt
+    # Manning's roughness coefficient for main channel flow
+    channel_manning: nr
+    # topographic slope field name
+    hillslope: hslp
+    # drainage density field name [m^-1]
+    drainage_density: gxr
+    # mean tributary channel slope averaged through the unit field name
+    subnetwork_slope:  tslp
+    # bankfull width of local tributaries field name [m]
+    subnetwork_width: twid
+    # main channel length field name [m]
+    channel_length: rlen
+    # main channel slope field name
+    channel_slope: rslp
+    # bankfull width of main channel field name [m]
+    channel_width: rwid
+    # floodplain width linked to main channel field name [m]
+    channel_floodplain_width: rwid0
+    # bankfull depth of main channel f ield name [m]
+    channel_depth: rdep
+    # floodplain width linked to main channel field name [m]
+    floodplain_width: rwid0
+
+###
+### Water Management (Demand, Reservoirs, and Runoff)
+###
+water_management:
+    # flag to turn this feature on or off
+    enabled: true
+    # flag to enable or disable ice runoff
+    ice_runoff_enabled: true
+    # flag to enable or disable regulation
+    regulation_enabled: true
+    # Demand
+    demand:
+        # path to the demand file; can be absolute or relative to the source code root
+        path: ./input/demand/RCP8.5_GCAM_water_demand_1980_2095.nc
+        # longitude field name
+        longitude: lon
+        # latitude field name
+        latitude: lat
+        # time field name
+        time: time
+        # demand field name # TODO support the different demand types using the flags
+        demand_field: totalDemand
+        # flag to enable or disable groundwater
+        groundwater_enabled: false
+        # flag to enable or disable return flow
+        return_flow_enabled: false
+        # flag to enable or disable the tracking irrigation vs non irrigation demand
+        total_demand_enabled: false
+    # Reservoirs
+    reservoirs:
+        # path to the reservoir parameter file; can be absolute or relative to the source code root
+        path: ./input/reservoirs/US_reservoir_8th_NLDAS3_updated_20200421.nc
+        # longitude field name
+        longitude: lon
+        # latitude field name
+        latitude: lat
+    # Runoff
+    runoff:
+        # path to the runoff file; can be absolute or relative to the source code root
+        path: ./input/runoff/Livneh_NLDAS_1980_2011.nc
+        # longitude field name
+        longitude: lon
+        # latitude field name
+        latitude: lat
+        # time field name
+        time: time
+
+###
+### Inundation
+###
+inundation:
+    # flag to turn this feature on or off
+    enabled: false
+
+###
+### Sediment
+###
+sediment:
+    # flag to turn this feature on or off
+    enabled: false
+
+
+###
+### Reservoir Stratification
+###
+reservoir_stratification:
+    # flag to turn this feature on or off
+    enabled: false
+
+###
+### Heat
+###
+heat:
+    # flag to turn this feature on or off
+    enabled: false
