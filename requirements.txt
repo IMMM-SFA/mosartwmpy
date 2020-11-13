@@ -4,5 +4,4 @@ matplotlib==3.3.2
 netCDF4==1.5.4
 pathvalidate==2.3.0
 python-benedict==0.22.0
-sparse==0.11.2
 xarray==0.16.1

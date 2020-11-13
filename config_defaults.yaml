@@ -34,14 +34,16 @@ simulation:
     end_date: 1986-12-31
     # mosart timestep in seconds
     timestep: 10800
-    # mosart subtimestep in seconds
-    sub_timestep: 3600
+    # subcycles - subtimestep will be timestep / subcycles
+    subcycles: 3
+    # routing iterations - subsubtimestep will be timestep / subcycles / routing_iterations - then further subdivided within subnetwork and main channel based on convergence estimations
+    routing_iterations: 5
     # routing method to use
     # TODO only 1 is implemented so far
     # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?  ( 1 -- Kinematic wave method; 4 -- Diffusion wave method. --Inund. )
     routing_method: 1
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
-    log_level: INFO
+    log_level: DEBUG
     # resume simulation from restart file
     restart_file: ~
     # output write frequency in simulation seconds; must be a multiple of simulation.sub_timestep; values will be averaged or summed appropriately
@@ -61,46 +63,48 @@ grid:
     longitude: lon
     # latitude field name
     latitude: lat
-    # fraction of unit draining to outlet field
-    drainage_fraction: frac
-    # local drainage area field name
-    local_drainage_area: area
-    # total upstream drainage area using concept of multi flow direction field name [m2]
-    total_drainage_area_multi: areaTotal
-    # total upstream drainage area using concept of single flow direction field name [m2]
-    total_drainage_area_single: areaTotal2
-    # grid cell id field name
-    id: ID
-    # downstream ID field name
-    downstream_id: dnID
-    # flow direction field name
-    flow_direction: fdir
-    # Manning roughness coefficient for overland flow field name
-    hillslope_manning: nh
-    # Manning's roughness coefficient for tributary channel flow
-    subnetwork_manning: nt
-    # Manning's roughness coefficient for main channel flow
-    channel_manning: nr
-    # topographic slope field name
-    hillslope: hslp
-    # drainage density field name [m^-1]
-    drainage_density: gxr
-    # mean tributary channel slope averaged through the unit field name
-    subnetwork_slope:  tslp
-    # bankfull width of local tributaries field name [m]
-    subnetwork_width: twid
-    # main channel length field name [m]
-    channel_length: rlen
-    # main channel slope field name
-    channel_slope: rslp
-    # bankfull width of main channel field name [m]
-    channel_width: rwid
-    # floodplain width linked to main channel field name [m]
-    channel_floodplain_width: rwid0
-    # bankfull depth of main channel f ield name [m]
-    channel_depth: rdep
-    # floodplain width linked to main channel field name [m]
-    floodplain_width: rwid0
+    # variable field names
+    variables:
+        # fraction of unit draining to outlet field
+        drainage_fraction: frac
+        # local drainage area field name
+        local_drainage_area: area
+        # total upstream drainage area using concept of multi flow direction field name [m2]
+        total_drainage_area_multi: areaTotal
+        # total upstream drainage area using concept of single flow direction field name [m2]
+        total_drainage_area_single: areaTotal2
+        # grid cell id field name
+        id: ID
+        # downstream ID field name
+        downstream_id: dnID
+        # flow direction field name
+        flow_direction: fdir
+        # Manning roughness coefficient for overland flow field name
+        hillslope_manning: nh
+        # Manning's roughness coefficient for tributary channel flow
+        subnetwork_manning: nt
+        # Manning's roughness coefficient for main channel flow
+        channel_manning: nr
+        # topographic slope field name
+        hillslope: hslp
+        # drainage density field name [m^-1]
+        drainage_density: gxr
+        # mean tributary channel slope averaged through the unit field name
+        subnetwork_slope:  tslp
+        # bankfull width of local tributaries field name [m]
+        subnetwork_width: twid
+        # main channel length field name [m]
+        channel_length: rlen
+        # main channel slope field name
+        channel_slope: rslp
+        # bankfull width of main channel field name [m]
+        channel_width: rwid
+        # floodplain width linked to main channel field name [m]
+        channel_floodplain_width: rwid0
+        # bankfull depth of main channel f ield name [m]
+        channel_depth: rdep
+        # floodplain width linked to main channel field name [m]
+        floodplain_width: rwid0
 
 ###
 ### Water Management (Demand, Reservoirs, and Runoff)

@@ -19,18 +19,19 @@ class Mosart(Bmi):
         self.name = None
         self.config = benedict()
         self.grid = None
+        self.longitude = None
+        self.latitude = None
+        self.cell_count = None
+        self.longitude_spacing = None
+        self.latitude_spacing = None
         self.restart = None
         self.current_time = None
-        self.state = benedict()
-        self.input = benedict()
+        self.input = None
+        self.parameters = {}
+        self.tracers = None
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
-        self.DATA_SHAPE = ()
-
-        # chunk sizes for dask arrays
-        self.chunk_size_longitude = 4000
-        self.chunk_size_latitude = 4000
-        self.chunk_size_time = 150
+        self.state = None
 
     def initialize(self, config_file_path: str = None):
         t = timer()
@@ -152,34 +153,34 @@ class Mosart(Bmi):
         return 2
     
     def get_grid_size(self, grid: int = 0):
-        return self.grid.sizes[self.config.get('grid.longitude')] * self.grid.sizes[self.config.get('grid.latitude')]
+        return self.cell_count
 
     def get_grid_shape(self, grid: int = 0, shape = empty(2, dtype=int)):
-        shape[0] = self.grid.sizes[self.config.get('grid.latitude')]
-        shape[1] = self.grid.sizes[self.config.get('grid.longitude')]
+        shape[0] = self.latitude.size
+        shape[1] = self.longitude.size
         return shape
 
     def get_grid_spacing(self, grid: int = 0, spacing = empty(2)):
         # assumes uniform grid
-        spacing[0] = abs(self.grid[self.config.get('grid.latitude')][1].values.item() - self.grid[self.config.get('grid.latitude')][0].values.item())
-        spacing[1] = abs(self.grid[self.config.get('grid.longitude')][1].values.item() - self.grid[self.config.get('grid.longitude')][0].values.item())
+        spacing[0] = self.latitude_spacing
+        spacing[1] = self.longitude_spacing
         return spacing
     
     def get_grid_origin(self, grid: int = 0, origin = empty(2)):
-        origin[0] = grid[self.config.get('grid.latitude')][0].values.item()
-        origin[1] = grid[self.config.get('grid.longitude')][0].values.item()
+        origin[0] = self.latitude[0]
+        origin[1] = self.longitude[0]
         return origin
 
     def get_grid_x(self, grid: int = 0, x = None):
         if not x:
             x = empty(self.get_grid_shape()[0])
-        x[:] = grid[self.config.get('grid.latitude')]
+        x[:] = self.latitude
         return x
 
     def get_grid_y(self, grid: int = 0, y = None):
         if not y:
             y = empty(self.get_grid_shape()[1])
-        y[:] = grid[self.config.get('grid.longitude')]
+        y[:] = self.longitude
         return y
 
     def get_grid_z(self, grid: int = 0, z = None):
