@@ -31,7 +31,7 @@ simulation:
     # date to begin the simulation
     start_date: 1980-01-01
     # date to end the simulation
-    end_date: 1986-12-31
+    end_date: 1981-12-31
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -43,7 +43,7 @@ simulation:
     # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?  ( 1 -- Kinematic wave method; 4 -- Diffusion wave method. --Inund. )
     routing_method: 1
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
-    log_level: DEBUG
+    log_level: INFO
     # resume simulation from restart file
     restart_file: ~
     # output write frequency in simulation seconds; must be a multiple of simulation.sub_timestep; values will be averaged or summed appropriately

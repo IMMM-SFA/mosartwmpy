@@ -37,35 +37,71 @@ class Mosart(Bmi):
         t = timer()
 
         # load config and setup logging
-        _setup(self, config_file_path)
+        try:
+            _setup(self, config_file_path)
+        except Exception as e:
+            logging.exception('Failed to configure model; see below for stacktrace.')
+            raise e
 
         # load grid
-        _load_grid(self)
+        try:
+            _load_grid(self)
+        except Exception as e:
+            logging.exception('Failed to load grid file; see below for stacktrace.')
+            raise e
 
         # load input files
-        _load_input(self)
+        try:
+            _load_input(self)
+        except Exception as e:
+            logging.exception('Failed to load inputs; see below for stacktrace.')
+            raise e
 
         # load restart file or initialize state
-        _initialize_state(self)
+        try:
+            _initialize_state(self)
+        except Exception as e:
+            logging.exception('Failed to initialize model; see below for stacktrace.')
+            raise e
 
-        logging.info(f'Initialization completed in {round((timer() - t) * 1.0e3, 3)} milliseconds.')
+        logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
         
     def update(self):
         t = timer()
         step = datetime.fromtimestamp(self.get_current_time())
         # perform one timestep
         logging.info(f'Begin timestep {step.isoformat(" ")}.')
-        _update(self)
-        logging.info(f'Timestep {step.isoformat(" ")} completed in {round((timer() - t) * 1.0e3, 3)} milliseconds.')
+        try:
+            _update(self)
+        except Exception as e:
+            logging.exception('Failed to complete timestep; see below for stacktrace.')
+            raise e
+        logging.info(f'Timestep {step.isoformat(" ")} completed in {self.pretty_timer(timer() - t)}.')
         return
 
     def update_until(self, time: float):
         # perform timesteps until time
+        while self.get_current_time() < time:
+            self.update()
         return
 
     def finalize(self):
         # simulation is over so free memory, write data, etc
         return
+
+    def pretty_timer(self, seconds):
+        # format elapsed times in a human friendly way
+        # TODO move to a utitities file
+        if seconds < 1:
+            return f'{round(seconds * 1.0e3, 0)} milliseconds'
+        elif seconds < 60:
+            return f'{round(seconds, 3)} seconds'
+        elif seconds < 3600:
+            return f'{seconds // 60} minutes and {round(seconds)} seconds'
+        elif seconds < 86400:
+            return f'{seconds // 3600} hours, {round(seconds % 3600)} minutes, and {round(seconds)} seconds'
+        else:
+            return f'{seconds // 86400} days, {(seconds % 86400) // 3600} hours, and {round(seconds % 3600)} minutes'
 
     def get_component_name(self):
         # TODO include version/hash info?

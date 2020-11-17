@@ -5,6 +5,8 @@ import numpy as np
 from datetime import datetime, time
 from xarray import open_dataset
 
+from ._update import update_hillslope_state, update_subnetwork_state, update_main_channel_state
+
 def _initialize_state(self):
 
     # some constants used throughout the code
@@ -46,7 +48,7 @@ def _initialize_state(self):
         'flow',
         # outflow into downstream links from previous timestep [m3/s]
         # eroup_lagi
-        'outlow_downstream_previous_timestep',
+        'outflow_downstream_previous_timestep',
         # outflow into downstream links from current timestep [m3/s]
         # eroup_lagf
         'outflow_downstream_current_timestep',
@@ -202,7 +204,7 @@ def _initialize_state(self):
         'channel_outflow_downstream',
         # outflow into downstream links from previous timestep [m3/s]
         # TRunoff%eroup_lagi
-        'channel_outlow_downstream_previous_timestep',
+        'channel_outflow_downstream_previous_timestep',
         # outflow into downstream links from current timestep [m3/s]
         # TRunoff%eroup_lagf
         'channel_outflow_downstream_current_timestep',
@@ -248,5 +250,47 @@ def _initialize_state(self):
         True,
         False
     ), columns=['euler_mask'])).persist()
+    
+    self.state = state_dataframe
+    
+    # initial conditions
+    condition = self.state.tracer.eq(self.LIQUID_TRACER) & (self.grid.land_mask.eq(1) | self.grid.land_mask.eq(3))
+    # assumed hillslope water depth
+    self.state.hillslope_storage = self.state.zeros.mask(
+        condition,
+        0.001
+    )
+    # assumed subnetwork depth
+    self.state.subnetwork_storage = self.state.zeros.mask(
+        condition,
+        1.0 * self.grid.subnetwork_length * self.grid.subnetwork_width
+    )
+    # assumed channel depth
+    channel_depth = 0.9 * self.grid.channel_depth
+    self.state.channel_storage = self.state.zeros.mask(
+        condition,
+        channel_depth * self.grid.channel_width * self.grid.channel_length
+    )
+    # hydraulic radius
+    hydraulic_radius = self.grid.channel_width * channel_depth / ( self.grid.channel_width + 2.0 * channel_depth )
+    # main channel outflow using manning equation # TODO consolidate the manning equations
+    channel_velocity = self.state.zeros.mask(
+        hydraulic_radius.gt(0) & self.grid.channel_slope.ne(0),
+        ((hydraulic_radius ** (1/3)) * (self.grid.channel_slope ** (1/2)) / self.grid.channel_manning).mask(
+            self.grid.channel_slope.gt(0),
+            -((hydraulic_radius ** (2/3)) * (-self.grid.channel_slope ** (1/2)) / self.grid.channel_manning)
+        )
+    )
+    self.state.channel_outflow_downstream = self.state.zeros.mask(
+        condition,
+        - channel_velocity * channel_depth * self.grid.channel_width
+    )
+    
+    # update physical parameters based on initial conditions
+    condition = self.state.zeros.eq(0)
+    update_hillslope_state(self, condition)
+    update_subnetwork_state(self, condition)
+    update_main_channel_state(self, condition)
+    self.state.storage = self.state.channel_storage + self.state.subnetwork_storage + self.state.hillslope_storage * self.grid.area
     
     self.state = state_dataframe.persist()

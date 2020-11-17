@@ -14,4 +14,5 @@ warnings.filterwarnings('ignore')
 # launch simulation
 self = Mosart()
 self.initialize()
-self.update()
+#self.update()
+#self.update_until(self.get_end_time())
