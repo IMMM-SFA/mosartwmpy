@@ -32,6 +32,7 @@ class Mosart(Bmi):
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
         self.state = None
+        self.partitions = 4
 
     def initialize(self, config_file_path: str = None):
         t = timer()
@@ -63,7 +64,11 @@ class Mosart(Bmi):
         except Exception as e:
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
-
+        
+        # repartition the dataframes based on something intelligent... TODO
+        self.grid = self.grid.repartition(npartitions=self.partitions).persist()
+        self.state = self.state.repartition(npartitions=self.partitions).persist()
+        
         logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
         
     def update(self):
@@ -97,11 +102,11 @@ class Mosart(Bmi):
         elif seconds < 60:
             return f'{round(seconds, 3)} seconds'
         elif seconds < 3600:
-            return f'{seconds // 60} minutes and {round(seconds)} seconds'
+            return f'{int(seconds // 60)} minutes and {round(seconds % 60)} seconds'
         elif seconds < 86400:
-            return f'{seconds // 3600} hours, {round(seconds % 3600)} minutes, and {round(seconds)} seconds'
+            return f'{int(seconds // 3600)} hours, {int((seconds % 3600) // 60)} minutes, and {round(seconds % 60)} seconds'
         else:
-            return f'{seconds // 86400} days, {(seconds % 86400) // 3600} hours, and {round(seconds % 3600)} minutes'
+            return f'{int(seconds // 86400)} days, {int((seconds % 86400) // 3600)} hours, and {round((seconds % 3600) // 60)} minutes'
 
     def get_component_name(self):
         # TODO include version/hash info?

@@ -9,25 +9,10 @@ from ._update import update_hillslope_state, update_subnetwork_state, update_mai
 
 def _initialize_state(self):
 
-    # some constants used throughout the code
-    # TODO better document what these are used for and what they should be and maybe they should be part of config?
-    # TINYVALUE
-    self.parameters['tiny_value'] = 1.0e-14
-    # a small value in order to avoid abrupt change of hydraulic radius
-    self.parameters['slope_1_def'] = 0.1
-    self.parameters['sin_atan_slope_1_def'] = 1.0 / (da.sin(da.arctan(self.parameters['slope_1_def'])))
-    # flood threshold - excess water will be sent back to ocean
-    self.parameters['flood_threshold'] = 1.0e36 # [m3]?
-    # liquid/ice effective velocity
-    self.parameters['effective_tracer_velocity'] = 10.0 # [m/s]?
-    # minimum river depth
-    self.parameters['river_depth_minimum'] = 1.0e-4 # [m]?
-    
-
     # restart file
     if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
         logging.info('Loading restart file.')
-        self.restart = open_dataset(self.config.get('simulation.restart_file'), chunks={})
+        self.restart = open_dataset(self.config.get('simulation.restart_file'))
         # TODO set current timestep based on restart
         # TODO initialize state from restart file
         logging.error('Restart file not yet implemented. Aborting.')
@@ -118,9 +103,6 @@ def _initialize_state(self):
         # overland flor from hillslope into subchannel (outflow is negative) [m/s]
         # ehout
         'hillslope_overland_flow',
-        # subnetwork area of water surface [m2]
-        # tarea
-        'subnetwork_area',
         # subnetwork water storage [m3]
         # wt
         'subnetwork_storage',
@@ -157,12 +139,6 @@ def _initialize_state(self):
         # subnetwork discharge into main channel (outflow is negative) [m3/s]
         # etout
         'subnetwork_discharge',
-        # irrigation demand [m/s]
-        # qdem
-        'subnetwork_irrigation_demand',
-        # main channel area [m/2]
-        # rarea
-        'channel_area',
         # main channel storage [m3]
         # wr
         'channel_storage',
@@ -187,9 +163,6 @@ def _initialize_state(self):
         # main channel flow velocity [m/s]
         # vr
         'channel_flow_velocity',
-        # main channel mean travel time of water within travel [s]
-        # tr
-        'channel_mean_travel_time',
         # main channel evaporation [m/s]
         # erlg
         'channel_evaporation',
@@ -254,43 +227,42 @@ def _initialize_state(self):
     self.state = state_dataframe
     
     # initial conditions
-    condition = self.state.tracer.eq(self.LIQUID_TRACER) & (self.grid.land_mask.eq(1) | self.grid.land_mask.eq(3))
-    # assumed hillslope water depth
-    self.state.hillslope_storage = self.state.zeros.mask(
-        condition,
-        0.001
-    )
-    # assumed subnetwork depth
-    self.state.subnetwork_storage = self.state.zeros.mask(
-        condition,
-        1.0 * self.grid.subnetwork_length * self.grid.subnetwork_width
-    )
-    # assumed channel depth
-    channel_depth = 0.9 * self.grid.channel_depth
-    self.state.channel_storage = self.state.zeros.mask(
-        condition,
-        channel_depth * self.grid.channel_width * self.grid.channel_length
-    )
-    # hydraulic radius
-    hydraulic_radius = self.grid.channel_width * channel_depth / ( self.grid.channel_width + 2.0 * channel_depth )
-    # main channel outflow using manning equation # TODO consolidate the manning equations
-    channel_velocity = self.state.zeros.mask(
-        hydraulic_radius.gt(0) & self.grid.channel_slope.ne(0),
-        ((hydraulic_radius ** (1/3)) * (self.grid.channel_slope ** (1/2)) / self.grid.channel_manning).mask(
-            self.grid.channel_slope.gt(0),
-            -((hydraulic_radius ** (2/3)) * (-self.grid.channel_slope ** (1/2)) / self.grid.channel_manning)
-        )
-    )
-    self.state.channel_outflow_downstream = self.state.zeros.mask(
-        condition,
-        - channel_velocity * channel_depth * self.grid.channel_width
-    )
+    # condition = self.state.tracer.eq(self.LIQUID_TRACER) & self.grid.mosart_mask.gt(0)
+    # # assumed hillslope water depth
+    # self.state.hillslope_storage = self.state.zeros.mask(
+    #     condition,
+    #     0.001
+    # )
+    # # assumed subnetwork depth
+    # self.state.subnetwork_storage = self.state.zeros.mask(
+    #     condition,
+    #     1.0 * self.grid.subnetwork_length * self.grid.subnetwork_width
+    # )
+    # # assumed channel depth
+    # channel_depth = 0.9 * self.grid.channel_depth
+    # self.state.channel_storage = self.state.zeros.mask(
+    #     condition,
+    #     channel_depth * self.grid.channel_width * self.grid.channel_length
+    # )
+    # # hydraulic radius
+    # hydraulic_radius = self.grid.channel_width * channel_depth / ( self.grid.channel_width + 2.0 * channel_depth )
+    # # main channel outflow using manning equation # TODO consolidate the manning equations
+    # channel_velocity = self.state.zeros.mask(
+    #     condition & hydraulic_radius.gt(0) & self.grid.channel_slope.ne(0),
+    #     ((hydraulic_radius ** (1/3)) * (self.grid.channel_slope ** (1/2)) / self.grid.channel_manning).mask(
+    #         self.grid.channel_slope.gt(0),
+    #         -((hydraulic_radius ** (2/3)) * (-self.grid.channel_slope ** (1/2)) / self.grid.channel_manning)
+    #     )
+    # )
+    # self.state.channel_outflow_downstream = self.state.zeros.mask(
+    #     condition,
+    #     - channel_velocity * channel_depth * self.grid.channel_width
+    # )
     
-    # update physical parameters based on initial conditions
-    condition = self.state.zeros.eq(0)
-    update_hillslope_state(self, condition)
-    update_subnetwork_state(self, condition)
-    update_main_channel_state(self, condition)
-    self.state.storage = self.state.channel_storage + self.state.subnetwork_storage + self.state.hillslope_storage * self.grid.area
+    # # update physical parameters based on initial conditions
+    # update_hillslope_state(self, condition)
+    # update_subnetwork_state(self, condition)
+    # update_main_channel_state(self, condition)
+    # self.state.storage = self.state.channel_storage + self.state.subnetwork_storage + self.state.hillslope_storage * self.grid.area
     
-    self.state = state_dataframe.persist()
+    self.state = self.state.persist()

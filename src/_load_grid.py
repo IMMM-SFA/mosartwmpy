@@ -3,7 +3,7 @@ import dask.dataframe as dd
 import logging
 import numpy as np
 
-from xarray import apply_ufunc, open_dataset
+from xarray import open_dataset
 
 def _load_grid(self):
     # load grid into dataframe
@@ -12,7 +12,7 @@ def _load_grid(self):
     logging.info('Loading grid file.')
     
     # open dataset
-    grid_dataset = open_dataset(self.config.get('grid.path'), chunks={})
+    grid_dataset = open_dataset(self.config.get('grid.path'))
     
     # create grid from longitude and latitude dimensions
     self.longitude = da.array(grid_dataset[self.config.get('grid.longitude')]).compute()
@@ -45,7 +45,7 @@ def _load_grid(self):
     # 3 == ocean outlet from land
     # rtmCTL%mask
     grid_dataframe = grid_dataframe.join(dd.from_array(da.where(
-        da.array(grid_dataframe.downstream_id) > 0,
+        da.array(grid_dataframe.downstream_id) >= 0,
         1,
         da.where(
             da.isin(grid_dataframe.id, grid_dataframe.downstream_id),
@@ -69,10 +69,23 @@ def _load_grid(self):
             da.where(
                 da.array(grid_dataframe.flow_direction) > 0,
                 1,
-                np.nan
+                0
             )
         )
     ), dtype=int), columns=['mosart_mask'])).persist()
+    # grid_dataframe = grid_dataframe.join(dd.from_array(da.array(da.where(
+    #     da.array(grid_dataframe.land_mask) == 1,
+    #     1,
+    #     da.where(
+    #         da.array(grid_dataframe.land_mask) == 2,
+    #         0,
+    #         da.where(
+    #             da.array(grid_dataframe.land_mask) == 3,
+    #             2,
+    #             -1
+    #         )
+    #     )
+    # )), columns=['mosart_mask'])).persist()
     
     # determine final downstream outlet of each cell
     # this essentially slices up the grid into discrete basins
@@ -82,13 +95,13 @@ def _load_grid(self):
         id_hashmap[int(_id)] = int(i)
     # convert downstream ids into downstream indices
     downstream_ids = da.array(grid_dataframe.downstream_id.map(
-        lambda i: id_hashmap[int(i)] if int(i) in id_hashmap else int(i)
+        lambda i: id_hashmap[int(i)] if int(i) in id_hashmap else -1
     )).compute()
     # follow each cell downstream to compute outlet id
     mask = da.array(grid_dataframe.land_mask).compute()
     size = mask.size
-    outlet_ids = np.full(size, np.nan)
-    upstream_ids = np.full(size, np.nan)
+    outlet_ids = np.full(size, -1)
+    upstream_ids = np.full(size, -1)
     upstream_cell_counts = np.full(size, 0)
     for i in np.arange(size):
         if downstream_ids[i] >= 0:
@@ -113,7 +126,7 @@ def _load_grid(self):
     # assumes grid spacing is in degrees and uniform
     logging.debug(' - area')
     radius_earth = 6.37122e6
-    deg2rad = 0.0174533
+    deg2rad = np.pi / 180.0
     lats = da.array(grid_dataframe.latitude)
     grid_dataframe = grid_dataframe.join(dd.from_array(da.where(
         da.array(grid_dataframe.local_drainage_area) <= 0,
@@ -140,6 +153,8 @@ def _load_grid(self):
         dd.from_array(da.array(downstream_ids, dtype=int), columns=['downstream_id'])
     ).join(
         dd.from_array(da.array(upstream_ids, dtype=int), columns=['upstream_id'])
+    ).join(
+        dd.from_array(da.array(upstream_cell_counts, dtype=int),  columns=['upstream_cell_count'])
     ).persist()
     
     logging.debug(' - main channel iterations')
@@ -167,63 +182,54 @@ def _load_grid(self):
     
     # total main channel length [m]
     # rlenTotal
-    grid_dataframe = grid_dataframe.join(dd.from_array(da.maximum(da.array(grid_dataframe.channel_length).compute(), da.where(
-        da.array(grid_dataframe.drainage_density.gt(0)).compute(),
-        grid_dataframe.area * grid_dataframe.drainage_density,
-        0
-    )), columns=['total_channel_length'])).persist()
+    grid_dataframe = grid_dataframe.join(dd.from_array(da.array(grid_dataframe.area * grid_dataframe.drainage_density), columns=['total_channel_length'])).persist()
+    grid_dataframe.total_channel_length = grid_dataframe.total_channel_length.mask(
+        grid_dataframe.channel_length.gt(grid_dataframe.total_channel_length),
+        grid_dataframe.channel_length
+    ).persist()
     
     # hillslope length [m]
     # constrain hillslope length
     # there is a TODO in fortran mosart that says: "allievate the outlier in drainage density estimation."
     # hlen
     channel_length_minimum = grid_dataframe.area ** (1/2)
-    hillslope_max_length = da.minimum(channel_length_minimum, 1000)
-    grid_dataframe = grid_dataframe.join(dd.from_array(da.minimum(da.array(hillslope_max_length).compute(), da.where(
-        da.array(grid_dataframe.channel_length.gt(0)).compute(),
-        da.array(grid_dataframe.area / grid_dataframe.total_channel_length / 2).compute(),
-        0
-    )), columns=['hillslope_length'])).persist()
+    hillslope_max_length = da.maximum(channel_length_minimum, 1000)
+    grid_dataframe = grid_dataframe.join(dd.from_array(da.zeros(self.get_grid_size()), columns=['hillslope_length']).hillslope_length.mask(
+        grid_dataframe.channel_length.gt(0),
+        grid_dataframe.area / grid_dataframe.total_channel_length / 2.0
+    ).to_frame()).persist()
+    grid_dataframe.hillslope_length = grid_dataframe.hillslope_length.mask(
+        grid_dataframe.hillslope_length.gt(hillslope_max_length),
+        hillslope_max_length
+    ).persist()
     
-    # subnetwork channel length [m]g
+    # subnetwork channel length [m]
     # tlen
-    grid_dataframe = grid_dataframe.join(dd.from_array(da.where(
-        da.array(grid_dataframe.channel_length.gt(0)).compute(),
-        da.where(
-            da.array(grid_dataframe.channel_length.lt(channel_length_minimum)).compute(),
-            grid_dataframe.area / channel_length_minimum / 2 - grid_dataframe.hillslope_length,
-            grid_dataframe.area / grid_dataframe.channel_length / 2 - grid_dataframe.hillslope_length
-        ),
+    grid_dataframe = grid_dataframe.join(dd.from_array(da.zeros(self.get_grid_size()), columns=['subnetwork_length']).subnetwork_length.mask(
+        grid_dataframe.channel_length.gt(0),
+        (grid_dataframe.area / channel_length_minimum / 2.0 - grid_dataframe.hillslope_length).mask(
+            channel_length_minimum.le(grid_dataframe.channel_length),
+            grid_dataframe.area / grid_dataframe.channel_length / 2.0 - grid_dataframe.hillslope_length
+        )
+    ).to_frame()).persist()
+    grid_dataframe.subnetwork_length = grid_dataframe.subnetwork_length.mask(
+        grid_dataframe.subnetwork_length.lt(0),
         0
-    ), columns=['subnetwork_length'])).persist()
+    ).persist()
     
     # subnetwork channel width (adjusted from input file) [m]
     # twidth
-    c_twid = 1 # TODO what is this
-    subnetwork_width = da.where(
-        da.array(grid_dataframe.channel_length.gt(0)).compute(),
-        da.where(
-            da.array(grid_dataframe.subnetwork_width.gt(0)).compute(),
-            da.where(
-                da.array(grid_dataframe.subnetwork_length.gt(0)).compute(),
-                da.where(
-                    (grid_dataframe.total_channel_length - grid_dataframe.channel_length / grid_dataframe.subnetwork_length).gt(1).compute(),
-                    c_twid * grid_dataframe.subnetwork_width * grid_dataframe.total_channel_length - grid_dataframe.channel_length / grid_dataframe.subnetwork_length,
-                    grid_dataframe.subnetwork_width
-                ),
-                0
-            ),
-            0
-        ),
-        0
-    )
-    subnetwork_width = dd.from_array(da.where(
-        da.array(grid_dataframe.subnetwork_length.gt(0)).compute() & (subnetwork_width <= 0),
-        0,
-        subnetwork_width
-    ), columns=['subnetwork_width']).persist()
-    # drop initial subnetwork_width in favor of this one
-    grid_dataframe = grid_dataframe.drop('subnetwork_width', 1).join(subnetwork_width).persist()
+    subnetwork_width = dd.from_array(da.zeros(self.get_grid_size()), columns=['subnetwork_width']).subnetwork_width.mask(
+        grid_dataframe.channel_length.gt(0) & grid_dataframe.subnetwork_width.ge(0),
+        grid_dataframe.subnetwork_width.mask(
+            grid_dataframe.subnetwork_length.gt(0) & ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length).gt(1),
+            self.parameters['subnetwork_width_parameter'] * grid_dataframe.subnetwork_width * ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length)
+        )
+    ).persist()
+    # grid_dataframe.subnetwork_width = subnetwork_width.mask(
+    #     grid_dataframe.subnetwork_length.gt(0) & subnetwork_width.le(0),
+    #     0
+    # ).persist()
     
     # parameter for calculating number of subnetwork iterations needed
     # phi_t

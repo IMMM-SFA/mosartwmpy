@@ -105,6 +105,28 @@ grid:
         channel_depth: rdep
         # floodplain width linked to main channel field name [m]
         floodplain_width: rwid0
+###
+### Runoff (forcing input)
+###
+runoff:
+    # flag to turn this feature on or off
+    enabled: true
+    # path to the runoff file; can be absolute or relative to the source code root
+    path: ./input/runoff/Livneh_NLDAS_1980_2011.nc
+    # longitude field name
+    longitude: lon
+    # latitude field name
+    latitude: lat
+    # time field name
+    time: time
+    # variables
+    variables:
+        # surface runoff [mm/s]
+        surface_runoff: QOVER
+        # subsurface runoff [mm/s]
+        subsurface_runoff: QDRAI
+        # wetland runoff [mm/s]
+        wetland_runoff: ~
 
 ###
 ### Water Management (Demand, Reservoirs, and Runoff)
@@ -142,16 +164,6 @@ water_management:
         longitude: lon
         # latitude field name
         latitude: lat
-    # Runoff
-    runoff:
-        # path to the runoff file; can be absolute or relative to the source code root
-        path: ./input/runoff/Livneh_NLDAS_1980_2011.nc
-        # longitude field name
-        longitude: lon
-        # latitude field name
-        latitude: lat
-        # time field name
-        time: time
 
 ###
 ### Inundation
