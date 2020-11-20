@@ -226,6 +226,7 @@ def _initialize_state(self):
     
     self.state = state_dataframe
     
+    # TODO these initial conditions only seem to be used for inundation, which i haven't got to yet
     # initial conditions
     # condition = self.state.tracer.eq(self.LIQUID_TRACER) & self.grid.mosart_mask.gt(0)
     # # assumed hillslope water depth

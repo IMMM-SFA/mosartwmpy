@@ -2,4 +2,5 @@
 *.swp
 input/*
 output/*
+dask-worker-space/*
 __pycache__

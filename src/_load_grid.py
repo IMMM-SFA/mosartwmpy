@@ -8,7 +8,6 @@ from xarray import open_dataset
 def _load_grid(self):
     # load grid into dataframe
     # TODO clean grid file and precalculate and store cell, upstream, downstream, and outlet indices
-    # TODO chunks
     logging.info('Loading grid file.')
     
     # open dataset
@@ -73,19 +72,6 @@ def _load_grid(self):
             )
         )
     ), dtype=int), columns=['mosart_mask'])).persist()
-    # grid_dataframe = grid_dataframe.join(dd.from_array(da.array(da.where(
-    #     da.array(grid_dataframe.land_mask) == 1,
-    #     1,
-    #     da.where(
-    #         da.array(grid_dataframe.land_mask) == 2,
-    #         0,
-    #         da.where(
-    #             da.array(grid_dataframe.land_mask) == 3,
-    #             2,
-    #             -1
-    #         )
-    #     )
-    # )), columns=['mosart_mask'])).persist()
     
     # determine final downstream outlet of each cell
     # this essentially slices up the grid into discrete basins
@@ -226,10 +212,10 @@ def _load_grid(self):
             self.parameters['subnetwork_width_parameter'] * grid_dataframe.subnetwork_width * ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length)
         )
     ).persist()
-    # grid_dataframe.subnetwork_width = subnetwork_width.mask(
-    #     grid_dataframe.subnetwork_length.gt(0) & subnetwork_width.le(0),
-    #     0
-    # ).persist()
+    grid_dataframe.subnetwork_width = subnetwork_width.mask(
+        grid_dataframe.subnetwork_length.gt(0) & subnetwork_width.le(0),
+        0
+    ).persist()
     
     # parameter for calculating number of subnetwork iterations needed
     # phi_t

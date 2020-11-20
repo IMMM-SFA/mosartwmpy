@@ -32,7 +32,7 @@ class Mosart(Bmi):
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
         self.state = None
-        self.partitions = 4
+        self.partitions = None
 
     def initialize(self, config_file_path: str = None):
         t = timer()
@@ -66,8 +66,9 @@ class Mosart(Bmi):
             raise e
         
         # repartition the dataframes based on something intelligent... TODO
-        self.grid = self.grid.repartition(npartitions=self.partitions).persist()
-        self.state = self.state.repartition(npartitions=self.partitions).persist()
+        if self.partitions is not None and self.partitions > 0:
+            self.grid = self.grid.repartition(npartitions=self.partitions).persist()
+            self.state = self.state.repartition(npartitions=self.partitions).persist()
         
         logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
         
@@ -102,11 +103,11 @@ class Mosart(Bmi):
         elif seconds < 60:
             return f'{round(seconds, 3)} seconds'
         elif seconds < 3600:
-            return f'{int(seconds // 60)} minutes and {round(seconds % 60)} seconds'
+            return f'{int(round(seconds) // 60)} minutes and {int(round(seconds) % 60)} seconds'
         elif seconds < 86400:
-            return f'{int(seconds // 3600)} hours, {int((seconds % 3600) // 60)} minutes, and {round(seconds % 60)} seconds'
+            return f'{int(round(seconds) // 3600)} hours, {int((round(seconds) % 3600) // 60)} minutes, and {int(round(seconds) % 60)} seconds'
         else:
-            return f'{int(seconds // 86400)} days, {int((seconds % 86400) // 3600)} hours, and {round((seconds % 3600) // 60)} minutes'
+            return f'{int(round(seconds) // 86400)} days, {int((round(seconds) % 86400) // 3600)} hours, and {int((round(seconds) % 3600) // 60)} minutes'
 
     def get_component_name(self):
         # TODO include version/hash info?

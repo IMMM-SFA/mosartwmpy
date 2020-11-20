@@ -34,15 +34,21 @@ def _update(self):
         if self.config.get('runoff.variables.surface_runoff', None) is not None:
             self.state.hillslope_surface_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
                 self.runoff[self.config.get('runoff.variables.surface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()).repartition(npartitions=self.partitions)).persist()
+            ).flatten()))
+            if self.partitions is not None and self.partitions > 0:
+                self.state.hillslope_surface_runoff.repartition(npartitions=self.partitions)
         if self.config.get('runoff.variables.subsurface_runoff', None) is not None:
             self.state.hillslope_subsurface_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
                 self.runoff[self.config.get('runoff.variables.subsurface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()).repartition(npartitions=self.partitions)).persist()
+            ).flatten()))
+            if self.partitions is not None and self.partitions > 0:
+                self.state.hillslope_subsurface_runoff.repartition(npartitions=self.partitions)
         if self.config.get('runoff.variables.wetland_runoff', None) is not None:
             self.state.hillslope_wetland_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
                 self.runoff[self.config.get('runoff.variables.wetland_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()).repartition(npartitions=self.partitions)).persist()
+            ).flatten()))
+            if self.partitions is not None and self.partitions > 0:
+                self.state.hillslope_wetland_runoff.repartition(npartitions=self.partitions)
 
     ###
     ### Compute Flood
@@ -90,7 +96,7 @@ def _update(self):
     self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff.mask(condition, 0)
     # remove remaining wetland runoff (negative and positive)
     source_direct = source_direct + self.state.hillslope_wetland_runoff
-    self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff.mask(self.state.hillslope_wetland_runoff.ne(0), 0).persist()
+    self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff.mask(self.state.hillslope_wetland_runoff.ne(0), 0)
     
     # runoff from hillslope
     # remove negative subsurface water
@@ -125,6 +131,7 @@ def _update(self):
     # subcycle timestep
     delta_t =  self.config.get('simulation.timestep') / self.config.get('simulation.subcycles')
     
+    # persist()
     self.state = self.state.persist()
     
     for _ in np.arange(self.config.get('simulation.subcycles')):
@@ -152,6 +159,8 @@ def _update(self):
             ###
             logging.debug(' - subnetwork routing')
             subnetwork_routing(self, delta_t)
+            
+            # persist
             self.state = self.state.persist()
             
             ###
@@ -165,6 +174,8 @@ def _update(self):
             self.state.channel_outflow_sum_upstream_instant = self.grid[['downstream_id']].merge(self.state[['channel_outflow_downstream']].join(self.grid[['downstream_id']]).groupby('downstream_id').sum(), how='left')['channel_outflow_downstream'].fillna(0.0)
             self.state.channel_outflow_sum_upstream_average = self.state.channel_outflow_sum_upstream_average + self.state.channel_outflow_sum_upstream_instant
             self.state.channel_lateral_flow_hillslope_average = self.state.channel_lateral_flow_hillslope_average + self.state.channel_lateral_flow_hillslope
+            
+            # persist
             self.state = self.state.persist()
             
             ###
@@ -172,6 +183,8 @@ def _update(self):
             ###
             logging.debug(' - main channel routing')
             main_channel_routing(self, delta_t)
+            
+            # persist
             self.state = self.state.persist()
         
         # average state values over dlevelh2r
@@ -192,6 +205,7 @@ def _update(self):
         self.state.outflow_sum_upstream_average = self.state.outflow_sum_upstream_average + self.state.channel_outflow_sum_upstream_average
         self.state.lateral_flow_hillslope_average = self.state.lateral_flow_hillslope_average + self.state.channel_lateral_flow_hillslope_average
         
+        # persist
         self.state = self.state.persist()
         
         self.current_time += datetime.timedelta(seconds=delta_t)
@@ -219,7 +233,15 @@ def _update(self):
     self.state.runoff_total = self.state.runoff_total.mask(self.grid.land_mask.ge(2), self.state.runoff_total + self.state.runoff)
     self.state.delta_storage_ocean = self.state.delta_storage.where(self.grid.land_mask.ge(2), 0)
     
+    # persist
     self.state = self.state.persist()
+    
+    # TODO negative storage checks etc
+    # check for negative storage
+    # if self.state.subnetwork_storage.lt(-self.parameters['tiny_value']).any().compute():
+    #     raise Exception('Negative subnetwork storage.')
+    # if self.state.channel_storage.lt(-self.parameters['tiny_value']).any().compute():
+    #     raise Exception('Negative channel storage.')
     
     # TODO budget checks
     
@@ -232,16 +254,16 @@ def hillslope_routing(self, delta_t):
     # perform the hillslope routing for the whole grid
     # TODO describe what is happening heres
     
-    base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask).persist()
+    base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask)
     
     velocity_hillslope = self.state.zeros.mask(
         base_condition & self.state.hillslope_depth.gt(0),
-        ((self.state.hillslope_depth ** 2) ** (1/3)) * (self.grid.hillslope ** (1/2)) / self.grid.hillslope_manning
+        (self.state.hillslope_depth ** (2/3)) * (self.grid.hillslope ** (1/2)) / self.grid.hillslope_manning
     )
     
     self.state.hillslope_overland_flow = self.state.hillslope_overland_flow.mask(
         base_condition,
-        self.state.hillslope_depth * velocity_hillslope * self.grid.drainage_density
+        -self.state.hillslope_depth * velocity_hillslope * self.grid.drainage_density
     )
     self.state.hillslope_overland_flow = self.state.hillslope_overland_flow.mask(
         base_condition &
@@ -281,15 +303,15 @@ def subnetwork_routing(self, delta_t):
     # TODO describe what is happening here
     
     self.state.channel_lateral_flow_hillslope = self.state.zeros
-    local_delta_t = (delta_t / self.config.get('simulation.routing_iterations') / self.grid.iterations_subnetwork.max()).persist()
+    local_delta_t = (delta_t / self.config.get('simulation.routing_iterations') / self.grid.iterations_subnetwork)
     
     # step through max iterations, masking out the unnecessary cells each time
-    base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask).persist()
-    sub_condition = (self.grid.subnetwork_length.gt(self.grid.hillslope_length)).persist() # has tributaries
+    base_condition = self.grid.mosart_mask.gt(0) & self.state.euler_mask
+    sub_condition = self.grid.subnetwork_length.gt(self.grid.hillslope_length) # has tributaries
     
     for _ in np.arange(self.grid.iterations_subnetwork.max().compute()):
         logging.debug(f' - subnetwork iteration {int(_)}')
-        iteration_condition = base_condition #& self.grid.iterations_subnetwork.gt(_)
+        iteration_condition = base_condition & self.grid.iterations_subnetwork.gt(_)
 
         self.state.subnetwork_flow_velocity = self.state.subnetwork_flow_velocity.mask(
             iteration_condition & sub_condition,
@@ -318,10 +340,10 @@ def subnetwork_routing(self, delta_t):
             -(self.state.subnetwork_lateral_inflow + self.state.subnetwork_storage / local_delta_t)
         )
         
-        # self.state.subnetwork_flow_velocity = self.state.subnetwork_flow_velocity.mask(
-        #     condition & self.state.subnetwork_cross_section_area.gt(0),
-        #     -self.state.subnetwork_discharge / self.state.subnetwork_cross_section_area
-        # )
+        self.state.subnetwork_flow_velocity = self.state.subnetwork_flow_velocity.mask(
+            condition & self.state.subnetwork_cross_section_area.gt(0),
+            -self.state.subnetwork_discharge / self.state.subnetwork_cross_section_area
+        )
         
         self.state.subnetwork_delta_storage = self.state.subnetwork_delta_storage.mask(
             iteration_condition,
@@ -338,27 +360,17 @@ def subnetwork_routing(self, delta_t):
             self.state.subnetwork_storage + self.state.subnetwork_delta_storage * local_delta_t
         )
         
-        # check for negative value
-        # self.state = self.state.persist()
-        # if self.state.subnetwork_storage.lt(-self.parameters['tiny_value']).any().compute():
-        #     raise Exception('Negative subnetwork storage.')
-        
         update_subnetwork_state(self, iteration_condition)
         
         self.state.channel_lateral_flow_hillslope = self.state.channel_lateral_flow_hillslope.mask(
             iteration_condition,
             self.state.channel_lateral_flow_hillslope - self.state.subnetwork_discharge
         )
-        
-        # stability check
-        # self.state = self.state.persist()
-        # if ((self.state.subnetwork_flow_velocity.lt(-self.parameters['tiny_value']) | self.state.subnetwork_flow_velocity.gt(30)).any().compute()):
-        #     raise Exception('Numerical error in subnetwork routing.')
     
     # average lateral flow over substeps
     self.state.channel_lateral_flow_hillslope = self.state.channel_lateral_flow_hillslope.mask(
         base_condition,
-        self.state.channel_lateral_flow_hillslope / self.grid.iterations_subnetwork.max()
+        self.state.channel_lateral_flow_hillslope / self.grid.iterations_subnetwork
     )
 
 
@@ -390,13 +402,13 @@ def main_channel_routing(self, delta_t):
     # TODO describe what is happening here
     
     tmp_outflow_downstream = self.state.zeros
-    local_delta_t = (delta_t / self.config.get('simulation.routing_iterations') / self.grid.iterations_main_channel.max()).persist()
+    local_delta_t = (delta_t / self.config.get('simulation.routing_iterations') / self.grid.iterations_main_channel)
     
     # step through max iterations, masking out the unnecessary cells each time
-    base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask).persist()
+    base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask)
     for _ in np.arange(self.grid.iterations_main_channel.max().compute()):
         logging.debug(f' - main channel iteration {int(_)}')
-        iteration_condition = base_condition #& self.grid.iterations_main_channel.gt(_)
+        iteration_condition = base_condition & self.grid.iterations_main_channel.gt(_)
     
         # routing
         routing_method = self.config.get('simulation.routing_method', 1)
@@ -415,11 +427,6 @@ def main_channel_routing(self, delta_t):
             self.state.channel_storage + self.state.channel_delta_storage * local_delta_t
         )
         
-        # check for negative value
-        # self.state = self.state.persist()
-        # if self.state.channel_storage.lt(-self.parameters['tiny_value']).any().compute():
-        #     raise Exception('Negative channel storage.')
-        
         update_main_channel_state(self, iteration_condition)
         
         # update outflow tracking
@@ -431,7 +438,7 @@ def main_channel_routing(self, delta_t):
     # update outflow
     self.state.channel_outflow_downstream = self.state.channel_outflow_downstream.mask(
         base_condition,
-        tmp_outflow_downstream / self.grid.iterations_main_channel.max()
+        tmp_outflow_downstream / self.grid.iterations_main_channel
     )
     self.state.channel_outflow_downstream_current_timestep = self.state.channel_outflow_downstream_current_timestep.mask(
         base_condition,
@@ -527,10 +534,10 @@ def kinematic_wave_routing(self, delta_t, base_condition):
         condition,
         -(self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_storage / delta_t)
     )
-    # self.state.channel_flow_velocity = self.state.channel_flow_velocity.mask(
-    #     condition & self.state.channel_cross_section_area.gt(0),
-    #     -self.state.channel_outflow_downstream / self.state.channel_cross_section_area
-    # )
+    self.state.channel_flow_velocity = self.state.channel_flow_velocity.mask(
+        condition & self.state.channel_cross_section_area.gt(0),
+        -self.state.channel_outflow_downstream / self.state.channel_cross_section_area
+    )
     
     # calculate change in storage, but first round small runoff to zero
     tmp_delta_runoff = self.state.zeros.mask(
@@ -548,10 +555,3 @@ def kinematic_wave_routing(self, delta_t, base_condition):
         base_condition,
         self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_outflow_downstream + tmp_delta_runoff
     )
-    
-    # stability check
-    # self.state = self.state.persist()
-    # if ((self.state.channel_flow_velocity.lt(-self.parameters['tiny_value']) | self.state.channel_flow_velocity.gt(30)).any().compute()):
-    #     raise Exception('Numerical error in kinematic wave routing.')
-    # if ((self.state.channel_storage.gt(1) & (self.state.channel_storage / delta_t + self.state.channel_delta_storage / self.state.channel_storage).lt(-self.parameters['tiny_value'])).any().compute()):
-    #     raise Exception('Negative channel storage.')
