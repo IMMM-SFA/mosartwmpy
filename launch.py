@@ -21,8 +21,10 @@ if __name__ == '__main__':
 
     dask_cluster = LocalCluster(
         n_workers=4,
-        silence_logs=logging.ERROR,
-        dashboard_address=None
+        processes=1,
+        #silence_logs=logging.ERROR,
+        dashboard_address=None,
+        memory_limit='16GB'
     )
     dask_client = Client(dask_cluster)
 
@@ -37,5 +39,13 @@ if __name__ == '__main__':
     # launch simulation
     self = Mosart()
     self.initialize()
-    self.update()
-    #self.update_until(self.get_end_time())
+    #self.update()
+    self.update_until(self.get_end_time())
+    self.grid.to_parquet(
+        f'./output/{self.name}/grid',
+        overwrite=True
+    )
+    self.state.to_parquet(
+        f'./output/{self.name}/state',
+        overwrite=True
+    )
