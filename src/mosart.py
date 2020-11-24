@@ -8,7 +8,6 @@ from timeit import default_timer as timer
 
 from ._initialize_state import _initialize_state
 from ._load_grid import _load_grid
-from ._load_input import _load_input
 from ._setup import _setup
 from ._update import _update
 
@@ -32,7 +31,6 @@ class Mosart(Bmi):
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
         self.state = None
-        self.partitions = None
 
     def initialize(self, config_file_path: str = None):
         t = timer()
@@ -51,24 +49,12 @@ class Mosart(Bmi):
             logging.exception('Failed to load grid file; see below for stacktrace.')
             raise e
 
-        # load input files
-        try:
-            _load_input(self)
-        except Exception as e:
-            logging.exception('Failed to load inputs; see below for stacktrace.')
-            raise e
-
         # load restart file or initialize state
         try:
             _initialize_state(self)
         except Exception as e:
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
-        
-        # repartition the dataframes based on something intelligent... TODO
-        if self.partitions is not None and self.partitions > 0:
-            self.grid = self.grid.repartition(npartitions=self.partitions).persist()
-            self.state = self.state.repartition(npartitions=self.partitions).persist()
         
         logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
         

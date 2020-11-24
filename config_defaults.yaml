@@ -18,7 +18,7 @@ batch:
     # cores per job
     cores: 24
     # memory to allocate
-    memory: 500 GB
+    memory: 64 GB
     # number of jobs
     jobs: 1
 
@@ -133,11 +133,11 @@ runoff:
 ###
 water_management:
     # flag to turn this feature on or off
-    enabled: true
+    enabled: false
     # flag to enable or disable ice runoff
-    ice_runoff_enabled: true
+    ice_runoff_enabled: false
     # flag to enable or disable regulation
-    regulation_enabled: true
+    regulation_enabled: false
     # Demand
     demand:
         # path to the demand file; can be absolute or relative to the source code root

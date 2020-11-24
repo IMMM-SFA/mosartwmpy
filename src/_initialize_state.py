@@ -1,7 +1,6 @@
-import dask.array as da
-import dask.dataframe as dd
 import logging
 import numpy as np
+import pandas as pd
 from datetime import datetime, time
 from xarray import open_dataset
 
@@ -206,24 +205,25 @@ def _initialize_state(self):
         'zeros'
     ]:
         if state_dataframe is not None:
-            state_dataframe = state_dataframe.join(dd.from_array(da.zeros(self.get_grid_size()), columns=[var])).persist()
+            state_dataframe = state_dataframe.join(pd.DataFrame(np.zeros(self.get_grid_size()), columns=[var]))
         else:
-            state_dataframe = dd.from_array(da.zeros(self.get_grid_size()), columns=[var]).persist()
+            state_dataframe = pd.DataFrame(np.zeros(self.get_grid_size()), columns=[var])
     
     # tracers
     # TODO how to handle ice?
     self.tracers = (self.LIQUID_TRACER, self.ICE_TRACER) if self.config.get('water_management.ice_runoff_enabled') else (self.LIQUID_TRACER,)
-    state_dataframe = state_dataframe.join(dd.from_array(
-        da.full(self.get_grid_size(), self.LIQUID_TRACER), columns=['tracer']
-    )).persist()
+    state_dataframe = state_dataframe.join(pd.DataFrame(
+        np.full(self.get_grid_size(), self.LIQUID_TRACER), columns=['tracer']
+    ))
 
     # mask on whether or not to perform euler calculations
-    state_dataframe = state_dataframe.join(dd.from_array(da.where(
-        da.array(state_dataframe.tracer.eq(self.LIQUID_TRACER)).compute(),
+    state_dataframe = state_dataframe.join(pd.DataFrame(np.where(
+        np.array(state_dataframe.tracer.eq(self.LIQUID_TRACER)),
         True,
         False
-    ), columns=['euler_mask'])).persist()
+    ), columns=['euler_mask']))
     
+    # add the state to self
     self.state = state_dataframe
     
     # TODO these initial conditions only seem to be used for inundation, which i haven't got to yet
@@ -265,5 +265,3 @@ def _initialize_state(self):
     # update_subnetwork_state(self, condition)
     # update_main_channel_state(self, condition)
     # self.state.storage = self.state.channel_storage + self.state.subnetwork_storage + self.state.hillslope_storage * self.grid.area
-    
-    self.state = self.state.persist()

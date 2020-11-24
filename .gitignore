@@ -4,3 +4,4 @@ input/*
 output/*
 dask-worker-space/*
 __pycache__
+.python-version

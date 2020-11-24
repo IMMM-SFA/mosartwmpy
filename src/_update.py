@@ -1,8 +1,8 @@
-import dask.array as da
-import dask.dataframe as dd
 import datetime
 import logging
 import numpy as np
+import pandas as pd
+from xarray import open_dataset
 
 def _update(self):
     # perform one timestep
@@ -31,24 +31,24 @@ def _update(self):
     # the flood section needs m3/s, but the routing needs m/s, so be aware of the conversions
     # method="pad" means the closest time in the past is selected from the file
     if self.config.get('runoff.enabled', False):
+        logging.debug(' - loading runoff')
+        runoff = open_dataset(self.config.get('runoff.path'))
         if self.config.get('runoff.variables.surface_runoff', None) is not None:
-            self.state.hillslope_surface_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
-                self.runoff[self.config.get('runoff.variables.surface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()))
-            if self.partitions is not None and self.partitions > 0:
-                self.state.hillslope_surface_runoff.repartition(npartitions=self.partitions)
+            logging.debug('   - surface')
+            self.state.hillslope_surface_runoff = 0.001 * self.grid.area * np.array(
+                runoff[self.config.get('runoff.variables.surface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
+            ).flatten()
         if self.config.get('runoff.variables.subsurface_runoff', None) is not None:
-            self.state.hillslope_subsurface_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
-                self.runoff[self.config.get('runoff.variables.subsurface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()))
-            if self.partitions is not None and self.partitions > 0:
-                self.state.hillslope_subsurface_runoff.repartition(npartitions=self.partitions)
+            logging.debug('   - subsurface')
+            self.state.hillslope_subsurface_runoff = 0.001 * self.grid.area * np.array(
+                runoff[self.config.get('runoff.variables.subsurface_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
+            ).flatten()
         if self.config.get('runoff.variables.wetland_runoff', None) is not None:
-            self.state.hillslope_wetland_runoff = (0.001 * self.grid.area * dd.from_array(da.array(
-                self.runoff[self.config.get('runoff.variables.wetland_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
-            ).flatten()))
-            if self.partitions is not None and self.partitions > 0:
-                self.state.hillslope_wetland_runoff.repartition(npartitions=self.partitions)
+            logging.debug('   - wetland')
+            self.state.hillslope_wetland_runoff = 0.001 * self.grid.area * np.array(
+                runoff[self.config.get('runoff.variables.wetland_runoff')].sel({self.config.get('runoff.time'): self.current_time}, method='pad')
+            ).flatten()
+        runoff.close()
 
     ###
     ### Compute Flood
@@ -116,7 +116,7 @@ def _update(self):
     self.state.hillslope_surface_runoff = self.state.hillslope_surface_runoff.mask(condition, 0)
 
     # send the direct water to outlet for each tracer
-    self.state.direct = self.grid[['outlet_id']].merge(self.state[['direct']].join(self.grid[['outlet_id']]).groupby('outlet_id').sum(), how='left')['direct'].fillna(0.0)
+    self.state.direct = self.grid[['outlet_id']].join(self.state[['direct']].join(self.grid[['outlet_id']]).groupby('outlet_id').sum(), how='left')['direct'].fillna(0.0)
     
     ###
     ### Subcycling
@@ -130,9 +130,6 @@ def _update(self):
 
     # subcycle timestep
     delta_t =  self.config.get('simulation.timestep') / self.config.get('simulation.subcycles')
-    
-    # persist()
-    self.state = self.state.persist()
     
     for _ in np.arange(self.config.get('simulation.subcycles')):
         logging.debug(f' - subcycle {int(_)}')
@@ -160,9 +157,6 @@ def _update(self):
             logging.debug(' - subnetwork routing')
             subnetwork_routing(self, delta_t)
             
-            # persist
-            self.state = self.state.persist()
-            
             ###
             ### upstream interactions
             ###
@@ -171,12 +165,9 @@ def _update(self):
             self.state.channel_outflow_sum_upstream_instant = self.state.zeros
             
             # send channel downstream outflow to downstream cells
-            self.state.channel_outflow_sum_upstream_instant = self.grid[['downstream_id']].merge(self.state[['channel_outflow_downstream']].join(self.grid[['downstream_id']]).groupby('downstream_id').sum(), how='left')['channel_outflow_downstream'].fillna(0.0)
+            self.state.channel_outflow_sum_upstream_instant = self.grid[['downstream_id']].join(self.state[['channel_outflow_downstream']].join(self.grid[['downstream_id']]).groupby('downstream_id').sum(), how='left')['channel_outflow_downstream'].fillna(0.0)
             self.state.channel_outflow_sum_upstream_average = self.state.channel_outflow_sum_upstream_average + self.state.channel_outflow_sum_upstream_instant
             self.state.channel_lateral_flow_hillslope_average = self.state.channel_lateral_flow_hillslope_average + self.state.channel_lateral_flow_hillslope
-            
-            # persist
-            self.state = self.state.persist()
             
             ###
             ### channel routing
@@ -185,7 +176,7 @@ def _update(self):
             main_channel_routing(self, delta_t)
             
             # persist
-            self.state = self.state.persist()
+            # self.state = self.state.persist()
         
         # average state values over dlevelh2r
         logging.debug(' - averaging state values over dlevelh2r')
@@ -204,9 +195,6 @@ def _update(self):
         self.state.outflow_after_regulation = self.state.outflow_after_regulation + self.state.channel_outflow_after_regulation
         self.state.outflow_sum_upstream_average = self.state.outflow_sum_upstream_average + self.state.channel_outflow_sum_upstream_average
         self.state.lateral_flow_hillslope_average = self.state.lateral_flow_hillslope_average + self.state.channel_lateral_flow_hillslope_average
-        
-        # persist
-        self.state = self.state.persist()
         
         self.current_time += datetime.timedelta(seconds=delta_t)
     
@@ -232,9 +220,6 @@ def _update(self):
     self.state.runoff_ocean = self.state.runoff.where(self.grid.land_mask.ge(2), 0)
     self.state.runoff_total = self.state.runoff_total.mask(self.grid.land_mask.ge(2), self.state.runoff_total + self.state.runoff)
     self.state.delta_storage_ocean = self.state.delta_storage.where(self.grid.land_mask.ge(2), 0)
-    
-    # persist
-    self.state = self.state.persist()
     
     # TODO negative storage checks etc
     # check for negative storage
@@ -309,7 +294,7 @@ def subnetwork_routing(self, delta_t):
     base_condition = self.grid.mosart_mask.gt(0) & self.state.euler_mask
     sub_condition = self.grid.subnetwork_length.gt(self.grid.hillslope_length) # has tributaries
     
-    for _ in np.arange(self.grid.iterations_subnetwork.max().compute()):
+    for _ in np.arange(self.grid.iterations_subnetwork.max()):
         logging.debug(f' - subnetwork iteration {int(_)}')
         iteration_condition = base_condition & self.grid.iterations_subnetwork.gt(_)
 
@@ -406,7 +391,7 @@ def main_channel_routing(self, delta_t):
     
     # step through max iterations, masking out the unnecessary cells each time
     base_condition = (self.grid.mosart_mask.gt(0) & self.state.euler_mask)
-    for _ in np.arange(self.grid.iterations_main_channel.max().compute()):
+    for _ in np.arange(self.grid.iterations_main_channel.max()):
         logging.debug(f' - main channel iteration {int(_)}')
         iteration_condition = base_condition & self.grid.iterations_main_channel.gt(_)
     
@@ -525,7 +510,7 @@ def kinematic_wave_routing(self, delta_t, base_condition):
     )
     condition = (
         base_condition &
-        da.logical_not(condition) &
+        np.logical_not(condition) &
         self.grid.channel_length.gt(0) &
         (-self.state.channel_outflow_downstream).gt(self.parameters['tiny_value']) &
         (self.state.channel_storage + (self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_outflow_downstream) * delta_t).lt(self.parameters['tiny_value'])
