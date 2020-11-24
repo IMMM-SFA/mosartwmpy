@@ -14,7 +14,8 @@ warnings.filterwarnings('ignore')
 pd.options.display.max_columns = None
 
 def plot(series):
-    plt.imshow(np.array(series).reshape(self.get_grid_shape()), origin='lower')
+    mesh = np.array(series.mask(self.grid.mosart_mask == 0, np.nan)).reshape(self.get_grid_shape())
+    plt.imshow(mesh, origin='lower')
     plt.colorbar()
     plt.show()
 

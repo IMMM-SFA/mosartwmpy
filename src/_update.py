@@ -363,22 +363,34 @@ def update_subnetwork_state(self, base_condition):
     # update the physical properties of the subnetwork
         
     # update state variables
-    condition = base_condition & self.grid.subnetwork_length.gt(0) & self.state.subnetwork_storage.gt(0)
-    self.state.subnetwork_cross_section_area = self.state.zeros.mask(
-        condition,
-        self.state.subnetwork_storage / self.grid.subnetwork_length
+    condition = self.grid.subnetwork_length.gt(0) & self.state.subnetwork_storage.gt(0)
+    self.state.subnetwork_cross_section_area = self.state.subnetwork_cross_section_area.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition,
+            self.state.subnetwork_storage / self.grid.subnetwork_length
+        )
     )
-    self.state.subnetwork_depth = self.state.zeros.mask(
-        condition & self.state.subnetwork_cross_section_area.gt(self.parameters['tiny_value']),
-        self.state.subnetwork_cross_section_area / self.grid.subnetwork_width
+    self.state.subnetwork_depth =  self.state.subnetwork_depth.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.subnetwork_cross_section_area.gt(self.parameters['tiny_value']),
+            self.state.subnetwork_cross_section_area / self.grid.subnetwork_width
+        )
     )
-    self.state.subnetwork_wetness_perimeter = self.state.zeros.mask(
-        condition & self.state.subnetwork_depth.gt(self.parameters['tiny_value']),
-        self.grid.subnetwork_width + 2 * self.state.subnetwork_depth
+    self.state.subnetwork_wetness_perimeter = self.state.subnetwork_wetness_perimeter.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.subnetwork_depth.gt(self.parameters['tiny_value']),
+            self.grid.subnetwork_width + 2 * self.state.subnetwork_depth
+        )
     )
-    self.state.subnetwork_hydraulic_radii = self.state.zeros.mask(
-        condition & self.state.subnetwork_wetness_perimeter.gt(self.parameters['tiny_value']),
-        self.state.subnetwork_cross_section_area / self.state.subnetwork_wetness_perimeter
+    self.state.subnetwork_hydraulic_radii = self.state.subnetwork_hydraulic_radii.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.subnetwork_wetness_perimeter.gt(self.parameters['tiny_value']),
+            self.state.subnetwork_cross_section_area / self.state.subnetwork_wetness_perimeter
+        )
     )
 
 
@@ -437,14 +449,13 @@ def main_channel_routing(self, delta_t):
 
 def update_main_channel_state(self, base_condition):
     # update the physical properties of the main channel
-    condition = (
-        base_condition &
-        self.grid.channel_length.gt(0) &
-        self.state.channel_storage.gt(0)
-    )
-    self.state.channel_cross_section_area = self.state.zeros.mask(
-        condition,
-        self.state.channel_storage / self.grid.channel_length
+    condition = self.grid.channel_length.gt(0) & self.state.channel_storage.gt(0)
+    self.state.channel_cross_section_area = self.state.channel_cross_section_area.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition,
+            self.state.channel_storage / self.grid.channel_length
+        )
     )
     # Function for estimating maximum water depth assuming rectangular channel and tropezoidal flood plain
     # here assuming the channel cross-section consists of three parts, from bottom to up,
@@ -454,13 +465,16 @@ def update_main_channel_state(self, base_condition):
     not_flooded = (self.state.channel_cross_section_area - (self.grid.channel_depth * self.grid.channel_width)).le(self.parameters['tiny_value'])
     delta_area = self.state.channel_cross_section_area - self.grid.channel_depth  * self.grid.channel_width - (self.grid.channel_width + self.grid.channel_floodplain_width) * self.parameters['slope_1_def'] *((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) / 2.0
     equivalent_depth_condition =  delta_area.gt(self.parameters['tiny_value'])
-    self.state.channel_depth = self.state.zeros.mask(
-        condition & self.state.channel_cross_section_area.gt(self.parameters['tiny_value']),
-        (self.state.channel_cross_section_area / self.grid.channel_width).where(
-            not_flooded,
-            (self.grid.channel_depth + self.parameters['slope_1_def'] * ((self.grid.channel_floodplain_width  - self.grid.channel_width) / 2.0) + delta_area / self.grid.channel_floodplain_width).where(
-                equivalent_depth_condition,
-                self.grid.channel_depth + (-self.grid.channel_width + (((self.grid.channel_width ** 2) + 4 * (self.state.channel_cross_section_area  - self.grid.channel_depth * self.grid.channel_width) / self.parameters['slope_1_def']) ** (1/2))) * self.parameters['slope_1_def'] / 2.0
+    self.state.channel_depth = self.state.channel_depth.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.channel_cross_section_area.gt(self.parameters['tiny_value']),
+            (self.state.channel_cross_section_area / self.grid.channel_width).where(
+                not_flooded,
+                (self.grid.channel_depth + self.parameters['slope_1_def'] * ((self.grid.channel_floodplain_width  - self.grid.channel_width) / 2.0) + delta_area / self.grid.channel_floodplain_width).where(
+                    equivalent_depth_condition,
+                    self.grid.channel_depth + (-self.grid.channel_width + (((self.grid.channel_width ** 2) + 4 * (self.state.channel_cross_section_area  - self.grid.channel_depth * self.grid.channel_width) / self.parameters['slope_1_def']) ** (1/2))) * self.parameters['slope_1_def'] / 2.0
+                )
             )
         )
     )
@@ -468,19 +482,25 @@ def update_main_channel_state(self, base_condition):
     not_flooded = self.state.channel_depth.le(self.grid.channel_depth + self.parameters['tiny_value'])
     delta_height = self.state.channel_depth - self.grid.channel_depth - ((self.grid.channel_floodplain_width -  self.grid.channel_width) / 2.0) * self.parameters['slope_1_def']
     equivalent_depth_condition = delta_height.gt(self.parameters['tiny_value'])
-    self.state.channel_wetness_perimeter = self.state.zeros.mask(
-        condition & self.state.channel_depth.ge(self.parameters['tiny_value']),
-        (self.grid.channel_width + 2 * self.state.channel_depth).where(
-            not_flooded,
-            (self.grid.channel_width + 2 * (self.grid.channel_depth + ((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) * self.parameters['slope_1_def'] * self.parameters['1_over_sin_atan_slope_1_def'] + delta_height)).where(
-                equivalent_depth_condition,
-                self.grid.channel_width + 2 * (self.grid.channel_depth + (self.state.channel_depth - self.grid.channel_depth) * self.parameters['1_over_sin_atan_slope_1_def'])
+    self.state.channel_wetness_perimeter = self.state.channel_wetness_perimeter.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.channel_depth.ge(self.parameters['tiny_value']),
+            (self.grid.channel_width + 2 * self.state.channel_depth).where(
+                not_flooded,
+                (self.grid.channel_width + 2 * (self.grid.channel_depth + ((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) * self.parameters['slope_1_def'] * self.parameters['1_over_sin_atan_slope_1_def'] + delta_height)).where(
+                    equivalent_depth_condition,
+                    self.grid.channel_width + 2 * (self.grid.channel_depth + (self.state.channel_depth - self.grid.channel_depth) * self.parameters['1_over_sin_atan_slope_1_def'])
+                )
             )
         )
     )
-    self.state.channel_hydraulic_radii = self.state.zeros.mask(
-        condition & self.state.channel_wetness_perimeter.gt(self.parameters['tiny_value']),
-        self.state.channel_cross_section_area / self.state.channel_wetness_perimeter
+    self.state.channel_hydraulic_radii = self.state.channel_hydraulic_radii.mask(
+        base_condition,
+        self.state.zeros.mask(
+            condition & self.state.channel_wetness_perimeter.gt(self.parameters['tiny_value']),
+            self.state.channel_cross_section_area / self.state.channel_wetness_perimeter
+        )
     )
 
 def kinematic_wave_routing(self, delta_t, base_condition):
