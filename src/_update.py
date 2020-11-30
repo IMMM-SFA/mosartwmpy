@@ -2,6 +2,7 @@ import datetime
 import logging
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool
 from xarray import open_dataset
 
 def _update(self):
@@ -67,8 +68,8 @@ def _update(self):
 
     # flux sent back to land
     self.state.flood = self.state.zeros.mask(
-        self.grid.land_mask.eq(1) & self.state.storage.gt(self.parameters['flood_threshold']) & self.state.tracer.eq(self.LIQUID_TRACER),
-        (self.state.storage - self.parameters['flood_threshold']) / self.config.get('simulation.timestep')
+        self.grid.land_mask.eq(1) & self.state.storage.gt(self.parameters.flood_threshold) & self.state.tracer.eq(self.LIQUID_TRACER),
+        (self.state.storage - self.parameters.flood_threshold) / self.config.get('simulation.timestep')
     )
     # remove this flux from the input runoff from land
     self.state.hillslope_surface_runoff = self.state.hillslope_surface_runoff.mask(
@@ -88,7 +89,7 @@ def _update(self):
     
     # wetland runoff
     wetland_runoff_volume = self.state.hillslope_wetland_runoff * self.config.get('simulation.timestep') / self.config.get('simulation.subcycles')
-    river_volume_minimum = self.parameters['river_depth_minimum'] * self.grid.area
+    river_volume_minimum = self.parameters.river_depth_minimum * self.grid.area
 
     # if wetland runoff is negative and it would bring main channel storage below the minimum, send it directly to ocean
     condition = (self.state.channel_storage + wetland_runoff_volume).lt(river_volume_minimum) & self.state.hillslope_wetland_runoff.lt(0)
@@ -96,7 +97,7 @@ def _update(self):
     self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff.mask(condition, 0)
     # remove remaining wetland runoff (negative and positive)
     source_direct = source_direct + self.state.hillslope_wetland_runoff
-    self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff.mask(self.state.hillslope_wetland_runoff.ne(0), 0)
+    self.state.hillslope_wetland_runoff = self.state.zeros
     
     # runoff from hillslope
     # remove negative subsurface water
@@ -116,7 +117,7 @@ def _update(self):
     self.state.hillslope_surface_runoff = self.state.hillslope_surface_runoff.mask(condition, 0)
 
     # send the direct water to outlet for each tracer
-    self.state.direct = self.grid[['outlet_id']].join(self.state[['direct']].join(self.grid[['outlet_id']]).groupby('outlet_id').sum(), how='left')['direct'].fillna(0.0)
+    self.state.direct = self.grid[['outlet_id']].join(self.state[['direct']].join(self.grid.outlet_id).groupby('outlet_id').sum(), how='left').direct.fillna(0.0)
     
     ###
     ### Subcycling
@@ -165,7 +166,7 @@ def _update(self):
             self.state.channel_outflow_sum_upstream_instant = self.state.zeros
             
             # send channel downstream outflow to downstream cells
-            self.state.channel_outflow_sum_upstream_instant = self.grid[['downstream_id']].join(self.state[['channel_outflow_downstream']].join(self.grid[['downstream_id']]).groupby('downstream_id').sum(), how='left')['channel_outflow_downstream'].fillna(0.0)
+            self.state.channel_outflow_sum_upstream_instant = self.grid[['downstream_id']].join(self.state[['channel_outflow_downstream']].join(self.grid.downstream_id).groupby('downstream_id').sum(), how='left').channel_outflow_downstream.fillna(0.0)
             self.state.channel_outflow_sum_upstream_average = self.state.channel_outflow_sum_upstream_average + self.state.channel_outflow_sum_upstream_instant
             self.state.channel_lateral_flow_hillslope_average = self.state.channel_lateral_flow_hillslope_average + self.state.channel_lateral_flow_hillslope
             
@@ -174,12 +175,9 @@ def _update(self):
             ###
             logging.debug(' - main channel routing')
             main_channel_routing(self, delta_t)
-            
-            # persist
-            # self.state = self.state.persist()
         
         # average state values over dlevelh2r
-        logging.debug(' - averaging state values over dlevelh2r')
+        logging.debug(' - averaging state values over routing iterations')
         self.state.channel_flow = self.state.channel_flow / self.config.get('simulation.routing_iterations')
         self.state.channel_outflow_downstream_previous_timestep = self.state.channel_outflow_downstream_previous_timestep / self.config.get('simulation.routing_iterations')
         self.state.channel_outflow_downstream_current_timestep = self.state.channel_outflow_downstream_current_timestep / self.config.get('simulation.routing_iterations')
@@ -223,9 +221,9 @@ def _update(self):
     
     # TODO negative storage checks etc
     # check for negative storage
-    # if self.state.subnetwork_storage.lt(-self.parameters['tiny_value']).any().compute():
+    # if self.state.subnetwork_storage.lt(-self.parameters.tiny_value).any().compute():
     #     raise Exception('Negative subnetwork storage.')
-    # if self.state.channel_storage.lt(-self.parameters['tiny_value']).any().compute():
+    # if self.state.channel_storage.lt(-self.parameters.tiny_value).any().compute():
     #     raise Exception('Negative channel storage.')
     
     # TODO budget checks
@@ -253,8 +251,8 @@ def hillslope_routing(self, delta_t):
     self.state.hillslope_overland_flow = self.state.hillslope_overland_flow.mask(
         base_condition &
         self.state.hillslope_overland_flow.lt(0) &
-        (self.state.hillslope_storage + delta_t * (self.state.hillslope_surface_runoff + self.state.hillslope_overland_flow)).lt(self.parameters['tiny_value']),
-        -(self.state.hillslope_storage + self.state.hillslope_surface_runoff) / delta_t
+        (self.state.hillslope_storage + delta_t * (self.state.hillslope_surface_runoff + self.state.hillslope_overland_flow)).lt(self.parameters.tiny_value),
+        -(self.state.hillslope_surface_runoff + self.state.hillslope_storage / delta_t)
     )
     
     self.state.hillslope_delta_storage = self.state.hillslope_delta_storage.mask(
@@ -317,7 +315,7 @@ def subnetwork_routing(self, delta_t):
         condition = (
             iteration_condition &
             sub_condition &
-            (self.state.subnetwork_storage + (self.state.subnetwork_lateral_inflow + self.state.subnetwork_discharge) * local_delta_t).lt(self.parameters['tiny_value'])
+            (self.state.subnetwork_storage + (self.state.subnetwork_lateral_inflow + self.state.subnetwork_discharge) * local_delta_t).lt(self.parameters.tiny_value)
         )
         
         self.state.subnetwork_discharge = self.state.subnetwork_discharge.mask(
@@ -374,21 +372,21 @@ def update_subnetwork_state(self, base_condition):
     self.state.subnetwork_depth =  self.state.subnetwork_depth.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.subnetwork_cross_section_area.gt(self.parameters['tiny_value']),
+            condition & self.state.subnetwork_cross_section_area.gt(self.parameters.tiny_value),
             self.state.subnetwork_cross_section_area / self.grid.subnetwork_width
         )
     )
     self.state.subnetwork_wetness_perimeter = self.state.subnetwork_wetness_perimeter.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.subnetwork_depth.gt(self.parameters['tiny_value']),
+            condition & self.state.subnetwork_depth.gt(self.parameters.tiny_value),
             self.grid.subnetwork_width + 2 * self.state.subnetwork_depth
         )
     )
     self.state.subnetwork_hydraulic_radii = self.state.subnetwork_hydraulic_radii.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.subnetwork_wetness_perimeter.gt(self.parameters['tiny_value']),
+            condition & self.state.subnetwork_wetness_perimeter.gt(self.parameters.tiny_value),
             self.state.subnetwork_cross_section_area / self.state.subnetwork_wetness_perimeter
         )
     )
@@ -462,35 +460,35 @@ def update_main_channel_state(self, base_condition):
     # part 1 is a rectangular with bankfull depth (rdep) and bankfull width (rwid)
     # part 2 is a tropezoidal, bottom width rwid and top width rwid0, height 0.1*((rwid0-rwid)/2), assuming slope is 0.1
     # part 3 is a rectagular with the width rwid0
-    not_flooded = (self.state.channel_cross_section_area - (self.grid.channel_depth * self.grid.channel_width)).le(self.parameters['tiny_value'])
-    delta_area = self.state.channel_cross_section_area - self.grid.channel_depth  * self.grid.channel_width - (self.grid.channel_width + self.grid.channel_floodplain_width) * self.parameters['slope_1_def'] *((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) / 2.0
-    equivalent_depth_condition =  delta_area.gt(self.parameters['tiny_value'])
+    not_flooded = (self.state.channel_cross_section_area - (self.grid.channel_depth * self.grid.channel_width)).le(self.parameters.tiny_value)
+    delta_area = self.state.channel_cross_section_area - self.grid.channel_depth  * self.grid.channel_width - (self.grid.channel_width + self.grid.channel_floodplain_width) * self.parameters.slope_1_def * ((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) / 2.0
+    equivalent_depth_condition =  delta_area.gt(self.parameters.tiny_value)
     self.state.channel_depth = self.state.channel_depth.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.channel_cross_section_area.gt(self.parameters['tiny_value']),
+            condition & self.state.channel_cross_section_area.gt(self.parameters.tiny_value),
             (self.state.channel_cross_section_area / self.grid.channel_width).where(
                 not_flooded,
-                (self.grid.channel_depth + self.parameters['slope_1_def'] * ((self.grid.channel_floodplain_width  - self.grid.channel_width) / 2.0) + delta_area / self.grid.channel_floodplain_width).where(
+                (self.grid.channel_depth + self.parameters.slope_1_def * ((self.grid.channel_floodplain_width  - self.grid.channel_width) / 2.0) + delta_area / self.grid.channel_floodplain_width).where(
                     equivalent_depth_condition,
-                    self.grid.channel_depth + (-self.grid.channel_width + (((self.grid.channel_width ** 2) + 4 * (self.state.channel_cross_section_area  - self.grid.channel_depth * self.grid.channel_width) / self.parameters['slope_1_def']) ** (1/2))) * self.parameters['slope_1_def'] / 2.0
+                    self.grid.channel_depth + (-self.grid.channel_width + (((self.grid.channel_width ** 2) + 4 * (self.state.channel_cross_section_area  - self.grid.channel_depth * self.grid.channel_width) / self.parameters.slope_1_def) ** (1/2))) * self.parameters.slope_1_def / 2.0
                 )
             )
         )
     )
     # Function for estimating wetness perimeter based on same assumptions as above
-    not_flooded = self.state.channel_depth.le(self.grid.channel_depth + self.parameters['tiny_value'])
-    delta_height = self.state.channel_depth - self.grid.channel_depth - ((self.grid.channel_floodplain_width -  self.grid.channel_width) / 2.0) * self.parameters['slope_1_def']
-    equivalent_depth_condition = delta_height.gt(self.parameters['tiny_value'])
+    not_flooded = self.state.channel_depth.le(self.grid.channel_depth + self.parameters.tiny_value)
+    delta_depth = self.state.channel_depth - self.grid.channel_depth - ((self.grid.channel_floodplain_width -  self.grid.channel_width) / 2.0) * self.parameters.slope_1_def
+    equivalent_depth_condition = delta_depth.gt(self.parameters.tiny_value)
     self.state.channel_wetness_perimeter = self.state.channel_wetness_perimeter.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.channel_depth.ge(self.parameters['tiny_value']),
+            condition & self.state.channel_depth.ge(self.parameters.tiny_value),
             (self.grid.channel_width + 2 * self.state.channel_depth).where(
                 not_flooded,
-                (self.grid.channel_width + 2 * (self.grid.channel_depth + ((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) * self.parameters['slope_1_def'] * self.parameters['1_over_sin_atan_slope_1_def'] + delta_height)).where(
+                (self.grid.channel_width + 2 * (self.grid.channel_depth + ((self.grid.channel_floodplain_width - self.grid.channel_width) / 2.0) * self.parameters.slope_1_def * self.parameters.inverse_sin_atan_slope_1_def + delta_depth)).where(
                     equivalent_depth_condition,
-                    self.grid.channel_width + 2 * (self.grid.channel_depth + (self.state.channel_depth - self.grid.channel_depth) * self.parameters['1_over_sin_atan_slope_1_def'])
+                    self.grid.channel_width + 2 * (self.grid.channel_depth + (self.state.channel_depth - self.grid.channel_depth) * self.parameters.inverse_sin_atan_slope_1_def)
                 )
             )
         )
@@ -498,7 +496,7 @@ def update_main_channel_state(self, base_condition):
     self.state.channel_hydraulic_radii = self.state.channel_hydraulic_radii.mask(
         base_condition,
         self.state.zeros.mask(
-            condition & self.state.channel_wetness_perimeter.gt(self.parameters['tiny_value']),
+            condition & self.state.channel_wetness_perimeter.gt(self.parameters.tiny_value),
             self.state.channel_cross_section_area / self.state.channel_wetness_perimeter
         )
     )
@@ -520,20 +518,19 @@ def kinematic_wave_routing(self, delta_t, base_condition):
             (self.state.channel_hydraulic_radii ** (2/3)) * (self.grid.channel_slope ** (1/2)) / self.grid.channel_manning
         )
     )
-    condition = (self.grid.total_drainage_area_single / self.grid.channel_width / self.grid.channel_length).gt(1.0e6)
+    condition = self.grid.channel_length.gt(0) & (self.grid.total_drainage_area_single / self.grid.channel_width / self.grid.channel_length).le(self.parameters.kinematic_wave_condition)
     self.state.channel_outflow_downstream = self.state.channel_outflow_downstream.mask(
         base_condition,
-        (-self.state.channel_flow_velocity * self.state.channel_cross_section_area).mask(
-            condition | self.grid.channel_length.le(0),
-            -self.state.channel_inflow_upstream - self.state.channel_lateral_flow_hillslope
+        (-self.state.channel_inflow_upstream - self.state.channel_lateral_flow_hillslope).mask(
+            condition,
+            -self.state.channel_flow_velocity * self.state.channel_cross_section_area
         )
     )
     condition = (
         base_condition &
-        np.logical_not(condition) &
-        self.grid.channel_length.gt(0) &
-        (-self.state.channel_outflow_downstream).gt(self.parameters['tiny_value']) &
-        (self.state.channel_storage + (self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_outflow_downstream) * delta_t).lt(self.parameters['tiny_value'])
+        condition &
+        (-self.state.channel_outflow_downstream).gt(self.parameters.tiny_value) &
+        (self.state.channel_storage + (self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_outflow_downstream) * delta_t).lt(self.parameters.tiny_value)
     )
     self.state.channel_outflow_downstream = self.state.channel_outflow_downstream.mask(
         condition,
@@ -552,11 +549,11 @@ def kinematic_wave_routing(self, delta_t, base_condition):
     tmp_delta_runoff = tmp_delta_runoff.mask(
         base_condition,
         tmp_delta_runoff.mask(
-            tmp_delta_runoff.abs().le(self.parameters['tiny_value']),
+            tmp_delta_runoff.abs().le(self.parameters.tiny_value),
             0
         )
     )
-    self.state.channel_delta_storage = self.state.channel_delta_storage.mask(
+    self.state.channel_delta_storage = self.state.zeros.mask(
         base_condition,
         self.state.channel_lateral_flow_hillslope + self.state.channel_inflow_upstream + self.state.channel_outflow_downstream + tmp_delta_runoff
     )

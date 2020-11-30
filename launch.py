@@ -1,8 +1,9 @@
-import pandas as pd
-
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import warnings
+
+from xarray import open_mfdataset
 
 from src.mosart import Mosart
 
@@ -18,6 +19,10 @@ def plot(series):
     plt.imshow(mesh, origin='lower')
     plt.colorbar()
     plt.show()
+    
+def plot_sample(v, t):
+    series = pd.DataFrame(np.array(v[t,:,:]).flatten())
+    plot(series)
 
 # launch simulation
 self = Mosart()
@@ -26,3 +31,4 @@ self.initialize()
 self.update_until(self.get_end_time())
 self.grid.to_parquet(f'./output/{self.name}/grid.parquet')
 self.state.to_parquet(f'./output/{self.name}/state.parquet')
+#sample = open_mfdataset('./input/mosart_sample_data.nc')

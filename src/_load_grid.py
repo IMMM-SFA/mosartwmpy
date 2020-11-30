@@ -141,6 +141,20 @@ def _load_grid(self):
         pd.DataFrame(np.array(upstream_cell_counts, dtype=int),  columns=['upstream_cell_count'])
     )
     
+    # update zero slopes to a small number
+    grid_dataframe.hillslope = grid_dataframe.hillslope.mask(
+        grid_dataframe.hillslope.le(0),
+        self.parameters.hillslope_minimum
+    )
+    grid_dataframe.subnetwork_slope = grid_dataframe.subnetwork_slope.mask(
+        grid_dataframe.subnetwork_slope.le(0),
+        self.parameters.subnetwork_slope_minimum
+    )
+    grid_dataframe.channel_slope = grid_dataframe.channel_slope.mask(
+        grid_dataframe.channel_slope.le(0),
+        self.parameters.channel_slope_minimum
+    )
+    
     logging.debug(' - main channel iterations')
     
     # parameter for calculating number of main channel iterations needed
@@ -154,7 +168,7 @@ def _load_grid(self):
     # numDT_r
     grid_dataframe = grid_dataframe.join(pd.DataFrame(np.where(
         phi_main >= 10,
-        np.maximum(1, np.ceil(1 + self.config.get('simulation.subcycles') * np.log10(phi_main))),
+        np.maximum(1, np.floor(1 + self.config.get('simulation.subcycles') * np.log10(phi_main))),
         np.where(
             np.array(grid_dataframe.mosart_mask.gt(0) & grid_dataframe.channel_length.gt(0)),
             1 + self.config.get('simulation.subcycles'),
@@ -207,7 +221,7 @@ def _load_grid(self):
         grid_dataframe.channel_length.gt(0) & grid_dataframe.subnetwork_width.ge(0),
         grid_dataframe.subnetwork_width.mask(
             grid_dataframe.subnetwork_length.gt(0) & ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length).gt(1),
-            self.parameters['subnetwork_width_parameter'] * grid_dataframe.subnetwork_width * ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length)
+            self.parameters.subnetwork_width_parameter * grid_dataframe.subnetwork_width * ((grid_dataframe.total_channel_length - grid_dataframe.channel_length) / grid_dataframe.subnetwork_length)
         )
     )
     grid_dataframe.subnetwork_width = subnetwork_width.mask(
@@ -228,8 +242,8 @@ def _load_grid(self):
     grid_dataframe = grid_dataframe.join(pd.DataFrame(np.where(
         np.array(grid_dataframe.subnetwork_length.gt(0)),
         np.where(
-            phi_sub > 10,
-            np.maximum(np.ceil(1 + self.config.get('simulation.subcycles') * np.log10(phi_sub)), 1),
+            phi_sub >= 10,
+            np.maximum(np.floor(1 + self.config.get('simulation.subcycles') * np.log10(phi_sub)), 1),
             np.where(
                 np.array(grid_dataframe.subnetwork_length.gt(0)),
                 1 + self.config.get('simulation.subcycles'),

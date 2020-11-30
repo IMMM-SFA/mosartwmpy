@@ -1,9 +1,10 @@
 import logging
+import matplotlib.pyplot as plt
+import numpy as np
 
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time
-from numpy import empty
 from timeit import default_timer as timer
 
 from ._initialize_state import _initialize_state
@@ -26,11 +27,12 @@ class Mosart(Bmi):
         self.restart = None
         self.current_time = None
         self.input = None
-        self.parameters = {}
+        self.parameters = None
         self.tracers = None
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
         self.state = None
+        self.cores = 1
 
     def initialize(self, config_file_path: str = None):
         t = timer()
@@ -183,31 +185,31 @@ class Mosart(Bmi):
     def get_grid_size(self, grid: int = 0):
         return self.cell_count
 
-    def get_grid_shape(self, grid: int = 0, shape = empty(2, dtype=int)):
+    def get_grid_shape(self, grid: int = 0, shape = np.empty(2, dtype=int)):
         shape[0] = self.latitude.size
         shape[1] = self.longitude.size
         return shape
 
-    def get_grid_spacing(self, grid: int = 0, spacing = empty(2)):
+    def get_grid_spacing(self, grid: int = 0, spacing = np.empty(2)):
         # assumes uniform grid
         spacing[0] = self.latitude_spacing
         spacing[1] = self.longitude_spacing
         return spacing
     
-    def get_grid_origin(self, grid: int = 0, origin = empty(2)):
+    def get_grid_origin(self, grid: int = 0, origin = np.empty(2)):
         origin[0] = self.latitude[0]
         origin[1] = self.longitude[0]
         return origin
 
     def get_grid_x(self, grid: int = 0, x = None):
         if not x:
-            x = empty(self.get_grid_shape()[0])
+            x = np.empty(self.get_grid_shape()[0])
         x[:] = self.latitude
         return x
 
     def get_grid_y(self, grid: int = 0, y = None):
         if not y:
-            y = empty(self.get_grid_shape()[1])
+            y = np.empty(self.get_grid_shape()[1])
         y[:] = self.longitude
         return y
 

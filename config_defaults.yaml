@@ -7,6 +7,7 @@
 
 ###
 ### Batch
+### note: so far only supported on PNNL's constance cluster
 ###
 batch:
     # whether to run in batch mode using slurm (otherwise runs in default mode)
@@ -15,12 +16,19 @@ batch:
     queue: slurm
     # project to charge the time to
     project: IM3
-    # cores per job
-    cores: 24
-    # memory to allocate
-    memory: 64 GB
-    # number of jobs
-    jobs: 1
+    # number of nodes; note: only 1 supported so far
+    nodes: 1
+
+###
+### Multiprocessing
+### note: if running on a local machine, it is best not to use all your cores if you plan on doing other things in the meantime
+### note: when running in batch mode, all cores are used no matter what is specified here
+###
+multiprocessing:
+    # whether or not to use multiple cores
+    enabled: true
+    # number of cores to use; set to ~ to use all available cores
+    cores: 6
 
 ###
 ### Simulation
@@ -31,7 +39,7 @@ simulation:
     # date to begin the simulation
     start_date: 1980-01-01
     # date to end the simulation
-    end_date: 1980-01-31
+    end_date: 1980-01-01
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -46,7 +54,7 @@ simulation:
     log_level: INFO
     # resume simulation from restart file
     restart_file: ~
-    # output write frequency in simulation seconds; must be a multiple of simulation.sub_timestep; values will be averaged or summed appropriately
+    # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged or summed appropriately
     output_frequency: 86400 # output values once each day
     # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
     output_file_frequency: monthly
@@ -103,8 +111,6 @@ grid:
         channel_floodplain_width: rwid0
         # bankfull depth of main channel f ield name [m]
         channel_depth: rdep
-        # floodplain width linked to main channel field name [m]
-        floodplain_width: rwid0
 ###
 ### Runoff (forcing input)
 ###
