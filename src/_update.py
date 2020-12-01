@@ -227,10 +227,6 @@ def _update(self):
     #     raise Exception('Negative channel storage.')
     
     # TODO budget checks
-    
-    # TODO write output file
-    
-    # TODO write restart file
 
 
 def hillslope_routing(self, delta_t):

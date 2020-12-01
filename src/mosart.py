@@ -10,6 +10,7 @@ from timeit import default_timer as timer
 from ._initialize_state import _initialize_state
 from ._load_grid import _load_grid
 from ._setup import _setup
+from ._output import _initialize_output, _update_output
 from ._update import _update
 
 class Mosart(Bmi):
@@ -32,6 +33,7 @@ class Mosart(Bmi):
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
         self.state = None
+        self.output_buffer = None
         self.cores = 1
 
     def initialize(self, config_file_path: str = None):
@@ -58,6 +60,13 @@ class Mosart(Bmi):
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
         
+        # setup output file averaging
+        try:
+            _initialize_output(self)
+        except Exception as e:
+            logging.exception('Failed to initialize output; see below for stacktrace.')
+            raise e
+        
         logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
         
     def update(self):
@@ -71,6 +80,13 @@ class Mosart(Bmi):
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
         logging.info(f'Timestep {step.isoformat(" ")} completed in {self.pretty_timer(timer() - t)}.')
+        try:
+            # update the output buffer
+            _update_output(self)
+            # TODO write restart file
+        except Exception as e:
+            logging.exception('Failed to write output or restart file; see below for stacktrace.')
+            raise e
         return
 
     def update_until(self, time: float):

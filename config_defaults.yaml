@@ -28,7 +28,7 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: true
     # number of cores to use; set to ~ to use all available cores
-    cores: 6
+    cores: 2
 
 ###
 ### Simulation
@@ -39,7 +39,7 @@ simulation:
     # date to begin the simulation
     start_date: 1980-01-01
     # date to end the simulation
-    end_date: 1980-01-01
+    end_date: 1980-01-31
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -54,12 +54,23 @@ simulation:
     log_level: INFO
     # resume simulation from restart file
     restart_file: ~
-    # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged or summed appropriately
-    output_frequency: 86400 # output values once each day
-    # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
-    output_file_frequency: monthly
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly', 'end' -- 'end' meaning only at the end of the simulation
     restart_file_frequency: end
+    # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged across the intervening timesteps
+    # TODO only daily (86400) is currently  supported
+    output_resolution: 86400 # output values once each day, averaged across the timesteps
+    # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
+    output_file_frequency: monthly
+    # output fields
+    output:
+        - variable: storage
+          name: STORAGE_LIQ
+          long_name: Mosart liquid storage
+          units: m3
+        - variable: runoff_land
+          name: RIVER_DISCHARGE_OVER_LAND_LIQ
+          long_name: Mosart river basin flow
+          units: m3/s
 
 ### 
 ### Grid
