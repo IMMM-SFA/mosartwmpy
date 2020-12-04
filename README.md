@@ -29,6 +29,7 @@ Alternatively, one can update the settings via code in the driving script:
 
 ```python
  mosart = Mosart()
+ mosart.initialize()
  
  mosart.config['simulation.name'] = 'How did we get here?'
  mosart.config['simulation.start_date'] = datetime(2012, 1, 1)
