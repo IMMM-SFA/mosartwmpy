@@ -16,7 +16,7 @@ mosart.initialize()
 mosart.update()
 
 # advance until a specificed timestamp
-mosart.update_until(datetime.combine(datetime(2030, 12, 31), time.max))
+mosart.update_until(datetime.combine(datetime(2030, 12, 31), time.max).timestamp())
 ```
 
 Settings are defined by the merger of the `config_defaults.yaml` and an optional user specified file which can override any of the default settings:
