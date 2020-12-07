@@ -5,7 +5,7 @@ from benedict import benedict
 from pathlib import Path
 from pathvalidate import sanitize_filename
 
-def _setup(self, config_file_path):
+def setup(self, config_file_path):
     # load default config and user config and merge
     self.config = benedict('./config_defaults.yaml', format='yaml')
     if config_file_path and config_file_path != '':
@@ -40,6 +40,8 @@ class Parameters:
         # TODO better document what these are used for and what they should be and maybe they should be part of config?
         # TINYVALUE
         self.tiny_value = 1.0e-14
+        # radius of the earth [m]
+        self.radius_earth = 6.37122e6
         # a small value in order to avoid abrupt change of hydraulic radius
         self.slope_1_def = 0.1
         self.inverse_sin_atan_slope_1_def = 1.0 / (np.sin(np.arctan(self.slope_1_def)))
@@ -59,3 +61,6 @@ class Parameters:
         self.channel_slope_minimum = 0.0001
         # kinematic wave condition # TODO what is it?
         self.kinematic_wave_condition =  1.0e6
+        # just a string... probably can dispose of these if we never do ICE separately
+        self.LIQUID_TRACER = 'LIQUID'
+        self.ICE_TRACER = 'ICE'

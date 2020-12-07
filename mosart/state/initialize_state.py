@@ -4,9 +4,7 @@ import pandas as pd
 from datetime import datetime, time
 from xarray import open_dataset
 
-from ._update import update_hillslope_state, update_subnetwork_state, update_main_channel_state
-
-def _initialize_state(self):
+def initialize_state(self):
 
     # restart file
     if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
@@ -211,14 +209,13 @@ def _initialize_state(self):
     
     # tracers
     # TODO how to handle ice?
-    self.tracers = (self.LIQUID_TRACER, self.ICE_TRACER) if self.config.get('water_management.ice_runoff_enabled') else (self.LIQUID_TRACER,)
     state_dataframe = state_dataframe.join(pd.DataFrame(
-        np.full(self.get_grid_size(), self.LIQUID_TRACER), columns=['tracer']
+        np.full(self.get_grid_size(), self.parameters.LIQUID_TRACER), columns=['tracer']
     ))
 
     # mask on whether or not to perform euler calculations
     state_dataframe = state_dataframe.join(pd.DataFrame(np.where(
-        np.array(state_dataframe.tracer.eq(self.LIQUID_TRACER)),
+        np.array(state_dataframe.tracer.eq(self.parameters.LIQUID_TRACER)),
         True,
         False
     ), columns=['euler_mask']))

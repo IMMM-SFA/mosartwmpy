@@ -2,6 +2,7 @@
 *.swp
 input/*
 output/*
+validation/*
 dask-worker-space/*
 __pycache__
 .python-version

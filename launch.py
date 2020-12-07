@@ -5,7 +5,7 @@ import warnings
 
 from xarray import open_mfdataset
 
-from src.mosart import Mosart
+from mosart.mosart import Mosart
 
 # ignore numpy NaN and invalid warnings
 # (i.e. divide by zero and NaN logicals -- in Pandas/Dask, these simply remain NaN instead of becoming infinite)
@@ -19,7 +19,7 @@ def plot(series):
     plt.imshow(mesh, origin='lower')
     plt.colorbar()
     plt.show()
-    
+
 def plot_sample(v, t):
     series = pd.DataFrame(np.array(v[t,:,:]).flatten())
     plot(series)

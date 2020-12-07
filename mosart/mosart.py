@@ -7,11 +7,11 @@ from bmipy import Bmi
 from datetime import datetime, time
 from timeit import default_timer as timer
 
-from ._initialize_state import _initialize_state
-from ._load_grid import _load_grid
-from ._setup import _setup
-from ._output import _initialize_output, _update_output
-from ._update import _update
+from mosart.config.setup import setup
+from mosart.grid.load_grid import load_grid
+from mosart.output.output import initialize_output, update_output
+from mosart.state.initialize_state import initialize_state
+from mosart.update.update import update
 
 class Mosart(Bmi):
     # Mosart Basic Model Interface
@@ -27,11 +27,7 @@ class Mosart(Bmi):
         self.latitude_spacing = None
         self.restart = None
         self.current_time = None
-        self.input = None
         self.parameters = None
-        self.tracers = None
-        self.LIQUID_TRACER = 'LIQUID'
-        self.ICE_TRACER = 'ICE'
         self.state = None
         self.output_buffer = None
         self.cores = 1
@@ -41,28 +37,28 @@ class Mosart(Bmi):
 
         # load config and setup logging
         try:
-            _setup(self, config_file_path)
+            setup(self, config_file_path)
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
 
         # load grid
         try:
-            _load_grid(self)
+            load_grid(self)
         except Exception as e:
             logging.exception('Failed to load grid file; see below for stacktrace.')
             raise e
 
         # load restart file or initialize state
         try:
-            _initialize_state(self)
+            initialize_state(self)
         except Exception as e:
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
         
         # setup output file averaging
         try:
-            _initialize_output(self)
+            initialize_output(self)
         except Exception as e:
             logging.exception('Failed to initialize output; see below for stacktrace.')
             raise e
@@ -75,14 +71,14 @@ class Mosart(Bmi):
         # perform one timestep
         logging.info(f'Begin timestep {step.isoformat(" ")}.')
         try:
-            _update(self)
+            update(self)
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
         logging.info(f'Timestep {step.isoformat(" ")} completed in {self.pretty_timer(timer() - t)}.')
         try:
             # update the output buffer
-            _update_output(self)
+            update_output(self)
             # TODO write restart file
         except Exception as e:
             logging.exception('Failed to write output or restart file; see below for stacktrace.')

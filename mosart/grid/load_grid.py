@@ -4,7 +4,7 @@ import pandas as pd
 
 from xarray import open_dataset
 
-def _load_grid(self):
+def load_grid(self):
     # load grid into dataframe
     # TODO clean grid file and precalculate and store cell, upstream, downstream, and outlet indices
     logging.info('Loading grid file.')
@@ -110,13 +110,12 @@ def _load_grid(self):
     # recalculate area to fill in missing values
     # assumes grid spacing is in degrees and uniform
     logging.debug(' - area')
-    radius_earth = 6.37122e6
     deg2rad = np.pi / 180.0
     lats = np.array(grid_dataframe.latitude)
     grid_dataframe = grid_dataframe.join(pd.DataFrame(np.where(
         np.array(grid_dataframe.local_drainage_area) <= 0,
         np.absolute(
-            radius_earth ** 2 * deg2rad * self.get_grid_spacing()[1] * (
+            self.parameters.radius_earth ** 2 * deg2rad * self.get_grid_spacing()[1] * (
                 np.sin(deg2rad * (lats + 0.5 * self.get_grid_spacing()[0])) - np.sin(deg2rad * (lats - 0.5 * self.get_grid_spacing()[0]))
             )
         ),
@@ -131,7 +130,10 @@ def _load_grid(self):
     )
     
     # add the updated ids
+    # note that these ids are zero-indexed, so are one less than fortran mosart ids
     grid_dataframe = grid_dataframe.join(
+        pd.DataFrame(np.arange(size), columns=['id'])
+    ).join(
         pd.DataFrame(np.array(outlet_ids, dtype=int), columns=['outlet_id'])
     ).join(
         pd.DataFrame(np.array(downstream_ids, dtype=int), columns=['downstream_id'])

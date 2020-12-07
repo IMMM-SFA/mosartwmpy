@@ -35,7 +35,7 @@ multiprocessing:
 ###
 simulation:
     # name this simulation
-    name: Mosart Validation
+    name: test
     # date to begin the simulation
     start_date: 1980-01-01
     # date to end the simulation
@@ -57,11 +57,11 @@ simulation:
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly', 'end' -- 'end' meaning only at the end of the simulation
     restart_file_frequency: end
     # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged across the intervening timesteps
-    # TODO only daily (86400) is currently  supported
+    # TODO only daily (86400) is currently supported
     output_resolution: 86400 # output values once each day, averaged across the timesteps
     # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
     output_file_frequency: monthly
-    # output fields
+    # time dependent output fields
     output:
         - variable: storage
           name: STORAGE_LIQ
@@ -71,6 +71,21 @@ simulation:
           name: RIVER_DISCHARGE_OVER_LAND_LIQ
           long_name: Mosart river basin flow
           units: m3/s
+    # non time dependent fields to include in the output
+    # note that latitude and longitude are automatically included as 'lat' and 'lon'
+    grid_output:
+        - variable: id
+          name: GINDEX
+          long_name: Index of the grid cell in a 1d array
+        - variable: outlet_id
+          name: OUTLETG
+          long_name: Index of the outlet grid cell in a 1d array
+        - variable: downstream_id
+          name: DSIG
+          long_name: Index of the downstream grid cell in a 1d array
+        - variable: land_mask
+          name: MASK
+          long_name: Land mask 1=Land, 2=Ocean, 3=Outlet
 
 ### 
 ### Grid
@@ -146,7 +161,7 @@ runoff:
         wetland_runoff: ~
 
 ###
-### Water Management (Demand, Reservoirs, and Runoff)
+### Water Management (Demand and Reservoirs)
 ###
 water_management:
     # flag to turn this feature on or off
