@@ -1,35 +1,46 @@
+import numpy as np
+import pandas as pd
+
 def update_subnetwork_state(state, grid, parameters, config, base_condition):
     # update the physical properties of the subnetwork
         
     # update state variables
-    condition = grid.subnetwork_length.gt(0) & state.subnetwork_storage.gt(0)
-    state.subnetwork_cross_section_area = state.subnetwork_cross_section_area.mask(
+    condition = (grid.subnetwork_length.values > 0) & (state.subnetwork_storage.values > 0)
+    state.subnetwork_cross_section_area = pd.DataFrame(np.where(
         base_condition,
-        state.zeros.mask(
+        np.where(
             condition,
-            state.subnetwork_storage / grid.subnetwork_length
-        )
-    )
-    state.subnetwork_depth =  state.subnetwork_depth.mask(
+            state.subnetwork_storage.values / grid.subnetwork_length.values,
+            0
+        ),
+        state.subnetwork_cross_section_area.values
+    ))
+    state.subnetwork_depth = pd.DataFrame(np.where(
         base_condition,
-        state.zeros.mask(
-            condition & state.subnetwork_cross_section_area.gt(parameters.tiny_value),
-            state.subnetwork_cross_section_area / grid.subnetwork_width
-        )
-    )
-    state.subnetwork_wetness_perimeter = state.subnetwork_wetness_perimeter.mask(
+        np.where(
+            condition & (state.subnetwork_cross_section_area > parameters.tiny_value),
+            state.subnetwork_cross_section_area.values / grid.subnetwork_width.values,
+            0
+        ),
+        state.subnetwork_depth.values
+    ))
+    state.subnetwork_wetness_perimeter = pd.DataFrame(np.where(
         base_condition,
-        state.zeros.mask(
-            condition & state.subnetwork_depth.gt(parameters.tiny_value),
-            grid.subnetwork_width + 2 * state.subnetwork_depth
-        )
-    )
-    state.subnetwork_hydraulic_radii = state.subnetwork_hydraulic_radii.mask(
+        np.where(
+            condition & (state.subnetwork_depth.values > parameters.tiny_value),
+            grid.subnetwork_width.values + 2 * state.subnetwork_depth.values,
+            0
+        ),
+        state.subnetwork_wetness_perimeter.values
+    ))
+    state.subnetwork_hydraulic_radii = pd.DataFrame(np.where(
         base_condition,
-        state.zeros.mask(
-            condition & state.subnetwork_wetness_perimeter.gt(parameters.tiny_value),
-            state.subnetwork_cross_section_area / state.subnetwork_wetness_perimeter
-        )
-    )
+        np.where(
+            condition & (state.subnetwork_wetness_perimeter.values > parameters.tiny_value),
+            state.subnetwork_cross_section_area.values / state.subnetwork_wetness_perimeter.values,
+            0
+        ),
+        state.subnetwork_hydraulic_radii.values
+    ))
     
     return state

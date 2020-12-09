@@ -31,6 +31,7 @@ class Mosart(Bmi):
         self.state = None
         self.output_buffer = None
         self.cores = 1
+        self.client = None
 
     def initialize(self, config_file_path: str = None):
         t = timer()

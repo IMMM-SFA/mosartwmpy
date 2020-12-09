@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from xarray import open_dataset
 
@@ -11,19 +12,19 @@ def load_runoff(state, grid, parameters, config, current_time):
     runoff = open_dataset(config.get('runoff.path'))
     
     if config.get('runoff.variables.surface_runoff', None) is not None:
-        state.hillslope_surface_runoff = 0.001 * grid.area * np.array(
+        state.hillslope_surface_runoff = pd.DataFrame(0.001 * grid.area.values * np.array(
             runoff[config.get('runoff.variables.surface_runoff')].sel({config.get('runoff.time'): current_time}, method='pad')
-        ).flatten()
+        ).flatten())
     
     if config.get('runoff.variables.subsurface_runoff', None) is not None:
-        state.hillslope_subsurface_runoff = 0.001 * grid.area * np.array(
+        state.hillslope_subsurface_runoff = pd.DataFrame(0.001 * grid.area.values * np.array(
             runoff[config.get('runoff.variables.subsurface_runoff')].sel({config.get('runoff.time'): current_time}, method='pad')
-        ).flatten()
+        ).flatten())
     
     if config.get('runoff.variables.wetland_runoff', None) is not None:
-        state.hillslope_wetland_runoff = 0.001 * grid.area * np.array(
+        state.hillslope_wetland_runoff = pd.DataFrame(0.001 * grid.area.values * np.array(
             runoff[config.get('runoff.variables.wetland_runoff')].sel({config.get('runoff.time'): current_time}, method='pad')
-        ).flatten()
+        ).flatten())
     
     runoff.close()
     

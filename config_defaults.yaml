@@ -17,7 +17,7 @@ batch:
     # project to charge the time to
     project: IM3
     # number of nodes; note: only 1 supported so far
-    nodes: 1
+    nodes: 6
 
 ###
 ### Multiprocessing
@@ -28,7 +28,7 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: true
     # number of cores to use; set to ~ to use all available cores
-    cores: 2
+    cores: 1
 
 ###
 ### Simulation
