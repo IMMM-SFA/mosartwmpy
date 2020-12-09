@@ -30,6 +30,7 @@ def setup(self, config_file_path):
         if requested is None or requested > max_cores:
             requested = max_cores
         self.cores = requested
+        logging.info(f'Cores: {self.cores}.')
     
     # parameters
     self.parameters = Parameters()

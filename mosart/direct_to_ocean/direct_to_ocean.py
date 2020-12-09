@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 def direct_to_ocean(state, grid, parameters, config):
     ###
@@ -21,11 +20,11 @@ def direct_to_ocean(state, grid, parameters, config):
         source_direct + state.hillslope_wetland_runoff.values,
         source_direct
     )
-    state.hillslope_wetland_runoff = pd.DataFrame(np.where(
+    state.hillslope_wetland_runoff[:] = np.where(
         condition,
         0,
         state.hillslope_wetland_runoff.values
-    ))
+    )
     # remove remaining wetland runoff (negative and positive)
     source_direct = source_direct + state.hillslope_wetland_runoff.values
     state.hillslope_wetland_runoff = state.zeros
@@ -38,11 +37,11 @@ def direct_to_ocean(state, grid, parameters, config):
         source_direct + state.hillslope_subsurface_runoff.values,
         source_direct
     )
-    state.hillslope_subsurface_runoff = pd.DataFrame(np.where(
+    state.hillslope_subsurface_runoff[:] = np.where(
         condition,
         0,
         state.hillslope_subsurface_runoff.values
-    ))
+    )
     # remove negative surface water
     condition = state.hillslope_surface_runoff.values < 0
     source_direct = np.where(
@@ -50,11 +49,11 @@ def direct_to_ocean(state, grid, parameters, config):
         source_direct + state.hillslope_surface_runoff.values,
         source_direct
     )
-    state.hillslope_surface_runoff = pd.DataFrame(np.where(
+    state.hillslope_surface_runoff[:] = np.where(
         condition,
         0,
         state.hillslope_surface_runoff.values
-    ))
+    )
 
     # if ocean cell or ice tracer, remove the rest of the sub and surface water
     # other cells will be handled by mosart euler
@@ -64,18 +63,18 @@ def direct_to_ocean(state, grid, parameters, config):
         source_direct + state.hillslope_subsurface_runoff.values + state.hillslope_surface_runoff.values,
         source_direct
     )
-    state.hillslope_subsurface_runoff = pd.DataFrame(np.where(
+    state.hillslope_subsurface_runoff[:] = np.where(
         condition,
         0,
         state.hillslope_subsurface_runoff.values
-    ))
-    state.hillslope_surface_runoff = pd.DataFrame(np.where(
+    )
+    state.hillslope_surface_runoff[:] = np.where(
         condition,
         0,
         state.hillslope_surface_runoff.values
-    ))
+    )
     
-    state.direct = pd.DataFrame(source_direct)
+    state.direct[:] = source_direct
 
     # send the direct water to outlet for each tracer
     state.direct = grid[['outlet_id']].join(state[['direct']].join(grid.outlet_id).groupby('outlet_id').sum(), how='left').direct.fillna(0.0)

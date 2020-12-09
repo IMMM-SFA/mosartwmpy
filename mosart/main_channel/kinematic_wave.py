@@ -1,18 +1,17 @@
 import numpy as np
-import pandas as pd
 
 def kinematic_wave_routing(state, grid, parameters, config, delta_t, base_condition):
     # classic kinematic wave routing method
     
     # estimation of inflow
-    state.channel_inflow_upstream = pd.DataFrame(np.where(
+    state.channel_inflow_upstream[:] = np.where(
         base_condition,
         -state.channel_outflow_sum_upstream_instant.values,
         state.channel_inflow_upstream.values
-    ))
+    )
     
     # estimation of outflow
-    state.channel_flow_velocity = pd.DataFrame(np.where(
+    state.channel_flow_velocity[:] = np.where(
         base_condition,
         np.where(
             (grid.channel_length.values > 0) & (state.channel_hydraulic_radii.values > 0),
@@ -20,9 +19,9 @@ def kinematic_wave_routing(state, grid, parameters, config, delta_t, base_condit
             0
         ),
         state.channel_flow_velocity.values
-    ))
+    )
     condition = (grid.channel_length.values > 0) & ((grid.total_drainage_area_single.values / grid.channel_width.values / grid.channel_length.values) <= parameters.kinematic_wave_condition)
-    state.channel_outflow_downstream = pd.DataFrame(np.where(
+    state.channel_outflow_downstream[:] = np.where(
         base_condition,
         np.where(
             condition,
@@ -30,23 +29,23 @@ def kinematic_wave_routing(state, grid, parameters, config, delta_t, base_condit
             -state.channel_inflow_upstream.values - state.channel_lateral_flow_hillslope.values
         ),
         state.channel_outflow_downstream.values
-    ))
+    )
     condition = (
         base_condition &
         condition &
         (-state.channel_outflow_downstream.values > parameters.tiny_value) &
         ((state.channel_storage.values + (state.channel_lateral_flow_hillslope.values + state.channel_inflow_upstream.values + state.channel_outflow_downstream.values) * delta_t) < parameters.tiny_value)
     )
-    state.channel_outflow_downstream = pd.DataFrame(np.where(
+    state.channel_outflow_downstream[:] = np.where(
         condition,
         -(state.channel_lateral_flow_hillslope.values + state.channel_inflow_upstream.values + state.channel_storage.values / delta_t),
         state.channel_outflow_downstream.values
-    ))
-    state.channel_flow_velocity = pd.DataFrame(np.where(
+    )
+    state.channel_flow_velocity[:] = np.where(
         condition & (state.channel_cross_section_area.values > 0),
         -state.channel_outflow_downstream.values / state.channel_cross_section_area.values,
         state.channel_flow_velocity.values
-    ))
+    )
     
     # calculate change in storage, but first round small runoff to zero
     tmp_delta_runoff = np.where(
@@ -63,10 +62,10 @@ def kinematic_wave_routing(state, grid, parameters, config, delta_t, base_condit
         ),
         tmp_delta_runoff
     )
-    state.channel_delta_storage = pd.DataFrame(np.where(
+    state.channel_delta_storage[:] = np.where(
         base_condition,
         state.channel_lateral_flow_hillslope.values + state.channel_inflow_upstream.values + state.channel_outflow_downstream.values + tmp_delta_runoff,
         0
-    ))
+    )
     
     return state

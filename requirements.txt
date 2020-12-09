@@ -1,5 +1,4 @@
 bmipy==2.0
-distributed==2.30.1
 fastparquet==0.4.1
 matplotlib==3.3.
 netCDF4==1.5.4

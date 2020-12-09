@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 def flood(state, grid, parameters, config):
     
@@ -18,16 +17,16 @@ def flood(state, grid, parameters, config):
     ###
 
     # flux sent back to land
-    state.flood = pd.DataFrame(np.where(
+    state.flood[:] = np.where(
         (grid.land_mask.values == 1) & (state.storage.values > parameters.flood_threshold) & (state.tracer.values == parameters.LIQUID_TRACER),
         (state.storage.values - parameters.flood_threshold) / config.get('simulation.timestep'),
         0
-    ))
+    )
     # remove this flux from the input runoff from land
-    state.hillslope_surface_runoff = pd.DataFrame(np.where(
+    state.hillslope_surface_runoff[:] = np.where(
         state.tracer.values == parameters.LIQUID_TRACER,
         state.hillslope_surface_runoff.values - state.flood.values,
         state.hillslope_surface_runoff.values
-    ))
+    )
     
     return state

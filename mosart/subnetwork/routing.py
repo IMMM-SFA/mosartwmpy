@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from mosart.subnetwork.state import update_subnetwork_state
 
@@ -8,7 +7,7 @@ def subnetwork_routing(state, grid, parameters, config, delta_t):
     # TODO describe what is happening here
     
     state.channel_lateral_flow_hillslope = state.zeros
-    local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_subnetwork)
+    local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_subnetwork.values)
     
     # step through max iterations, masking out the unnecessary cells each time
     base_condition = (grid.mosart_mask.values > 0) & state.euler_mask.values
@@ -17,7 +16,7 @@ def subnetwork_routing(state, grid, parameters, config, delta_t):
     for _ in np.arange(grid.iterations_subnetwork.max()):
         iteration_condition = base_condition & (grid.iterations_subnetwork.values > _)
 
-        state.subnetwork_flow_velocity = pd.DataFrame(np.where(
+        state.subnetwork_flow_velocity[:] = np.where(
             iteration_condition & sub_condition,
             np.where(
                 state.subnetwork_hydraulic_radii.values > 0,
@@ -25,9 +24,9 @@ def subnetwork_routing(state, grid, parameters, config, delta_t):
                 0
             ),
             state.subnetwork_flow_velocity.values
-        ))
+        )
         
-        state.subnetwork_discharge = pd.DataFrame(np.where(
+        state.subnetwork_discharge[:] = np.where(
             iteration_condition,
             np.where(
                 sub_condition,
@@ -35,7 +34,7 @@ def subnetwork_routing(state, grid, parameters, config, delta_t):
                 -state.subnetwork_lateral_inflow.values
             ),
             state.subnetwork_discharge.values
-        ))
+        )
         
         condition = (
             iteration_condition &
@@ -43,49 +42,49 @@ def subnetwork_routing(state, grid, parameters, config, delta_t):
             ((state.subnetwork_storage.values + (state.subnetwork_lateral_inflow.values + state.subnetwork_discharge.values) * local_delta_t) < parameters.tiny_value)
         )
         
-        state.subnetwork_discharge = pd.DataFrame(np.where(
+        state.subnetwork_discharge[:] = np.where(
             condition,
             -(state.subnetwork_lateral_inflow.values + state.subnetwork_storage.values / local_delta_t),
             state.subnetwork_discharge.values
-        ))
+        )
         
-        state.subnetwork_flow_velocity = pd.DataFrame(np.where(
+        state.subnetwork_flow_velocity[:] = np.where(
             condition & (state.subnetwork_cross_section_area.values > 0),
             -state.subnetwork_discharge.values / state.subnetwork_cross_section_area.values,
             state.subnetwork_flow_velocity.values
-        ))
+        )
         
-        state.subnetwork_delta_storage = pd.DataFrame(np.where(
+        state.subnetwork_delta_storage[:] = np.where(
             iteration_condition,
             state.subnetwork_lateral_inflow.values + state.subnetwork_discharge.values,
             state.subnetwork_delta_storage.values
-        ))
+        )
         
         # update storage
-        state.subnetwork_storage_previous_timestep = pd.DataFrame(np.where(
+        state.subnetwork_storage_previous_timestep[:] = np.where(
             iteration_condition,
             state.subnetwork_storage.values,
             state.subnetwork_storage_previous_timestep.values
-        ))
-        state.subnetwork_storage = pd.DataFrame(np.where(
+        )
+        state.subnetwork_storage[:] = np.where(
             iteration_condition,
             state.subnetwork_storage.values + state.subnetwork_delta_storage.values * local_delta_t,
-            state.subnetwork_storage
-        ))
+            state.subnetwork_storage.values
+        )
         
         state = update_subnetwork_state(state, grid, parameters, config, iteration_condition)
         
-        state.channel_lateral_flow_hillslope = pd.DataFrame(np.where(
+        state.channel_lateral_flow_hillslope[:] = np.where(
             iteration_condition,
             state.channel_lateral_flow_hillslope.values - state.subnetwork_discharge.values,
-            state.channel_lateral_flow_hillslope
-        ))
+            state.channel_lateral_flow_hillslope.values
+        )
     
     # average lateral flow over substeps
-    state.channel_lateral_flow_hillslope = pd.DataFrame(np.where(
+    state.channel_lateral_flow_hillslope[:] = np.where(
         base_condition,
         state.channel_lateral_flow_hillslope.values / grid.iterations_subnetwork.values,
         state.channel_lateral_flow_hillslope.values
-    ))
+    )
     
     return state

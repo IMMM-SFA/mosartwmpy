@@ -17,7 +17,7 @@ batch:
     # project to charge the time to
     project: IM3
     # number of nodes; note: only 1 supported so far
-    nodes: 6
+    nodes: 4
 
 ###
 ### Multiprocessing
@@ -28,18 +28,18 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: true
     # number of cores to use; set to ~ to use all available cores
-    cores: 1
+    cores: 6
 
 ###
 ### Simulation
 ###
 simulation:
     # name this simulation
-    name: test
+    name: Mosart Validation
     # date to begin the simulation
     start_date: 1980-01-01
     # date to end the simulation
-    end_date: 1980-01-31
+    end_date: 1980-01-01
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles

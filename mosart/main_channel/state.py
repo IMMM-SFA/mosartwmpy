@@ -1,11 +1,10 @@
 import numpy as np
-import pandas as pd
 
 def update_main_channel_state(state, grid, parameters, config, base_condition):
     # update the physical properties of the main channel
     
     condition = (grid.channel_length.values > 0) & (state.channel_storage > 0)
-    state.channel_cross_section_area = pd.DataFrame(np.where(
+    state.channel_cross_section_area[:] = np.where(
         base_condition,
         np.where(
             condition,
@@ -13,7 +12,7 @@ def update_main_channel_state(state, grid, parameters, config, base_condition):
             0
         ),
         state.channel_cross_section_area.values
-    ))
+    )
     # Function for estimating maximum water depth assuming rectangular channel and tropezoidal flood plain
     # here assuming the channel cross-section consists of three parts, from bottom to up,
     # part 1 is a rectangular with bankfull depth (rdep) and bankfull width (rwid)
@@ -22,7 +21,7 @@ def update_main_channel_state(state, grid, parameters, config, base_condition):
     not_flooded = (state.channel_cross_section_area.values - (grid.channel_depth.values * grid.channel_width.values)) <= parameters.tiny_value
     delta_area = state.channel_cross_section_area.values - grid.channel_depth.values  * grid.channel_width.values - (grid.channel_width.values + grid.channel_floodplain_width.values) * parameters.slope_1_def * ((grid.channel_floodplain_width.values - grid.channel_width.values) / 2.0) / 2.0
     equivalent_depth_condition =  delta_area > parameters.tiny_value
-    state.channel_depth = pd.DataFrame(np.where(
+    state.channel_depth[:] = np.where(
         base_condition,
         np.where(
             condition & (state.channel_cross_section_area.values > parameters.tiny_value),
@@ -38,12 +37,12 @@ def update_main_channel_state(state, grid, parameters, config, base_condition):
             0
         ),
         state.channel_depth.values
-    ))
+    )
     # Function for estimating wetness perimeter based on same assumptions as above
     not_flooded = state.channel_depth.values <= (grid.channel_depth.values + parameters.tiny_value)
     delta_depth = state.channel_depth.values - grid.channel_depth.values - ((grid.channel_floodplain_width.values -  grid.channel_width.values) / 2.0) * parameters.slope_1_def
     equivalent_depth_condition = delta_depth > parameters.tiny_value
-    state.channel_wetness_perimeter = pd.DataFrame(np.where(
+    state.channel_wetness_perimeter[:] = np.where(
         base_condition,
         np.where(
             condition & (state.channel_depth.values >= parameters.tiny_value),
@@ -59,15 +58,15 @@ def update_main_channel_state(state, grid, parameters, config, base_condition):
             0
         ),
         state.channel_wetness_perimeter.values
-    ))
-    state.channel_hydraulic_radii = pd.DataFrame(np.where(
+    )
+    state.channel_hydraulic_radii[:] = np.where(
         base_condition,
         np.where(
             condition & (state.channel_wetness_perimeter.values > parameters.tiny_value),
             state.channel_cross_section_area.values / state.channel_wetness_perimeter.values,
             0
         ),
-        state.channel_hydraulic_radii
-    ))
+        state.channel_hydraulic_radii.values
+    )
     
     return state
