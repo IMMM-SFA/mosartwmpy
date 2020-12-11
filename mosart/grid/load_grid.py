@@ -4,6 +4,8 @@ import pandas as pd
 
 from xarray import open_dataset
 
+from mosart.reservoirs.reservoirs import load_reservoirs
+
 def load_grid(self):
     # load grid into dataframe
     # TODO clean grid file and precalculate and store cell, upstream, downstream, and outlet indices
@@ -260,3 +262,9 @@ def load_grid(self):
     
     # free memory
     grid_dataset.close()
+    
+    # if water management is enabled, load the reservoir parameters and build the grid cell mapping
+    # note that reservoir grid is assumed to be the same as the domain grid
+    if self.config.get('water_management.enabled', False):
+        logging.debug(' - reservoirs')
+        load_reservoirs(self)

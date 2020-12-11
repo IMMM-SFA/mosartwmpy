@@ -32,6 +32,9 @@ class Mosart(Bmi):
         self.output_buffer = None
         self.cores = 1
         self.client = None
+        self.reservoir_streamflow_schedule = None
+        self.reservoir_demand_schedule = None
+        self.reservoir_prerelease_schedule = None
 
     def initialize(self, config_file_path: str = None):
         t = timer()

@@ -26,9 +26,9 @@ batch:
 ###
 multiprocessing:
     # whether or not to use multiple cores
-    enabled: true
+    enabled: false
     # number of cores to use; set to ~ to use all available cores
-    cores: 6
+    cores: ~
 
 ###
 ### Simulation
@@ -165,11 +165,13 @@ runoff:
 ###
 water_management:
     # flag to turn this feature on or off
-    enabled: false
-    # flag to enable or disable ice runoff
-    ice_runoff_enabled: false
+    enabled: true
     # flag to enable or disable regulation
-    regulation_enabled: false
+    regulation_enabled: true
+    # flag to enable or disable extraction
+    extraction_enabled: true
+    # extraction from main channel # TODO what is this
+    extraction_main_channel: true
     # Demand
     demand:
         # path to the demand file; can be absolute or relative to the source code root
@@ -196,6 +198,49 @@ water_management:
         longitude: lon
         # latitude field name
         latitude: lat
+        # streamflow field name [m3/s]
+        streamflow: Qmon
+        # streamflow time resolution - 'month' or 'epiweek'
+        streamflow_time_resolution: month
+        # demand field name [m3/s]
+        demand: demand
+        # demand time resolution - 'month' or 'epiweek'
+        demand_time_resolution: month
+        # variable field names
+        variables:
+            # reservoir id field name - note that this is not an official id, just the identifier used elsewhere in the input
+            reservoir_id: DamInd_2d
+            # runoff capacity field name [m3 ??]
+            reservoir_runoff_capacity: RUNOFF_CAP
+            # height field name [m ??]
+            reservoir_height: dam_hgt
+            # length field name [m ??]
+            reservoir_length: dam_len
+            # surface area field name [km2]
+            reservoir_surface_area: area_skm
+            # storage capacity field name [km3]
+            reservoir_storage_capacity: cap_mcm
+            # depth field name [m]
+            reservoir_depth: depth_m
+            # use irrigation field name
+            reservoir_use_irrigation: use_irri
+            # use electricity field name
+            reservoir_use_electricity: use_elec
+            # use supply field name
+            reservoir_use_supply: use_supp
+            # use flood control field name
+            reservoir_use_flood_control: use_fcon
+            # use recreation field name
+            reservoir_use_recreation: use_recr
+            # use navigation field name
+            reservoir_use_navigation: use_navi
+            # use fish protection field name
+            reservoir_use_fish_protection: use_fish
+            # withdrawal field name
+            reservoir_withdrawal: withdraw
+            # conveyance field name
+            reservoir_conveyance: conveyance
+
 
 ###
 ### Inundation

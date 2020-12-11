@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # launch simulation
     self = Mosart()
     self.initialize()
-    self.update()
+    #self.update()
     # t = timer()
     # self.update_until(self.get_end_time())
     # logging.info(f'Simulation completed in {self.pretty_timer(timer() - t)}.')

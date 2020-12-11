@@ -4,6 +4,8 @@ import pandas as pd
 from datetime import datetime, time
 from xarray import open_dataset
 
+from mosart.reservoirs.reservoirs import initialize_reservoir_state
+
 def initialize_state(self):
 
     # restart file
@@ -223,42 +225,6 @@ def initialize_state(self):
     # add the state to self
     self.state = state_dataframe
     
-    # TODO these initial conditions only seem to be used for inundation, which i haven't got to yet
-    # initial conditions
-    # condition = self.state.tracer.eq(self.LIQUID_TRACER) & self.grid.mosart_mask.gt(0)
-    # # assumed hillslope water depth
-    # self.state.hillslope_storage = self.state.zeros.mask(
-    #     condition,
-    #     0.001
-    # )
-    # # assumed subnetwork depth
-    # self.state.subnetwork_storage = self.state.zeros.mask(
-    #     condition,
-    #     1.0 * self.grid.subnetwork_length * self.grid.subnetwork_width
-    # )
-    # # assumed channel depth
-    # channel_depth = 0.9 * self.grid.channel_depth
-    # self.state.channel_storage = self.state.zeros.mask(
-    #     condition,
-    #     channel_depth * self.grid.channel_width * self.grid.channel_length
-    # )
-    # # hydraulic radius
-    # hydraulic_radius = self.grid.channel_width * channel_depth / ( self.grid.channel_width + 2.0 * channel_depth )
-    # # main channel outflow using manning equation # TODO consolidate the manning equations
-    # channel_velocity = self.state.zeros.mask(
-    #     condition & hydraulic_radius.gt(0) & self.grid.channel_slope.ne(0),
-    #     ((hydraulic_radius ** (1/3)) * (self.grid.channel_slope ** (1/2)) / self.grid.channel_manning).mask(
-    #         self.grid.channel_slope.gt(0),
-    #         -((hydraulic_radius ** (2/3)) * (-self.grid.channel_slope ** (1/2)) / self.grid.channel_manning)
-    #     )
-    # )
-    # self.state.channel_outflow_downstream = self.state.zeros.mask(
-    #     condition,
-    #     - channel_velocity * channel_depth * self.grid.channel_width
-    # )
-    
-    # # update physical parameters based on initial conditions
-    # update_hillslope_state(self, condition)
-    # update_subnetwork_state(self, condition)
-    # update_main_channel_state(self, condition)
-    # self.state.storage = self.state.channel_storage + self.state.subnetwork_storage + self.state.hillslope_storage * self.grid.area
+    if self.config.get('water_management.enabled', False):
+        logging.debug(' - reservoirs')
+        initialize_reservoir_state(self)

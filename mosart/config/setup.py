@@ -39,6 +39,7 @@ class Parameters:
     def __init__(self):
         # some constants used throughout the code
         # TODO better document what these are used for and what they should be and maybe they should be part of config?
+        
         # TINYVALUE
         self.tiny_value = 1.0e-14
         # radius of the earth [m]
@@ -62,6 +63,17 @@ class Parameters:
         self.channel_slope_minimum = 0.0001
         # kinematic wave condition # TODO what is it?
         self.kinematic_wave_condition =  1.0e6
+        
+        # reservoir parameters # TODO better describe
+        self.reservoir_minimum_flow_condition = 0.05
+        self.reservoir_flood_control_condition = 1.0
+        self.reservoir_small_magnitude_difference = 0.01
+        self.reservoir_regulation_release_parameter = 0.85
+        self.reservoir_runoff_capacity_condition = 0.1
+        
+        
+        
+        
         # just a string... probably can dispose of these if we never do ICE separately
         self.LIQUID_TRACER = 'LIQUID'
         self.ICE_TRACER = 'ICE'
