@@ -5,6 +5,8 @@ import pandas as pd
 from xarray import concat, open_dataset
 from xarray.ufuncs import logical_not
 
+# TODO in fortran mosart there is a StorCalibFlag that affects how storage targets are calculated -- code so far is written assuming that it == 0
+
 def load_reservoirs(self):
     
     # reservoir parameter file
@@ -22,7 +24,28 @@ def load_reservoirs(self):
     # capacity from millions m^3 to m^3
     self.grid.reservoir_storage_capacity[:] = self.grid.reservoir_storage_capacity * 1.0e6
     
-    # prepare the epiweek based reservoir schedules mapped to the domain
+    # map dams to all their dependent grid cells
+    # this will be a table of many to many relationship of grid cell ids to reservoir ids
+    reservoir_to_grid_mapping = reservoirs[
+        self.config.get('water_management.reservoirs.grid_to_reservoir')
+    ].to_dataframe().reset_index()[[
+        self.config.get('water_management.reservoirs.grid_to_reservoir_reservoir_dimension'),
+        self.config.get('water_management.reservoirs.grid_to_reservoir')
+    ]].rename(columns={
+        self.config.get('water_management.reservoirs.grid_to_reservoir_reservoir_dimension'): 'reservoir_id',
+        self.config.get('water_management.reservoirs.grid_to_reservoir'): 'grid_cell_id'
+    })
+    # drop nan grid ids
+    reservoir_to_grid_mapping = reservoir_to_grid_mapping[reservoir_to_grid_mapping.grid_cell_id.notna()]
+    # correct to zero-based grid indexing
+    reservoir_to_grid_mapping.grid_cell_id[:] = reservoir_to_grid_mapping.grid_cell_id.values - 1
+    # set this structure into the parameters since it can hold arbitrary data
+    self.parameters.reservoir_to_grid_mapping = reservoir_to_grid_mapping
+    
+    # count of the number of reservoirs that can supply each grid cell
+    # TODO
+    
+    # prepare the month or epiweek based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(self, reservoirs)
     
     reservoirs.close()
@@ -95,21 +118,44 @@ def prepare_reservoir_schedule(self, reservoirs):
 
 def initialize_reservoir_state(self):
     
+    # TODO should probably initialize these along with all the others in the main state file, so it's easier to see all the state variables
+    
+    for var in [
+        # reservoir streamflow schedule
+        'reservoir_streamflow',
+        # StorMthStOp
+        'reservoir_storage_operation_year_start',
+        # storage
+        'reservoir_storage',
+        # MthStOp,
+        'reservoir_month_start_operations',
+        # MthStFC
+        'reservoir_month_flood_control_start',
+        # MthNdFC
+        'reservoir_month_flood_control_end',
+        # release
+        'reservoir_release',
+        # supply
+        'reservoir_supply',
+        # monthly demand [m3/s] (demand0)
+        'reservoir_monthly_demand',
+        # demand within timestep [m3]
+        'reservoir_demand',
+        # potential evaporation [mm/s] # TODO this doesn't appear to be initialized anywhere currently
+        'reservoir_potential_evaporation'
+    ]:
+        self.state = self.state.join(pd.DataFrame(np.zeros(self.get_grid_size()), columns=[var]))
+    
     # reservoir storage at the start of the operation year
-    self.state = self.state.join(pd.DataFrame(
-        0.85 * self.grid.reservoir_storage_capacity.values,
-        columns=['reservoir_storage_operation_year_start']
-    ))
+    self.state.reservoir_storage_operation_year_start[:] = 0.85 * self.grid.reservoir_storage_capacity.values
     
     # initial storage in each reservoir
-    self.state = self.state.join(pd.DataFrame(
-        0.9 * self.grid.reservoir_storage_capacity.values,
-        columns=['reservoir_storage']
-    ))
+    self.state.reservoir_storage[:] = 0.9 * self.grid.reservoir_storage_capacity.values
     
     initialize_reservoir_start_of_operation_year(self)
     
-    reservoir_release(self)
+    # note, this happens at the start of first timestep anyway
+    #reservoir_release(self)
 
 
 def initialize_reservoir_start_of_operation_year(self):
@@ -278,20 +324,9 @@ def initialize_reservoir_start_of_operation_year(self):
         month_flood_control_start
     )
     
-    # TODO should probably initialize these along with all the others in the main state file, so it's easier to see all the state variables
-    self.state = self.state.join(pd.DataFrame(
-        month_start_operations,
-        columns=['reservoir_month_start_operations']
-    )).join(pd.DataFrame(
-        month_flood_control_start,
-        columns=['reservoir_month_flood_control_start']
-    )).join(pd.DataFrame(
-        month_flood_control_end,
-        columns=['reservoir_month_flood_control_end']
-    )).join(pd.DataFrame(
-        self.state.zeros.values,
-        columns=['reservoir_release']
-    ))
+    self.state.reservoir_month_start_operations[:] = month_start_operations
+    self.state.reservoir_month_flood_control_start[:] = month_flood_control_start
+    self.state.reservoir_month_flood_control_end[:] = month_flood_control_end
 
 
 def reservoir_release(self):
@@ -319,7 +354,6 @@ def regulation_release(self):
     # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
     epiweek = Week.fromdate(self.current_time).week
     month = self.current_time.month
-    
     streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
     
     # initialize to the average flow
@@ -353,4 +387,81 @@ def regulation_release(self):
 def storage_targets(self):
     # define the necessary drop in storage based on storage targets at the start of the month
     # should not be run during the euler solve # TODO is that because it's expensive?
-    pass
+    
+    # TODO the logic here is really hard to follow... can it be simplified or made more readable?
+    
+    # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
+    epiweek = Week.fromdate(self.current_time).week
+    month = self.current_time.month
+    streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
+    
+    # if flood control active and has a flood control start
+    flood_control_condition = (self.grid.reservoir_use_flood_control.values > 0) & (self.state.reservoir_month_flood_control_start.values > 0)
+    # modify release in order to maintain a certain storage level
+    month_condition = self.state.reservoir_month_flood_control_start.values <= self.state.reservoir_month_flood_control_end.values
+    total_condition = flood_control_condition & (
+        (month_condition &
+        (month >= self.state.reservoir_month_flood_control_start.values) &
+        (month < self.state.reservoir_month_flood_control_end.values)) |
+        (np.logical_not(month_condition) &
+        (month >= self.state.reservoir_month_flood_control_start.values) |
+        (month < self.state.reservoir_month_flood_control_end.values))
+    )
+    drop = 0 * self.state.reservoir_month_flood_control_start.values
+    n_month = 0 * drop
+    for m in np.arange(1,13): # TODO assumes monthly
+        m_and_condition = (m >= self.state.reservoir_month_flood_control_start.values) & (m < self.state.reservoir_month_flood_control_end.values)
+        m_or_condition = (m >= self.state.reservoir_month_flood_control_start.values) | (m < self.state.reservoir_month_flood_control_end.values)
+        drop = np.where(
+            (month_condition & m_and_condition) | (np.logical_not(month_condition) & m_or_condition),
+            np.where(
+                self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values >= self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
+                drop + 0,
+                drop + np.abs(self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values - self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values)
+            ),
+            drop
+        )
+        n_month = np.where(
+            (month_condition & m_and_condition) | (np.logical_not(month_condition) & m_or_condition),
+            n_month + 1,
+            n_month
+        )
+    self.state.reservoir_release[:] = np.where(
+        total_condition & (n_month > 0),
+        self.state.reservoir_release.values + drop / n_month,
+        self.state.reservoir_release.values
+    )
+    # now need to make sure it will fill up but issue with spilling in certain hydro-climate conditions
+    month_condition = self.state.reservoir_month_flood_control_end.values <= self.state.reservoir_month_start_operations.values
+    first_condition = flood_control_condition & month_condition & (
+        (month >= self.state.reservoir_month_flood_control_end.values) &
+        (month < self.state.reservoir_month_start_operations.values)
+    )
+    second_condition = flood_control_condition & np.logical_not(month_condition) & (
+        (month >= self.state.reservoir_month_flood_control_end.values) |
+        (month < self.state.reservoir_month_start_operations.values)
+    )
+    # TODO this logic exists in fortran mosart but isn't used...
+    # fill = 0 * drop
+    # n_month = 0 * drop
+    # for m in np.arange(1,13): # TODO assumes monthly
+    #     m_condition = (m >= self.state.reservoir_month_flood_control_end.values) &
+    #         (self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values > self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (
+    #             (first_condition & (m <= self.state.reservoir_month_start_operations)) |
+    #             (second_condition & (m <= 12))
+    #         )
+    #     fill = np.where(
+    #         m_condition,
+    #         fill + np.abs(self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values - self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values),
+    #         fill
+    #     )
+    #     n_month = np.where(
+    #         m_condition,
+    #         n_month + 1,
+    #         n_month
+    #     )
+    self.state.reservoir_release[:] = np.where(
+        (self.state.reservoir_release.values > self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
+        self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
+        self.state.reservoir_release.values
+    )

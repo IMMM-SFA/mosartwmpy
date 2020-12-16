@@ -42,6 +42,8 @@ class Parameters:
         
         # TINYVALUE
         self.tiny_value = 1.0e-14
+        # new and improved even tinier value, MYTINYVALUE
+        self.tinier_value = 1.0e-50
         # radius of the earth [m]
         self.radius_earth = 6.37122e6
         # a small value in order to avoid abrupt change of hydraulic radius
@@ -70,9 +72,15 @@ class Parameters:
         self.reservoir_small_magnitude_difference = 0.01
         self.reservoir_regulation_release_parameter = 0.85
         self.reservoir_runoff_capacity_condition = 0.1
+        self.reservoir_flow_volume_ratio = 0.9
         
+        # reservoir id to grid id mapping; will be set in reservoir initialization
+        self.reservoir_to_grid_mapping = None
         
-        
+        # minimum depth to perform irrigation extraction [m]
+        self.irrigation_extraction_condition = 0.1
+        # maximum fraction of flow that can be extracted from main channel
+        self.irrigation_extraction_maximum_fraction = 0.5
         
         # just a string... probably can dispose of these if we never do ICE separately
         self.LIQUID_TRACER = 'LIQUID'
