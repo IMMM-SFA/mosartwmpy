@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def regulation(state, grid, parameters, config, delta_t):
     # regulation of the flow from the reservoirs, applied to flow entering the grid cell, i.e. subnetwork storage downstream of reservoir
@@ -106,53 +107,117 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     #   either 0 or 1 dam associated with it.
     # - The local dam decomposition
     
-    condition = np.isfinite(grid.reservoir_id)
+    base_condition = np.isfinite(grid.reservoir_id)
     
     flow_volume = np.where(
-        condition,
+        base_condition,
         parameters.reservoir_flow_volume_ratio * delta_t * -state.channel_outflow_downstream.values,
         np.nan
     )
     
     state.channel_outflow_downstream[:] = np.where(
-        condition,
+        base_condition,
         state.channel_outflow_downstream.values + flow_volume / delta_t,
         state.channel_outflow_downstream.values
     )
     
-    # find total demand of grid cells dependent on each reservoir
-    # merge demand to the reservoir to grid mapping, group by reservoir, and sum
-    # then merege back to domain
-    local_mapping = parameters.reservoir_to_grid_mapping[parameters.reservoir_to_grid_mapping.reservoir_id.isin(grid.reservoir_id.notna())]
-    local_mapping = local_mapping.merge(state.reservoir_monthly_demand, how='left', left_on='grid_cell_id', right_index=True)
-    reservoir_demand = grid[['reservoir_id']].merge(
-        local_mapping[['reservoir_id', 'reservoir_monthly_demand']].groupby('reservoir_id').sum(),
-        how='left',
-        left_on='reservoir_id',
-        right_index=True
-    ).reservoir_monthly_demand.values
-    # ratio of flow volume over demand; if greater than 1 it means there is more water than demanded
-    reservoir_demand_ratio = np.where(
-        reservoir_demand > 0,
-        flow_volume / reservoir_demand,
-        0
+    # filter reservoir mapping down to the cells local to this processor
+    if config.get('multiprocessing.enabled', False) and config.get('muliprocessing.cores', 1) > 1:
+        # TODO need a more efficient way to do this
+        mapping = parameters.reservoir_to_grid_mapping[parameters.reservoir_to_grid_mapping.reservoir_id.isin(grid.reservoir_id.dropna())]
+    else:
+        mapping = parameters.reservoir_to_grid_mapping
+    
+    # TODO demand is going negative in some places
+    
+    # currently, we have three iterations... TODO move this to parameter?
+    for _ in np.arange(3):
+        # join grid cell demand, then drop where no demand
+        local_mapping = mapping.merge(state[['reservoir_demand']], how='left', left_on='grid_cell_id', right_index=True).rename(columns={'reservoir_demand': 'grid_cell_demand'})
+        local_mapping = local_mapping[local_mapping.grid_cell_demand.values > 0]
+        # aggregate to the total demand potential on each reservoir
+        local_mapping = local_mapping.merge(local_mapping[['reservoir_id', 'grid_cell_demand']].groupby('reservoir_id').sum().rename(columns={'grid_cell_demand': 'reservoir_demand'}), how='left', left_on='reservoir_id', right_index=True)
+        # assign the flow volume to each reservoir in the mapping
+        local_mapping = local_mapping.merge(grid[['reservoir_id']].join(pd.DataFrame(flow_volume, columns=['flow_volume'])), how='left', left_on='reservoir_id', right_on='reservoir_id')
+        # for each reservoir calculate the ratio of flow volume over demand; if greater than 1 it means there is more water than demanded
+        local_mapping = local_mapping.join(pd.DataFrame(local_mapping.flow_volume.values / local_mapping.reservoir_demand.values, columns=['demand_fraction']))
+        # initialize supply to 0 (supply provided to grid cell during this iteration)
+        local_mapping = local_mapping.join(pd.DataFrame(0 * local_mapping.flow_volume.values, columns=['grid_cell_supply']))
+
+        # convert reservoir flow volume to grid cell supply
+        # notes from fortran mosart:
+        # Covert dam flow_vol to gridcell supply.  In doing so, reduce the flow_vol
+        # at the dam, reduce the demand at the gridcell, and increase the supply at
+        # the gridcell by the same amount.  There are three conditions for this conversion
+        # to occur and these are carried out in the following order.  dam fraction
+        # is the ratio of the dam flow_vol over the total dam demand.
+        # 1. if any dam fraction >= 1.0 for a gridcell, then provide full demand to gridcell
+        #    prorated by the number of dams that can provide all the water.
+        # 2. if any sum of dam fraction >= 1.0 for a gridcell, then provide full demand to
+        #    gridcell prorated by the dam fraction of each dam.
+        # 3. if any sum of dam fraction < 1.0 for a gridcell, then provide fraction of 
+        #    demand to gridcell prorated by the dam fraction of each dam.
+        #
+        # dam_uptake is the amount of water removed from the dam, it's a global array.
+        # Gridcells from different tasks will accumluate the amount of water removed
+        # from each dam in this array.
+        
+        # case 1 - reservoirs capable of supplying all demand
+        # TODO the code is written with sctrictly greater than one, but comment says greater or equal...
+        if np.any(local_mapping.demand_fraction.values > 1):
+            # logging.info('case1')
+            # reduce to the set and get the count of reservoirs that satisfy this condition
+            local_mapping = local_mapping[local_mapping.demand_fraction.gt(1)]
+            local_mapping = local_mapping.merge(
+                local_mapping[['grid_cell_id', 'reservoir_id']].groupby('grid_cell_id').count().rename(columns={'reservoir_id': 'condition_count'}),
+                how='left',
+                left_on='grid_cell_id',
+                right_index=True
+            )
+            local_mapping.grid_cell_supply[:] = local_mapping.grid_cell_demand.values / local_mapping.condition_count.values
+
+        else: 
+            # sum the demand_fraction for each grid_cell; if greater than 1 it means all demand can be met, otherwise it can't
+            local_mapping = local_mapping.merge(local_mapping[['grid_cell_id', 'demand_fraction']].groupby('grid_cell_id').sum().rename(columns={'demand_fraction': 'demand_fraction_sum'}), how='left', left_on='grid_cell_id', right_index=True)
+            # case 2 - grid cells capable of fulfilling all demand from their reservoirs
+            if np.any(local_mapping.demand_fraction_sum.values >= 1):
+                # logging.info('case2')
+                local_mapping = local_mapping[local_mapping.demand_fraction_sum.ge(1)]
+                # prorate by demand_fraction
+                local_mapping.grid_cell_supply[:] = local_mapping.grid_cell_demand.values * local_mapping.demand_fraction.values / local_mapping.demand_fraction_sum.values
+
+            # case 3 - grid cells incapable of fulfilling all demand from their reservoirs
+            else:
+                # logging.info('case3')
+                local_mapping = local_mapping[local_mapping.demand_fraction_sum.gt(0)]
+                # prorate by demand_fraction
+                local_mapping.grid_cell_supply[:] = local_mapping.grid_cell_demand.values * local_mapping.demand_fraction.values
+
+        # update the overall flow/supply/demand based on this iteration
+        supplied_to_cell = grid[[]].join(local_mapping[['grid_cell_id', 'grid_cell_supply']].groupby('grid_cell_id').sum(), how='left').grid_cell_supply.fillna(0).values
+        taken_from_reservoir = grid[['reservoir_id']].merge(local_mapping[['reservoir_id', 'grid_cell_supply']].groupby('reservoir_id').sum(), how='left', left_on='reservoir_id', right_index=True).grid_cell_supply.fillna(0).values
+        # remove the supplied water from the flow at the reservoirs
+        flow_volume = flow_volume - taken_from_reservoir
+        # if the supply is within tiny value of demand, set them equal so that the loop works properly
+        supplied_to_cell = np.where(
+            np.abs(supplied_to_cell - state.reservoir_demand.values) < parameters.small_value,
+            state.reservoir_demand.values,
+            supplied_to_cell
+        )
+
+        # remove the supplied water from the demand at the grid cells
+        state.reservoir_demand[:] = state.reservoir_demand.values - supplied_to_cell
+        # accumulate the supplied water to the supply at the grid cells
+        state.reservoir_supply[:] = state.reservoir_supply.values + supplied_to_cell
+    
+    # accumulate the deficit to the grid cell
+    state.reservoir_deficit[:] = state.reservoir_deficit.values + state.reservoir_demand.values
+    
+    # add residual flow volume back into the main channel flow
+    state.channel_outflow_downstream[:] = np.where(
+        base_condition,
+        state.channel_outflow_downstream.values - flow_volume / delta_t,
+        state.channel_outflow_downstream.values
     )
     
-    # convert reservoir flow volume to grid cell supply
-    # notes from fortran mosart:
-    # Covert dam flow_vol to gridcell supply.  In doing so, reduce the flow_vol
-    # at the dam, reduce the demand at the gridcell, and increase the supply at
-    # the gridcell by the same amount.  There are three conditions for this conversion
-    # to occur and these are carried out in the following order.  dam fraction
-    # is the ratio of the dam flow_vol over the total dam demand.
-    # 1. if any dam fraction >= 1.0 for a gridcell, then provide full demand to gridcell
-    #    prorated by the number of dams that can provide all the water.
-    # 2. if any sum of dam fraction >= 1.0 for a gridcell, then provide full demand to
-    #    gridcell prorated by the dam fraction of each dam.
-    # 3. if any sum of dam fraction < 1.0 for a gridcell, then provide fraction of 
-    #    demand to gridcell prorated by the dam fraction of each dam.
-    #
-    # dam_uptake is the amount of water removed from the dam, it's a global array.
-    # Gridcells from different tasks will accumluate the amount of water removed
-    # from each dam in this array.
-    # TODO
+    return state

@@ -2,6 +2,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
+from epiweeks import Week
 from multiprocessing import Pool
 
 from mosart.direct_to_ocean.direct_to_ocean import direct_to_ocean
@@ -26,15 +27,15 @@ def update(self):
     if self.config.get('water_management.enabled', False):
         # only read new demand and compute new release if it's the very start of simulation or new month
         if self.current_time == self.config.get('simulation.start_date') or self.current_time == datetime.datetime(self.current_time.year, self.current_time.month, 1):
-            if self.config.get('water_management.extraction_enabled', False):
-                self.state = load_demand(self.state, self.grid, self.parameters, self.config, self.current_time)
+            self.state = load_demand(self.state, self.grid, self.parameters, self.config, self.current_time)
             reservoir_release(self)
-        self.state.reservoir_demand[:] = self.state.reservoir_monthly_demand.values * self.config.get('simulation.timestep')
+        # zero supply and deficit
         self.state.reservoir_supply = self.state.zeros
+        self.state.reservoir_deficit = self.state.zeros
         # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
         epiweek = Week.fromdate(self.current_time).week
         month = self.current_time.month
-        streamflow_time_name = self.config.get('water_management.streamflow_time_resolution')
+        streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
         self.state.reservoir_streamflow[:] = self.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
     
     # drop cells that won't be relevant, i.e. we only really care about land and outlet cells
@@ -42,6 +43,7 @@ def update(self):
     grid = self.grid[self.grid.mosart_mask.gt(0)]
     
     # if using multiple cores, split into roughly equal sized group based on outlet_id, since currently no math acts outside of the basin
+    # TODO actually the reservoir extraction can act outside of basin :(
     if self.config.get('multiprocessing.enabled', False) and self.cores > 1:
         jobs = self.cores
         # group cells based on outlet_id bins
@@ -54,7 +56,7 @@ def update(self):
     self.state = state.combine_first(self.state)
     self.current_time += datetime.timedelta(seconds=self.config.get('simulation.timestep'))
 
-def _update(state, grid, parameters, config, current_time, reservoir_streamflow):
+def _update(state, grid, parameters, config, current_time):
     # perform one timestep
     
     ###
@@ -108,6 +110,10 @@ def _update(state, grid, parameters, config, current_time, reservoir_streamflow)
         state.channel_outflow_sum_upstream_average = state.zeros
         state.channel_lateral_flow_hillslope_average = state.zeros
         
+        # get the demand volume for this substep
+        if config.get('water_management.enabled'):
+            state.reservoir_demand[:] = state.reservoir_monthly_demand.values * delta_t
+        
         # iterate substeps for remaining routing
         for __ in np.arange(config.get('simulation.routing_iterations')):
         
@@ -115,7 +121,7 @@ def _update(state, grid, parameters, config, current_time, reservoir_streamflow)
             ### subnetwork
             ###
             if config.get('water_management.enabled', False) and config.get('water_management.extraction_enabled', False):
-                state = subnetwork_irrigation(state, grid, parameters, config, delta_t)
+                state = subnetwork_irrigation(state, grid, parameters, config)
             state = subnetwork_routing(state, grid, parameters, config, delta_t)
             
             ###
@@ -133,14 +139,27 @@ def _update(state, grid, parameters, config, current_time, reservoir_streamflow)
             ### main channel
             ###
             state = main_channel_routing(state, grid, parameters, config, delta_t)
-            if config.get('water_management.enabled', False) and config.get('water_management.extraction_enabled', False) and config.get('extraction_main_channel_enabled', False):
-                state = main_channel_irrigation(state, grid, parameters, config, delta_t)
+            if config.get('water_management.enabled', False) and config.get('water_management.extraction_enabled', False) and config.get('water_management.extraction_main_channel_enabled', False):
+                state = main_channel_irrigation(state, grid, parameters, config)
             
             ###
             ### regulation
             ###
             if config.get('water_management.enabled', False) and config.get('water_management.regulation_enabled', False):
-                state = regulation(state, grid, parameters, config, delta_t, reservoir_streamflow)
+                state = regulation(state, grid, parameters, config, delta_t / config.get('simulation.routing_iterations'))
+            
+            # update flow
+            base_condition = (grid.mosart_mask.values > 0) & state.euler_mask.values
+            state.channel_outflow_downstream_current_timestep[:] = np.where(
+                base_condition,
+                state.channel_outflow_downstream_current_timestep.values - state.channel_outflow_downstream.values,
+                state.channel_outflow_downstream_current_timestep.values
+            )
+            state.channel_flow[:] = np.where(
+                base_condition,
+                state.channel_flow.values - state.channel_outflow_downstream.values,
+                state.channel_flow.values
+            )
         
         # average state values over dlevelh2r
         state.channel_flow[:] = state.channel_flow.values / config.get('simulation.routing_iterations')
@@ -154,7 +173,9 @@ def _update(state, grid, parameters, config, current_time, reservoir_streamflow)
             state.outflow_before_regulation[:] = -state.channel_outflow_downstream.values
             state.channel_flow[:] = state.channel_flow.values + state.channel_outflow_downstream.values
             if config.get('water_management.extraction_enabled', False):
-                state = extraction_regulated_flow(state, grid, parameters, config, config.get('simulation.timestep'))
+                state = extraction_regulated_flow(state, grid, parameters, config, delta_t)
+            state.outflow_after_regulation[:] = -state.channel_outflow_downstream.values
+            state.channel_flow[:] = state.channel_flow.values - state.channel_outflow_downstream.values
         
         # accumulate local flow field
         state.flow[:] = state.flow.values + state.channel_flow.values
@@ -166,6 +187,10 @@ def _update(state, grid, parameters, config, current_time, reservoir_streamflow)
         state.lateral_flow_hillslope_average[:] = state.lateral_flow_hillslope_average.values + state.channel_lateral_flow_hillslope_average.values
         
         current_time += datetime.timedelta(seconds=delta_t)
+    
+    if config.get('water_management.enabled'):
+        # convert supply to flux
+        state.reservoir_supply[:] = state.reservoir_supply.values / config.get('simulation.timestep')
     
     # average state values over subcycles
     state.flow[:] = state.flow.values / config.get('simulation.subcycles')

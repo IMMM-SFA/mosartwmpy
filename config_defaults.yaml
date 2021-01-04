@@ -28,18 +28,18 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: false
     # number of cores to use; set to ~ to use all available cores
-    cores: ~
+    cores: 4
 
 ###
 ### Simulation
 ###
 simulation:
     # name this simulation
-    name: Mosart Validation
+    name: WM Validation
     # date to begin the simulation
-    start_date: 1980-01-01
+    start_date: 1981-01-01
     # date to end the simulation
-    end_date: 1980-01-01
+    end_date: 1981-12-31
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -71,6 +71,30 @@ simulation:
           name: RIVER_DISCHARGE_OVER_LAND_LIQ
           long_name: Mosart river basin flow
           units: m3/s
+        - variable: channel_inflow_upstream
+          name: channel_inflow
+          long_name: Mosart main channel inflow to grid cell
+          units: m3/s
+        - variable: reservoir_storage
+          name: WRM_STORAGE
+          long_name: Mosart storage in reservoir
+          units: m3
+        - variable: reservoir_supply
+          name: WRM_SUPPLY
+          long_name: Mosart reservoir supply to grid cell
+          units: m3/s
+        - variable: reservoir_monthly_demand
+          name: WRM_DEMAND0
+          long_name: Mosart demand reqeusted by grid cell
+          units: m3/s
+        - variable: reservoir_demand
+          name: WRM_DEMAND
+          long_name: Mosart unmet demand at grid cell; same as deficit # TODO probably not
+          units: m3
+        - variable: reservoir_deficit
+          name: WRM_DEFICIT
+          long_name: Mosart unmet demand at grid cell
+          units: m3
     # non time dependent fields to include in the output
     # note that latitude and longitude are automatically included as 'lat' and 'lon'
     grid_output:
@@ -189,7 +213,7 @@ water_management:
         groundwater_enabled: false
         # flag to enable or disable return flow
         return_flow_enabled: false
-        # flag to enable or disable the tracking irrigation vs non irrigation demand
+        # flag to enable or disable the tracking of irrigation vs non irrigation demand
         total_demand_enabled: false
     # Reservoirs
     reservoirs:

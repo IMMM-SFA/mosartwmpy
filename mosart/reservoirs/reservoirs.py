@@ -1,7 +1,7 @@
-from epiweeks import Week
 import numpy as np
 import pandas as pd
 
+from epiweeks import Week
 from xarray import concat, open_dataset
 from xarray.ufuncs import logical_not
 
@@ -37,13 +37,19 @@ def load_reservoirs(self):
     })
     # drop nan grid ids
     reservoir_to_grid_mapping = reservoir_to_grid_mapping[reservoir_to_grid_mapping.grid_cell_id.notna()]
-    # correct to zero-based grid indexing
+    # correct to zero-based grid indexing # TODO check this
     reservoir_to_grid_mapping.grid_cell_id[:] = reservoir_to_grid_mapping.grid_cell_id.values - 1
     # set this structure into the parameters since it can hold arbitrary data
     self.parameters.reservoir_to_grid_mapping = reservoir_to_grid_mapping
     
     # count of the number of reservoirs that can supply each grid cell
-    # TODO
+    self.grid = self.grid.join(
+        self.parameters.reservoir_to_grid_mapping.groupby('grid_cell_id').count().rename(columns={'reservoir_id': 'reservoir_count'}),
+        how='left'
+    )
+    
+        # add outlet_id to the mapping for computing the network graph for multiprocessing
+    self.parameters.reservoir_to_grid_mapping = reservoir_to_grid_mapping.merge(self.grid[['outlet_id']], how='left', left_on='grid_cell_id', right_index=True)
     
     # prepare the month or epiweek based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(self, reservoirs)
@@ -125,7 +131,7 @@ def initialize_reservoir_state(self):
         'reservoir_streamflow',
         # StorMthStOp
         'reservoir_storage_operation_year_start',
-        # storage
+        # storage [m3]
         'reservoir_storage',
         # MthStOp,
         'reservoir_month_start_operations',
@@ -133,14 +139,16 @@ def initialize_reservoir_state(self):
         'reservoir_month_flood_control_start',
         # MthNdFC
         'reservoir_month_flood_control_end',
-        # release
+        # release [m3/s]
         'reservoir_release',
-        # supply
+        # supply [m3/s]
         'reservoir_supply',
         # monthly demand [m3/s] (demand0)
         'reservoir_monthly_demand',
-        # demand within timestep [m3]
+        # unmet demand volume within sub timestep (deficit) [m3]
         'reservoir_demand',
+        # unmet demand over whole timestep [m3]
+        'reservoir_deficit',
         # potential evaporation [mm/s] # TODO this doesn't appear to be initialized anywhere currently
         'reservoir_potential_evaporation'
     ]:

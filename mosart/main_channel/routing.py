@@ -49,16 +49,5 @@ def main_channel_routing(state, grid, parameters, config, delta_t):
         tmp_outflow_downstream / grid.iterations_main_channel.values,
         state.channel_outflow_downstream.values
     )
-    state.channel_outflow_downstream_current_timestep[:] = np.where(
-        base_condition,
-        state.channel_outflow_downstream_current_timestep.values - state.channel_outflow_downstream.values,
-        state.channel_outflow_downstream_current_timestep.values
-    )
-    
-    state.channel_flow[:] = np.where(
-        base_condition,
-        state.channel_flow.values - state.channel_outflow_downstream.values,
-        state.channel_flow.values
-    )
     
     return state

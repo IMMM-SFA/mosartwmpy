@@ -44,6 +44,8 @@ class Parameters:
         self.tiny_value = 1.0e-14
         # new and improved even tinier value, MYTINYVALUE
         self.tinier_value = 1.0e-50
+        # small value, for less precise arithmatic
+        self.small_value = 1.0e-10
         # radius of the earth [m]
         self.radius_earth = 6.37122e6
         # a small value in order to avoid abrupt change of hydraulic radius

@@ -2,7 +2,7 @@ import numpy as np
 
 from mosart.subnetwork.state import update_subnetwork_state
 
-def subnetwork_irrigation(state, grid, parameters, config, delta_t):
+def subnetwork_irrigation(state, grid, parameters, config):
     # subnetwork channel routing irrigation extraction
     
     base_condition = (grid.mosart_mask.values > 0) & (
@@ -13,10 +13,12 @@ def subnetwork_irrigation(state, grid, parameters, config, delta_t):
     
     flow_volume = 1 * state.subnetwork_storage
     
+    volume_condition = flow_volume >= state.reservoir_demand.values
+    
     state.reservoir_supply[:] = np.where(
         base_condition,
         np.where(
-            flow_volume >= state.reservoir_demand.values,
+            volume_condition,
             state.reservoir_supply.values + state.reservoir_demand.values,
             state.reservoir_supply.values + flow_volume
         ),
@@ -24,7 +26,7 @@ def subnetwork_irrigation(state, grid, parameters, config, delta_t):
     )
     
     flow_volume = np.where(
-        flow_volume >= state.reservoir_demand.values,
+        base_condition & volume_condition,
         flow_volume - state.reservoir_demand.values,
         flow_volume
     )
@@ -32,7 +34,7 @@ def subnetwork_irrigation(state, grid, parameters, config, delta_t):
     state.reservoir_demand[:] = np.where(
         base_condition,
         np.where(
-            flow_volume >= state.reservoir_demand.values,
+            volume_condition,
             0,
             state.reservoir_demand.values - flow_volume
         ),
@@ -40,7 +42,7 @@ def subnetwork_irrigation(state, grid, parameters, config, delta_t):
     )
     
     flow_volume = np.where(
-        np.logical_not(flow_volume >= state.reservoir_demand.values),
+        base_condition & np.logical_not(volume_condition),
         0,
         flow_volume
     )

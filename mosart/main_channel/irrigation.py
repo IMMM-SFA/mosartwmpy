@@ -2,7 +2,7 @@ import numpy as np
 
 from mosart.main_channel.state import update_main_channel_state
 
-def main_channel_irrigation(state, grid, parameters, config, delta_t):
+def main_channel_irrigation(state, grid, parameters, config):
     # main channel routing irrigation extraction
     
     base_condition = (
@@ -15,17 +15,17 @@ def main_channel_irrigation(state, grid, parameters, config, delta_t):
     sub_condition = (
         (state.channel_storage.values > parameters.tinier_value) &
         (state.reservoir_demand > parameters.tinier_value) &
-        (grid.main_channel_length > parameters.tinier_value)
+        (grid.channel_length > parameters.tinier_value)
     )
     
     flow_volume = 1 * state.channel_storage
     
-    extraction_condition = parameters.irrigation_extraction_maximum_fraction * flow_volume >= state.reservoir_demand.values
+    volume_condition = parameters.irrigation_extraction_maximum_fraction * flow_volume >= state.reservoir_demand.values
     
     state.reservoir_supply[:] = np.where(
         base_condition & sub_condition,
         np.where(
-            extraction_condition,
+            volume_condition,
             state.reservoir_supply.values + state.reservoir_demand.values,
             state.reservoir_supply.values + parameters.irrigation_extraction_maximum_fraction  * flow_volume
         ),
@@ -33,7 +33,7 @@ def main_channel_irrigation(state, grid, parameters, config, delta_t):
     )
     
     flow_volume = np.where(
-        extraction_condition,
+        base_condition & sub_condition & volume_condition,
         flow_volume - state.reservoir_demand.values,
         flow_volume
     )
@@ -41,7 +41,7 @@ def main_channel_irrigation(state, grid, parameters, config, delta_t):
     state.reservoir_demand[:] = np.where(
         base_condition & sub_condition,
         np.where(
-            extraction_condition,
+            volume_condition,
             0,
             state.reservoir_demand.values - parameters.irrigation_extraction_maximum_fraction * flow_volume
         ),
@@ -49,7 +49,7 @@ def main_channel_irrigation(state, grid, parameters, config, delta_t):
     )
     
     flow_volume = np.where(
-        np.logical_not(extraction_condition),
+        base_condition & sub_condition & np.logical_not(volume_condition),
         (1 - parameters.irrigation_extraction_maximum_fraction) * flow_volume,
         flow_volume
     )

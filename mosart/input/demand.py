@@ -10,6 +10,8 @@ def load_demand(state, grid, parameters, config, current_time):
     
     state.reservoir_monthly_demand[:] = np.array(demand[config.get('water_management.demand.demand')].sel({config.get('water_management.demand.time'): current_time}, method='pad')).flatten()
     
+    state.reservoir_monthly_demand = state.reservoir_monthly_demand.fillna(0)
+    
     demand.close()
     
     return state
