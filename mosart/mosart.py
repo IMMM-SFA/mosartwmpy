@@ -9,7 +9,7 @@ from timeit import default_timer as timer
 
 from mosart.config.setup import setup
 from mosart.grid.load_grid import load_grid
-from mosart.output.output import initialize_output, update_output
+from mosart.output.output import initialize_output, update_output, write_restart
 from mosart.state.initialize_state import initialize_state
 from mosart.update.update import update
 
@@ -30,6 +30,7 @@ class Mosart(Bmi):
         self.parameters = None
         self.state = None
         self.output_buffer = None
+        self.output_n = 0
         self.cores = 1
         self.client = None
         self.reservoir_streamflow_schedule = None
@@ -71,29 +72,26 @@ class Mosart(Bmi):
         
     def update(self):
         t = timer()
-        step = datetime.fromtimestamp(self.get_current_time())
+        step = datetime.fromtimestamp(self.get_current_time()).isoformat(" ")
         # perform one timestep
-        logging.info(f'Begin timestep {step.isoformat(" ")}.')
+        logging.info(f'Begin timestep {step}.')
         try:
             update(self)
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
-        logging.info(f'Timestep {step.isoformat(" ")} completed in {self.pretty_timer(timer() - t)}.')
+        logging.info(f'Timestep {step} completed in {self.pretty_timer(timer() - t)}.')
         try:
-            # update the output buffer
+            # update the output buffer and write restart file if needed
             update_output(self)
-            # TODO write restart file
         except Exception as e:
             logging.exception('Failed to write output or restart file; see below for stacktrace.')
             raise e
-        return
 
     def update_until(self, time: float):
         # perform timesteps until time
         while self.get_current_time() < time:
             self.update()
-        return
 
     def finalize(self):
         # simulation is over so free memory, write data, etc

@@ -48,7 +48,7 @@ def load_reservoirs(self):
         how='left'
     )
     
-        # add outlet_id to the mapping for computing the network graph for multiprocessing
+    # add outlet_id to the mapping for computing the network graph for multiprocessing
     self.parameters.reservoir_to_grid_mapping = reservoir_to_grid_mapping.merge(self.grid[['outlet_id']], how='left', left_on='grid_cell_id', right_index=True)
     
     # prepare the month or epiweek based reservoir schedules mapped to the domain

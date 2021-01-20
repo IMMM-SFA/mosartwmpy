@@ -8,6 +8,7 @@
 ###
 ### Batch
 ### note: so far only supported on PNNL's constance cluster
+### TODO this isn't in use yet
 ###
 batch:
     # whether to run in batch mode using slurm (otherwise runs in default mode)
@@ -28,7 +29,7 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: false
     # number of cores to use; set to ~ to use all available cores
-    cores: 4
+    cores: 2
 
 ###
 ### Simulation
@@ -39,7 +40,7 @@ simulation:
     # date to begin the simulation
     start_date: 1981-01-01
     # date to end the simulation
-    end_date: 1981-12-31
+    end_date: 1982-12-31
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -63,6 +64,14 @@ simulation:
     output_file_frequency: monthly
     # time dependent output fields
     output:
+        - variable: hillslope_surface_runoff
+          name: QSUR_LIQ
+          long_name: Surface runoff
+          units: m/s
+        - variable: hillslope_subsurface_runoff
+          name: QSUB_LIQ
+          long_name: Subsurface runoff
+          units: m/s
         - variable: storage
           name: STORAGE_LIQ
           long_name: Mosart liquid storage
@@ -110,6 +119,15 @@ simulation:
         - variable: land_mask
           name: MASK
           long_name: Land mask 1=Land, 2=Ocean, 3=Outlet
+        - variable: area
+          name: area
+          long_name: area
+        - variable: total_drainage_area_multi
+          name: areatotal
+          long_name: areatotal
+        - variable: total_drainage_area_single
+          name: areatotal2
+          long_name: areatotal2
 
 ### 
 ### Grid

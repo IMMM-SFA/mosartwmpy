@@ -23,14 +23,18 @@ def update(self):
     if self.config.get('runoff.enabled', False):
         self.state = load_runoff(self.state, self.grid, self.parameters, self.config, self.current_time)
     
+    # advance timestep
+    self.current_time += datetime.timedelta(seconds=self.config.get('simulation.timestep'))
+    
     # read demand
     if self.config.get('water_management.enabled', False):
-        # only read new demand and compute new release if it's the very start of simulation or new month
-        if self.current_time == self.config.get('simulation.start_date') or self.current_time == datetime.datetime(self.current_time.year, self.current_time.month, 1):
+        # only read new demand and compute new release if it's the very start of simulation or new month # TODO this is currently adjusted to try to match fortran mosart
+        if self.current_time == datetime.datetime.combine(self.config.get('simulation.start_date'), datetime.time(3)) or self.current_time == datetime.datetime(self.current_time.year, self.current_time.month, 1):
             self.state = load_demand(self.state, self.grid, self.parameters, self.config, self.current_time)
             reservoir_release(self)
-        # zero supply and deficit
+        # zero supply and demand
         self.state.reservoir_supply = self.state.zeros
+        self.state.reservoir_demand = self.state.zeros
         self.state.reservoir_deficit = self.state.zeros
         # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
         epiweek = Week.fromdate(self.current_time).week
@@ -54,7 +58,6 @@ def update(self):
         state = _update(self.state, self.grid, self.parameters, self.config, self.current_time)
     
     self.state = state.combine_first(self.state)
-    self.current_time += datetime.timedelta(seconds=self.config.get('simulation.timestep'))
 
 def _update(state, grid, parameters, config, current_time):
     # perform one timestep
@@ -186,11 +189,16 @@ def _update(state, grid, parameters, config, current_time):
         state.outflow_sum_upstream_average[:] = state.outflow_sum_upstream_average.values + state.channel_outflow_sum_upstream_average.values
         state.lateral_flow_hillslope_average[:] = state.lateral_flow_hillslope_average.values + state.channel_lateral_flow_hillslope_average.values
         
-        current_time += datetime.timedelta(seconds=delta_t)
+        # current_time += datetime.timedelta(seconds=delta_t)
     
     if config.get('water_management.enabled'):
         # convert supply to flux
         state.reservoir_supply[:] = state.reservoir_supply.values / config.get('simulation.timestep')
+    
+    # convert runoff back to m3/s for output
+    state.hillslope_surface_runoff[:] = state.hillslope_surface_runoff.values * grid.area.values
+    state.hillslope_subsurface_runoff[:] = state.hillslope_subsurface_runoff.values * grid.area.values
+    state.hillslope_wetland_runoff[:] = state.hillslope_wetland_runoff.values * grid.area.values
     
     # average state values over subcycles
     state.flow[:] = state.flow.values / config.get('simulation.subcycles')
