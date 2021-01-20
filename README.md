@@ -1,3 +1,6 @@
+![build](https://github.com/IMMM-SFA/wolfgang/workflows/build/badge.svg) [![codecov](https://codecov.io/gh/IMMM-SFA/wolfgang/branch/actions/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/wolfgang) 
+
+
 ### Wolfgang Mosart-WM
 
 Wolfgang is a python translation of Mosart-WM, a model for water routing and reservoir management written in Fortran. The original code can be found at [IWMM](https://github.com/IMMM-SFA/iwmm) and [E3SM](https://github.com/E3SM-Project/E3SM), in which Mosart is the hdyrological component of a larger suite of earth-science models. The motivation for rewriting is largely for developer convenience -- running, debugging, and adding new capabilities were becoming increasingly difficult due to the complexity of the codebase and lack of familiarity with Fortran. This version aims to be intuitive, lightweight, and well documented, while still being highly interoperable.
