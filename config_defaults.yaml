@@ -24,6 +24,7 @@ batch:
 ### Multiprocessing
 ### note: if running on a local machine, it is best not to use all your cores if you plan on doing other things in the meantime
 ### note: when running in batch mode, all cores are used no matter what is specified here
+### TODO this isn't working quite right for WM yet, but works somewhat for just routing
 ###
 multiprocessing:
     # whether or not to use multiple cores
@@ -36,11 +37,11 @@ multiprocessing:
 ###
 simulation:
     # name this simulation
-    name: WM Validation
+    name: Fiddling
     # date to begin the simulation
     start_date: 1981-01-01
     # date to end the simulation
-    end_date: 1982-12-31
+    end_date: 1981-01-31
     # mosart timestep in seconds
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
@@ -54,6 +55,7 @@ simulation:
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
     log_level: INFO
     # resume simulation from restart file
+    # TODO not yet supported
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly', 'end' -- 'end' meaning only at the end of the simulation
     restart_file_frequency: end
@@ -179,6 +181,14 @@ grid:
         channel_floodplain_width: rwid0
         # bankfull depth of main channel f ield name [m]
         channel_depth: rdep
+    # land grid information
+    # TODO this is just needed for land_frac, so should just add it to mosart grid
+    # TODO assumed to be the same grid as the main grid
+    land:
+      # path to the land grid domain file; can be absolute or relative to the source code root
+      path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
+      # land fraction field name
+      land_fraction: frac
 ###
 ### Runoff (forcing input)
 ###

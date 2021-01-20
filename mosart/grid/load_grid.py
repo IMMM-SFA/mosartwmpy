@@ -159,6 +159,12 @@ def load_grid(self):
         self.parameters.channel_slope_minimum
     )
     
+    # load the land grid to get the land fraction
+    # TODO need to just add this field to mosart grid
+    land = open_dataset(self.config.get('grid.land.path'))
+    grid_dataframe = grid_dataframe.join(pd.DataFrame(land[self.config.get('grid.land.land_fraction')].values.flatten(), columns=['land_fraction']))
+    land.close()
+    
     logging.debug(' - main channel iterations')
     
     # parameter for calculating number of main channel iterations needed

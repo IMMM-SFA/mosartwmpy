@@ -31,9 +31,9 @@ assert os.path.exists(data_path), f"Unable to find this path, {str(data_path)} -
 data = open_mfdataset(f"{data_path}/*.nc" if data_path[-3:] != '.nc' else data_path)
 
 try:
-    data = data.sel({temporal_dimension: data[temporal_dimension].dt.year.isin(years)})
+    data = data.sel({ temporal_dimension: slice(f"{years[0]}-01-02", f"{years[-1]}") })
     baseline_data = open_mfdataset(baseline_data_path)
-    baseline_data = baseline_data.sel({temporal_dimension: baseline_data[temporal_dimension].dt.year.isin(years)})
+    baseline_data = baseline_data.sel({ temporal_dimension: slice(f"{years[0]}-01-02", f"{years[-1]}") })
 except:
     print(f"Either your data or the baseline data does not appear to include years {years}.")
     print("Please double check and try again or update this code to look for a different year.")
@@ -60,7 +60,7 @@ for i, axis in enumerate(axes.flatten()):
     nmae[v].plot(ax=axis)
     axis.set_ylabel(None)
     axis.set_xlabel(None)
-    axis.set_ylim([0, 25])
+    axis.set_ylim([0, 10])
     axis.set_title(f'{v}')
 
 figure.text(0.5, 0.04, 'time', ha='center')
