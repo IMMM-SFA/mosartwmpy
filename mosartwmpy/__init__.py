@@ -1,1 +1,2 @@
-from .model import Model
+from mosartwmpy.external.install_supplement import install_supplement
+from mosartwmpy import Model
