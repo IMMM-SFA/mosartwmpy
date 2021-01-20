@@ -1,4 +1,4 @@
-![build](https://github.com/IMMM-SFA/wolfgang/workflows/build/badge.svg) [![codecov](https://codecov.io/gh/IMMM-SFA/wolfgang/branch/actions/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/wolfgang) 
+![build](https://github.com/IMMM-SFA/wolfgang/workflows/build/badge.svg) [![codecov](https://codecov.io/gh/IMMM-SFA/wolfgang/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/wolfgang)
 
 
 ### Wolfgang Mosart-WM
