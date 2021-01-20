@@ -17,6 +17,7 @@ from mosart.reservoirs.reservoirs import reservoir_release
 from mosart.subnetwork.irrigation import subnetwork_irrigation
 from mosart.subnetwork.routing import subnetwork_routing
 
+# TODO add docstrings to each method/class
 def update(self):
     
     # read runoff
@@ -51,6 +52,7 @@ def update(self):
     if self.config.get('multiprocessing.enabled', False) and self.cores > 1:
         jobs = self.cores
         # group cells based on outlet_id bins
+        # TODO joblib, pathos, ray
         grid['core'] = pd.cut(grid.outlet_id, bins=jobs, labels=False)
         with Pool(processes=jobs) as pool:
             state = pd.concat(pool.starmap(_update, [(state[grid.core.eq(n)], grid[grid.core.eq(n)], self.parameters, self.config, self.current_time) for n in np.arange(jobs)]))

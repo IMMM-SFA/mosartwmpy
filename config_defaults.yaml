@@ -196,7 +196,7 @@ runoff:
     # flag to turn this feature on or off
     enabled: true
     # path to the runoff file; can be absolute or relative to the source code root
-    path: ./input/runoff/Livneh_NLDAS_1980_2011.nc
+    path: ./input/runoff/Livneh_NLDAS_1980_1985.nc
     # longitude field name
     longitude: lon
     # latitude field name
@@ -227,7 +227,7 @@ water_management:
     # Demand
     demand:
         # path to the demand file; can be absolute or relative to the source code root
-        path: ./input/demand/RCP8.5_GCAM_water_demand_1980_2095.nc
+        path: ./input/demand/RCP8.5_GCAM_water_demand_1980_1985.nc
         # longitude field name
         longitude: lon
         # latitude field name
