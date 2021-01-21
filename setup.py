@@ -14,14 +14,14 @@ def get_requirements():
 
 
 setup(
-    name='wolfgang',
+    name='mosartwmpy',
     version='0.1.0',
     packages=find_packages(),
-    url='https://github.com/IMMM-SFA/wolfgang',
+    url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2',
     author='Travis Thurber',
     author_email='thurber',
-    description='Python implementation of MOSART-WM:  A water routing and management model',
+    description='Python implementation of MOSART-WM: A water routing and management model',
     long_description=readme(),
     python_requires='>=3.6.*, <4',
     install_requires=get_requirements()

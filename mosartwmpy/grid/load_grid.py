@@ -4,7 +4,7 @@ import pandas as pd
 
 from xarray import open_dataset
 
-from mosart.reservoirs.reservoirs import load_reservoirs
+from mosartwmpy.reservoirs.reservoirs import load_reservoirs
 
 def load_grid(self):
     # load grid into dataframe

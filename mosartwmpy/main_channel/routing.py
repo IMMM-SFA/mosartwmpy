@@ -1,7 +1,7 @@
 import numpy as np
 
-from mosart.main_channel.kinematic_wave import kinematic_wave_routing
-from mosart.main_channel.state import update_main_channel_state
+from mosartwmpy.main_channel.kinematic_wave import kinematic_wave_routing
+from mosartwmpy.main_channel.state import update_main_channel_state
 
 def main_channel_routing(state, grid, parameters, config, delta_t):
     # perform the main channel routing

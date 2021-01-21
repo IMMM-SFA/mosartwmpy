@@ -1,7 +1,7 @@
 ---
-#####################################
-### MOSART Configuration Defaults ###
-#####################################
+#########################################
+### MOSARTWMPY Configuration Defaults ###
+#########################################
 ### READ ONLY
 ### To override configuration defaults, edit config.yaml
 
@@ -37,7 +37,7 @@ multiprocessing:
 ###
 simulation:
     # name this simulation
-    name: Fiddling
+    name: mosart wm
     # date to begin the simulation
     start_date: 1981-01-01
     # date to end the simulation
@@ -298,7 +298,6 @@ water_management:
             # conveyance field name
             reservoir_conveyance: conveyance
 
-
 ###
 ### Inundation
 ###
@@ -312,7 +311,6 @@ inundation:
 sediment:
     # flag to turn this feature on or off
     enabled: false
-
 
 ###
 ### Reservoir Stratification
