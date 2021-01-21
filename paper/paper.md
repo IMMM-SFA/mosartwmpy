@@ -21,7 +21,7 @@ bibliography: paper.bib
 # Statement of need
 This would describe why you build the Python implementaion of MOSART-WM.
 
-![This is just a space holder for an image that will represent your new Python package.](figure_1.png = 4x5.13)
+![This is just a space holder for an image that will represent your new Python package.](figure_1.png =4x5.13)
 
 # Summary
 I just took this content dirctly from several existing repos to prime the pump and demonstrate how references are included in text; it needs to be rewritten for continutity:  
