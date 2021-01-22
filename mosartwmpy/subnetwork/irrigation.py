@@ -1,6 +1,6 @@
 import numpy as np
 
-from mosart.subnetwork.state import update_subnetwork_state
+from mosartwmpy.subnetwork.state import update_subnetwork_state
 
 def subnetwork_irrigation(state, grid, parameters, config):
     # subnetwork channel routing irrigation extraction

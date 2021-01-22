@@ -1,6 +1,6 @@
 import numpy as np
 
-from mosart.main_channel.state import update_main_channel_state
+from mosartwmpy.main_channel.state import update_main_channel_state
 
 def main_channel_irrigation(state, grid, parameters, config):
     # main channel routing irrigation extraction

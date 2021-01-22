@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime, time
 from xarray import open_dataset
 
-from mosart.reservoirs.reservoirs import initialize_reservoir_state
+from mosartwmpy.reservoirs.reservoirs import initialize_reservoir_state
 
 def initialize_state(self):
 

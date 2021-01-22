@@ -1,6 +1,6 @@
 import numpy as np
 
-from mosart.subnetwork.state import update_subnetwork_state
+from mosartwmpy.subnetwork.state import update_subnetwork_state
 
 def subnetwork_routing(state, grid, parameters, config, delta_t):
     # perform the subnetwork (tributary) routing

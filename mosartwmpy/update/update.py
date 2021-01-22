@@ -5,17 +5,17 @@ import pandas as pd
 from epiweeks import Week
 from multiprocessing import Pool
 
-from mosart.direct_to_ocean.direct_to_ocean import direct_to_ocean
-from mosart.flood.flood import flood
-from mosart.hillslope.routing import hillslope_routing
-from mosart.input.runoff import load_runoff
-from mosart.input.demand import load_demand
-from mosart.main_channel.irrigation import  main_channel_irrigation
-from mosart.main_channel.routing import main_channel_routing
-from mosart.reservoirs.regulation import extraction_regulated_flow, regulation
-from mosart.reservoirs.reservoirs import reservoir_release
-from mosart.subnetwork.irrigation import subnetwork_irrigation
-from mosart.subnetwork.routing import subnetwork_routing
+from mosartwmpy.direct_to_ocean.direct_to_ocean import direct_to_ocean
+from mosartwmpy.flood.flood import flood
+from mosartwmpy.hillslope.routing import hillslope_routing
+from mosartwmpy.input.runoff import load_runoff
+from mosartwmpy.input.demand import load_demand
+from mosartwmpy.main_channel.irrigation import  main_channel_irrigation
+from mosartwmpy.main_channel.routing import main_channel_routing
+from mosartwmpy.reservoirs.regulation import extraction_regulated_flow, regulation
+from mosartwmpy.reservoirs.reservoirs import reservoir_release
+from mosartwmpy.subnetwork.irrigation import subnetwork_irrigation
+from mosartwmpy.subnetwork.routing import subnetwork_routing
 
 # TODO add docstrings to each method/class
 def update(self):

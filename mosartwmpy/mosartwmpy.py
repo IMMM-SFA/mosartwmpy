@@ -7,14 +7,14 @@ from bmipy import Bmi
 from datetime import datetime, time
 from timeit import default_timer as timer
 
-from mosart.config.setup import setup
-from mosart.grid.load_grid import load_grid
-from mosart.output.output import initialize_output, update_output, write_restart
-from mosart.state.initialize_state import initialize_state
-from mosart.update.update import update
+from mosartwmpy.config.setup import setup
+from mosartwmpy.grid.load_grid import load_grid
+from mosartwmpy.output.output import initialize_output, update_output, write_restart
+from mosartwmpy.state.initialize_state import initialize_state
+from mosartwmpy.update.update import update
 
-class Mosart(Bmi):
-    # Mosart Basic Model Interface
+class Model(Bmi):
+    # MosartWmPy Basic Model Interface
     def __init__(self):
         # initialize properties
         self.name = None

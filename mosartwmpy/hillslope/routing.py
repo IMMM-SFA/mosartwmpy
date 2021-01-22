@@ -1,6 +1,6 @@
 import numpy as np
 
-from mosart.hillslope.state import update_hillslope_state
+from mosartwmpy.hillslope.state import update_hillslope_state
 
 def hillslope_routing(state, grid, parameters, config, delta_t):
     # perform the hillslope routing for the whole grid
