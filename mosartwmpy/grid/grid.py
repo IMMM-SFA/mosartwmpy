@@ -10,16 +10,40 @@ from mosartwmpy.reservoirs.reservoirs import load_reservoirs
 class Grid():
     """Class to store grid related values that are constant throughout a simulation."""
     
-    def __init__(self, config, parameters, cores=1):
+    def get_grid_for_process(self, process):
+        """Get a copy of a Grid instance subsetted by a process number
+
+        Args:
+            process (int): which process number to get a copy for
+
+        Returns:
+            Grid: a Grid instance that is a subset of the original
+        """
+
+        sub_grid = Grid(empty=True)
+        for attribute in dir(self):
+            if not attribute.startswith('_'):
+                # TODO for now just copying the numpy arrays -- need something better for WM
+                attr = getattr(self, attribute)
+                if isinstance(attr, np.ndarray) and attr.size == self.id.size:
+                    setattr(sub_grid, attribute, getattr(self, attribute)[self.process == process])
+        return sub_grid
+    
+    def __init__(self, config=None, parameters=None, cores=1, empty=False):
         """Initialize the Grid class.
         
         Args:
             config (Benedict): Model configuration benedict instance
             parameters (Parameters): Model parameters instance
             cores (int): How many CPUs are in use
+            empty (bool): Set to True to return an empty instance
         """
         
-        # initialize all properties provided from file
+        # shortcut to get an empty grid instance
+        if empty:
+            return
+        
+        # initialize all properties that need to be shared across cores
         self.drainage_fraction = np.empty(0)
         self.local_drainage_area = np.empty(0)
         self.total_drainage_area_multi = np.empty(0)
@@ -39,7 +63,6 @@ class Grid():
         self.channel_width = np.empty(0)
         self.channel_floodplain_width = np.empty(0)
         self.channel_depth = np.empty(0)
-        self.land_fraction = np.empty(0)
         if config.get('water_management.enabled', False):
             self.reservoir_id = np.empty(0)
             self.reservoir_runoff_capacity = np.empty(0)
@@ -62,7 +85,6 @@ class Grid():
             self.reservoir_streamflow_schedule = xr.DataArray()
             self.reservoir_demand_schedule = xr.DataArray()
             self.reservoir_prerelease_schedule = xr.DataArray()
-        
         
         logging.info('Loading grid file.')
         
@@ -312,4 +334,6 @@ class Grid():
             load_reservoirs(self, config, parameters)
 
         # label each grid cell with a processor number it belongs to
-        self.core = pd.cut(self.outlet_id, bins=cores, labels=False)
+        self.process = pd.cut(self.outlet_id, bins=cores, labels=False)
+        # remove non interesting grid cells from process list
+        self.process[np.logical_not(self.mosart_mask > 0)] = -1

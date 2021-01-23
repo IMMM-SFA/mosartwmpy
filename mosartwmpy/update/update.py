@@ -3,10 +3,7 @@ import numpy as np
 import pandas as pd
 
 from epiweeks import Week
-# from multiprocessing import Pool
-from multiprocessing.pool import ThreadPool as Pool
-
-from multiprocessing.shared_memory import SharedMemory
+from multiprocessing import Pool
 
 from mosartwmpy.direct_to_ocean.direct_to_ocean import direct_to_ocean
 from mosartwmpy.flood.flood import flood
@@ -58,21 +55,28 @@ def update(self):
     # state = self.state[self.grid.mosart_mask > 0]
     # grid = self.grid[self.grid.mosart_mask > 0]
     
-    # if using multiple cores, split into roughly equal sized group based on outlet_id, since currently no math acts outside of the basin
-    # TODO actually the reservoir extraction can act outside of basin :(
-    if self.config.get('multiprocessing.enabled', False) and self.cores > 1:
-        pass
-        # TODO joblib, pathos, ray?
-        # with Pool(processes=self.cores) as pool:
-        #     state = pd.concat(pool.starmap(_update, [(self.state.loc[grid.core.eq(n)], grid.loc[grid.core.eq(n)], self.parameters, self.config, self.current_time) for n in np.arange(self.cores)]))
+    # TODO doesn't yet work for WM
+    if self.config.get('multiprocessing.enabled', False) and (self.cores > 1) & (not self.config.get('water_management.enabled')):
+        with Pool(processes=self.cores) as pool:
+            results = pool.starmap(
+                _update,
+                [(
+                    self.state.get_state_for_process(self.grid.process == n),
+                    self.grid.get_grid_for_process(n),
+                    self.parameters,
+                    self.config
+                ) for n in np.arange(self.cores)]
+            )
+            self.state.recombine_sub_states(self.grid.process, results)
         
     else:
-        _update(self.state, self.grid, self.parameters, self.config, self.current_time)
+        _update(self.state, self.grid, self.parameters, self.config)
     
     # self.state = state.combine_first(self.state)
 
-def _update(state, grid, parameters, config, current_time):
+def _update(state, grid, parameters, config):
     # perform one timestep
+    np.seterr(all='ignore')
     
     ###
     ### Reset certain state variables
@@ -266,3 +270,5 @@ def _update(state, grid, parameters, config, current_time):
         state.delta_storage,
         0
     )
+    
+    return state

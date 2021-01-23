@@ -68,7 +68,7 @@ class Model(Bmi):
 
         # load grid
         try:
-            self.grid = Grid(self.config, self.parameters, self.cores)
+            self.grid = Grid(config=self.config, parameters=self.parameters, cores=self.cores)
         except Exception as e:
             logging.exception('Failed to load grid file; see below for stacktrace.')
             raise e
@@ -86,7 +86,7 @@ class Model(Bmi):
                 # simulation start time
                 self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
                 # initialize state
-                self.state = State(self.grid, self.config, self.parameters, self.get_grid_size())
+                self.state = State(grid=self.grid, config=self.config, parameters=self.parameters, grid_size=self.get_grid_size())
         except Exception as e:
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
