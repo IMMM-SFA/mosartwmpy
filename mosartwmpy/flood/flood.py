@@ -17,16 +17,14 @@ def flood(state, grid, parameters, config):
     ###
 
     # flux sent back to land
-    state.flood[:] = np.where(
-        (grid.land_mask.values == 1) & (state.storage.values > parameters.flood_threshold) & (state.tracer.values == parameters.LIQUID_TRACER),
-        (state.storage.values - parameters.flood_threshold) / config.get('simulation.timestep'),
+    state.flood = np.where(
+        (grid.land_mask == 1) & (state.storage > parameters.flood_threshold) & (state.tracer == parameters.LIQUID_TRACER),
+        (state.storage - parameters.flood_threshold) / config.get('simulation.timestep'),
         0
     )
     # remove this flux from the input runoff from land
-    state.hillslope_surface_runoff[:] = np.where(
-        state.tracer.values == parameters.LIQUID_TRACER,
-        state.hillslope_surface_runoff.values - state.flood.values,
-        state.hillslope_surface_runoff.values
+    state.hillslope_surface_runoff = np.where(
+        state.tracer == parameters.LIQUID_TRACER,
+        state.hillslope_surface_runoff - state.flood,
+        state.hillslope_surface_runoff
     )
-    
-    return state

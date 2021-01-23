@@ -4,7 +4,7 @@ import pdb
 from datetime import datetime, time, timedelta
 from xarray import open_dataset
 
-def load_runoff(state, grid, parameters, config, current_time):
+def load_runoff(state, grid, config, current_time):
     # note that the forcing is provided in mm/s
     # the flood section needs m3/s, but the routing needs m/s, so be aware of the conversions
     # method="pad" means the closest time in the past is selected from the file
@@ -17,20 +17,18 @@ def load_runoff(state, grid, parameters, config, current_time):
     }
     
     if config.get('runoff.variables.surface_runoff', None) is not None:
-        state.hillslope_surface_runoff = pd.DataFrame(0.001 * grid.land_fraction.values * grid.area.values * np.array(
+        state.hillslope_surface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.surface_runoff')].sel(sel, method='pad')
-        ).flatten())
+        ).flatten()
     
     if config.get('runoff.variables.subsurface_runoff', None) is not None:
-        state.hillslope_subsurface_runoff = pd.DataFrame(0.001 * grid.land_fraction.values * grid.area.values * np.array(
+        state.hillslope_subsurface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.subsurface_runoff')].sel(sel, method='pad')
-        ).flatten())
+        ).flatten()
     
     if config.get('runoff.variables.wetland_runoff', None) is not None:
-        state.hillslope_wetland_runoff = pd.DataFrame(0.001 * grid.land_fraction.values * grid.area.values * np.array(
+        state.hillslope_wetland_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.wetland_runoff')].sel(sel, method='pad')
-        ).flatten())
+        ).flatten()
     
     runoff.close()
-    
-    return state
