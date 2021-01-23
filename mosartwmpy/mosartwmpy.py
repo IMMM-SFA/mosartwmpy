@@ -1,16 +1,19 @@
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
+import psutil
 
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time
+from pathlib import Path
+from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
 
-from mosartwmpy.config.setup import setup
-from mosartwmpy.grid.load_grid import load_grid
+from mosartwmpy.config.config import get_config, Parameters
+from mosartwmpy.grid.grid import Grid
 from mosartwmpy.output.output import initialize_output, update_output, write_restart
-from mosartwmpy.state.initialize_state import initialize_state
+from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
 
 class Model(Bmi):
@@ -20,11 +23,6 @@ class Model(Bmi):
         self.name = None
         self.config = benedict()
         self.grid = None
-        self.longitude = None
-        self.latitude = None
-        self.cell_count = None
-        self.longitude_spacing = None
-        self.latitude_spacing = None
         self.restart = None
         self.current_time = None
         self.parameters = None
@@ -40,23 +38,55 @@ class Model(Bmi):
     def initialize(self, config_file_path: str = None):
         t = timer()
 
-        # load config and setup logging
         try:
-            setup(self, config_file_path)
+            # load config
+            self.config = get_config(config_file_path)
+            # initialize parameters
+            self.parameters = Parameters()
+            # sanitize the run name
+            self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
+            # setup logging and output directory
+            Path(f'./output/{self.name}').mkdir(parents=True, exist_ok=True)
+            logging.basicConfig(
+                filename=f'./output/{self.name}/mosart.log',
+                level=self.config.get('simulation.log_level', 'INFO'),
+                format='%(asctime)s - Mosart: %(message)s',
+                datefmt='%m/%d/%Y %I:%M:%S %p')
+            logging.info('Initalizing model.')
+            logging.debug(self.config.dump())
+            # setup multiprocessing
+            if self.config.get('multiprocessing.enabled', False) or self.config.get('batch.enabled', False):
+                max_cores = psutil.cpu_count(logical=False)
+                requested = self.config.get('multiprocessing.cores', None)
+                if requested is None or requested > max_cores:
+                    requested = max_cores
+                self.cores = requested
+            logging.info(f'Cores: {self.cores}.')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
 
         # load grid
         try:
-            load_grid(self)
+            self.grid = Grid(self.config, self.parameters, self.cores)
         except Exception as e:
             logging.exception('Failed to load grid file; see below for stacktrace.')
             raise e
 
         # load restart file or initialize state
         try:
-            initialize_state(self)
+            # restart file
+            if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
+                logging.info('Loading restart file.')
+                # TODO set current timestep based on restart
+                # TODO initialize state from restart file
+                logging.error('Restart file not yet implemented. Aborting.')
+                raise NotImplementedError
+            else:
+                # simulation start time
+                self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
+                # initialize state
+                self.state = State(self.grid, self.config, self.parameters, self.get_grid_size())
         except Exception as e:
             logging.exception('Failed to initialize model; see below for stacktrace.')
             raise e
@@ -197,34 +227,34 @@ class Model(Bmi):
         return 2
     
     def get_grid_size(self, grid: int = 0):
-        return self.cell_count
+        return self.grid.cell_count
 
     def get_grid_shape(self, grid: int = 0, shape = np.empty(2, dtype=int)):
-        shape[0] = self.latitude.size
-        shape[1] = self.longitude.size
+        shape[0] = self.grid.unique_latitudes.size
+        shape[1] = self.grid.unique_longitudes.size
         return shape
 
     def get_grid_spacing(self, grid: int = 0, spacing = np.empty(2)):
         # assumes uniform grid
-        spacing[0] = self.latitude_spacing
-        spacing[1] = self.longitude_spacing
+        spacing[0] = self.grid.latitude_spacing
+        spacing[1] = self.grid.longitude_spacing
         return spacing
     
     def get_grid_origin(self, grid: int = 0, origin = np.empty(2)):
-        origin[0] = self.latitude[0]
-        origin[1] = self.longitude[0]
+        origin[0] = self.grid.unique_latitudes[0]
+        origin[1] = self.grid.unique_longitudes[0]
         return origin
 
     def get_grid_x(self, grid: int = 0, x = None):
         if not x:
             x = np.empty(self.get_grid_shape()[0])
-        x[:] = self.latitude
+        x[:] = self.grid.unique_latitudes
         return x
 
     def get_grid_y(self, grid: int = 0, y = None):
         if not y:
             y = np.empty(self.get_grid_shape()[1])
-        y[:] = self.longitude
+        y[:] = self.grid.unique_longitudes
         return y
 
     def get_grid_z(self, grid: int = 0, z = None):

@@ -1,43 +1,26 @@
 import logging
 import numpy as np
-import psutil
 from benedict import benedict
-from pathlib import Path
-from pathvalidate import sanitize_filename
 
-def setup(self, config_file_path):
-    # load default config and user config and merge
-    self.config = benedict('./config_defaults.yaml', format='yaml')
+def get_config(config_file_path):
+    """Configuration object for the model, using the Benedict type.
+    Args:
+        config_file_path (string): path to the user defined configuration yaml file
+    """
+    
+    config = benedict('./config_defaults.yaml', format='yaml')
     if config_file_path and config_file_path != '':
-        self.config.merge(benedict(config_file_path, format='yaml'), overwrite=True)
+        config.merge(benedict(config_file_path, format='yaml'), overwrite=True)
     
-    self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
-    
-    # setup logging and output directory
-    Path(f'./output/{self.name}').mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        filename=f'./output/{self.name}/mosart.log',
-        level=self.config.get('simulation.log_level', 'INFO'),
-        format='%(asctime)s - Mosart: %(message)s',
-        datefmt='%m/%d/%Y %I:%M:%S %p')
-    logging.info('Initalizing model.')
-    logging.debug(self.config.dump())
-    
-    # multiprocessing
-    if self.config.get('multiprocessing.enabled', False) or self.config.get('batch.enabled', False):
-        max_cores = psutil.cpu_count(logical=False)
-        requested = self.config.get('multiprocessing.cores', None)
-        if requested is None or requested > max_cores:
-            requested = max_cores
-        self.cores = requested
-        logging.info(f'Cores: {self.cores}.')
-    
-    # parameters
-    self.parameters = Parameters()
+    return config
+
 
 class Parameters:
+    """Constant parameters used in the model."""
+    
     def __init__(self):
-        # some constants used throughout the code
+        """Initialize the constants."""
+        
         # TODO better document what these are used for and what they should be and maybe they should be part of config?
         
         # TINYVALUE
@@ -76,8 +59,8 @@ class Parameters:
         self.reservoir_runoff_capacity_condition = 0.1
         self.reservoir_flow_volume_ratio = 0.9
         
-        # reservoir id to grid id mapping; will be set in reservoir initialization
-        self.reservoir_to_grid_mapping = None
+        # number of supply iterations
+        self.reservoir_supply_iterations = 3
         
         # minimum depth to perform irrigation extraction [m]
         self.irrigation_extraction_condition = 0.1
@@ -85,5 +68,5 @@ class Parameters:
         self.irrigation_extraction_maximum_fraction = 0.5
         
         # just a string... probably can dispose of these if we never do ICE separately
-        self.LIQUID_TRACER = 'LIQUID'
-        self.ICE_TRACER = 'ICE'
+        self.LIQUID_TRACER = 0
+        self.ICE_TRACER = 1

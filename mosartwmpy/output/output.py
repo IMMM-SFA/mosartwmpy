@@ -11,12 +11,11 @@ def initialize_output(self):
     if self.config.get('simulation.output_resolution') % self.config.get('simulation.timestep') != 0 or self.config.get('simulation.output_resolution') < self.config.get('simulation.timestep'):
         raise Exception('The `simulation.output_resolution` must be greater than or equal to and evenly divisible by the `simulation.timestep`.')
     for output in self.config.get('simulation.output'):
-        if output.get('variable') not in self.state:
-            continue
-        if self.output_buffer is None:
-            self.output_buffer = pd.DataFrame(self.state.zeros.rename(output.get('name')))
-        else:
-            self.output_buffer = self.output_buffer.join(self.state.zeros.rename(output.get('name')))
+        if getattr(self.state, output.get('variable'), None) is not None:
+            if self.output_buffer is None:
+                self.output_buffer = pd.DataFrame(self.state.zeros, columns=[output.get('name')])
+            else:
+                self.output_buffer = self.output_buffer.join(pd.DataFrame(self.state.zeros, columns=[output.get('name')]))
 
 def update_output(self):
     # handle updating output buffer and writing to file when appropriate
@@ -24,9 +23,8 @@ def update_output(self):
     # update buffer
     self.output_n += 1
     for output in self.config.get('simulation.output'):
-        if output.get('variable') not in self.state:
-            continue
-        self.output_buffer[output.get('name')] += self.state[output.get('variable')]
+        if getattr(self.state, output.get('variable'), None) is not None:
+            self.output_buffer.loc[:, output.get('name')] += getattr(self.state, output.get('variable'))
         
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 75600: # 0: TODO
@@ -35,9 +33,8 @@ def update_output(self):
         write_output(self)
         self.output_n = 0
         for output in self.config.get('simulation.output'):
-            if output.get('variable') not in self.state:
-                continue
-            self.output_buffer[output.get('name')] = self.state.zeros
+            if getattr(self.state, output.get('variable'), None) is not None:
+                self.output_buffer.loc[:, output.get('name')] = 0.0 * self.state.zeros
         # check if restart file if need
         check_restart(self)
 
@@ -70,7 +67,7 @@ def write_output(self):
     filename += '.nc'
 
     # create the data frame
-    frame = self.grid[['latitude', 'longitude']].join(
+    frame = pd.DataFrame(self.grid.latitude, columns=['latitude']).join(pd.DataFrame(self.grid.longitude, columns=['longitude'])).join(
         pd.DataFrame(np.full(self.get_grid_size(), pd.to_datetime(true_date)), columns=['time'])
     ).join(
         self.output_buffer
@@ -93,12 +90,11 @@ def write_output(self):
     frame.lat.attrs['units'] = 'degrees_north'
     frame.lon.attrs['units'] = 'degrees_east'
     for output in self.config.get('simulation.output'):
-        if output.get('variable') not in self.state:
-            continue
-        if output.get('long_name'):
-            frame[output.get('name')].attrs['long_name'] = output.get('long_name')
-        if output.get('units'):
-            frame[output.get('name')].attrs['units'] = output.get('units')
+        if getattr(self.state, output.get('variable'), None) is not None:
+            if output.get('long_name'):
+                frame[output.get('name')].attrs['long_name'] = output.get('long_name')
+            if output.get('units'):
+                frame[output.get('name')].attrs['units'] = output.get('units')
 
     # if new period, write to new file and include grid variables, otherwise update file
     if not is_new_period:
@@ -107,7 +103,10 @@ def write_output(self):
         nc.close()
     else:
         if len(self.config.get('simulation.grid_output', [])) > 0:
-            grid_frame = self.grid[['latitude', 'longitude'] + [grid_output.get('variable') for grid_output in self.config.get('simulation.grid_output')]].rename(columns={
+            grid_frame = pd.DataFrame(self.grid.latitude, columns=['latitude']).join(pd.DataFrame(self.grid.longitude, columns=['longitude']))
+            for grid_output in self.config.get('simulation.grid_output'):
+                grid_frame = grid_frame.join(pd.DataFrame(getattr(self.grid, grid_output.get('variable')), columns=[grid_output.get('variable')]))
+            grid_frame = grid_frame.rename(columns={
                 'latitude': 'lat',
                 'longitude': 'lon'
             }).set_index(['lat', 'lon']).to_xarray()

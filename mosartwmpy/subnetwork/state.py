@@ -1,45 +1,43 @@
 import numpy as np
 
-def update_subnetwork_state(state, grid, parameters, config, base_condition):
+def update_subnetwork_state(state, grid, parameters, base_condition):
     # update the physical properties of the subnetwork
         
     # update state variables
-    condition = (grid.subnetwork_length.values > 0) & (state.subnetwork_storage.values > 0)
-    state.subnetwork_cross_section_area[:] = np.where(
+    condition = (grid.subnetwork_length > 0) & (state.subnetwork_storage > 0)
+    state.subnetwork_cross_section_area = np.where(
         base_condition,
         np.where(
             condition,
-            state.subnetwork_storage.values / grid.subnetwork_length.values,
+            state.subnetwork_storage / grid.subnetwork_length,
             0
         ),
-        state.subnetwork_cross_section_area.values
+        state.subnetwork_cross_section_area
     )
-    state.subnetwork_depth[:] = np.where(
+    state.subnetwork_depth = np.where(
         base_condition,
         np.where(
-            condition & (state.subnetwork_cross_section_area.values > parameters.tiny_value),
-            state.subnetwork_cross_section_area.values / grid.subnetwork_width.values,
+            condition & (state.subnetwork_cross_section_area > parameters.tiny_value),
+            state.subnetwork_cross_section_area / grid.subnetwork_width,
             0
         ),
-        state.subnetwork_depth.values
+        state.subnetwork_depth
     )
-    state.subnetwork_wetness_perimeter[:] = np.where(
+    state.subnetwork_wetness_perimeter = np.where(
         base_condition,
         np.where(
-            condition & (state.subnetwork_depth.values > parameters.tiny_value),
-            grid.subnetwork_width.values + 2 * state.subnetwork_depth.values,
+            condition & (state.subnetwork_depth > parameters.tiny_value),
+            grid.subnetwork_width + 2 * state.subnetwork_depth,
             0
         ),
-        state.subnetwork_wetness_perimeter.values
+        state.subnetwork_wetness_perimeter
     )
-    state.subnetwork_hydraulic_radii[:] = np.where(
+    state.subnetwork_hydraulic_radii = np.where(
         base_condition,
         np.where(
-            condition & (state.subnetwork_wetness_perimeter.values > parameters.tiny_value),
-            state.subnetwork_cross_section_area.values / state.subnetwork_wetness_perimeter.values,
+            condition & (state.subnetwork_wetness_perimeter > parameters.tiny_value),
+            state.subnetwork_cross_section_area / state.subnetwork_wetness_perimeter,
             0
         ),
-        state.subnetwork_hydraulic_radii.values
+        state.subnetwork_hydraulic_radii
     )
-    
-    return state
