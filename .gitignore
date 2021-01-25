@@ -3,6 +3,7 @@ venv/*
 
 # package specific
 *.swp
+config.yaml
 input/*
 output/*
 validation/*

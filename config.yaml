@@ -1,0 +1,34 @@
+# Place your use-case specific settings overrides here.
+
+simulation:
+    # name this simulation
+    name: mosartwmpy demo
+    # date to begin the simulation
+    start_date: 1980-01-01
+    # date to end the simulation
+    end_date: 1980-01-31
+
+# For example -- to change the input files, update the paths below:
+
+# grid:
+#     # path to the grid domain file; can be absolute or relative to the source code root
+#     path: /pic/projects/im3/iwmm/rof/mosart/MOSART_NLDAS_8th_20160426.nc
+#     land:
+#       # path to the land grid domain file; can be absolute or relative to the source code root
+#       path: /pic/projects/im3/iwmm/share/domains/domain.clm/domain.lnd.nldas2_0224x0464_c110415.nc
+# runoff:
+#     # flag to turn this feature on or off
+#     enabled: true
+#     # path to the runoff file; can be absolute or relative to the source code root
+#     path: /pic/projects/im3/iwmm/lnd/dlnd7/NLDAS/Livneh_NLDAS_1980_2011.nc
+# water_management:
+#     # flag to turn this feature on or off
+#     enabled: true
+#     demand:
+#       # path to the demand file; can be absolute or relative to the source code root
+#       path: /pic/projects/im3/iwmm/input_data/demand/GCAM_waterdemand_nc/rcp8.5/RCP8.5_GCAM_water_demand_*.nc
+#     reservoirs:
+#       # path to the reservoir parameter file; can be absolute or relative to the source code root
+#       path: /pic/projects/im3/iwmm/input_data/runoff/US_reservoir_8th_NLDAS3_updated_20200421.nc
+# multiprocessing:
+#     enabled: false

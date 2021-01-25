@@ -30,14 +30,14 @@ multiprocessing:
     # whether or not to use multiple cores
     enabled: false
     # number of cores to use; set to ~ to use all available cores
-    cores: 2
+    cores: 4
 
 ###
 ### Simulation
 ###
 simulation:
     # name this simulation
-    name: mosart wm
+    name: mosartwmpy
     # date to begin the simulation
     start_date: 1981-01-01
     # date to end the simulation
@@ -179,7 +179,7 @@ grid:
         channel_width: rwid
         # floodplain width linked to main channel field name [m]
         channel_floodplain_width: rwid0
-        # bankfull depth of main channel f ield name [m]
+        # bankfull depth of main channel field name [m]
         channel_depth: rdep
     # land grid information
     # TODO this is just needed for land_frac, so should just add it to mosart grid
