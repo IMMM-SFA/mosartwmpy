@@ -180,7 +180,7 @@ grid:
         # floodplain width linked to main channel field name [m]
         channel_floodplain_width: rwid0
         # bankfull depth of main channel field name [m]
-        channel_depth: rdep
+        grid_channel_depth: rdep
     # land grid information
     # TODO this is just needed for land_frac, so should just add it to mosart grid
     # TODO assumed to be the same grid as the main grid

@@ -10,25 +10,6 @@ from mosartwmpy.reservoirs.reservoirs import load_reservoirs
 class Grid():
     """Class to store grid related values that are constant throughout a simulation."""
     
-    def get_grid_for_process(self, process):
-        """Get a copy of a Grid instance subsetted by a process number
-
-        Args:
-            process (int): which process number to get a copy for
-
-        Returns:
-            Grid: a Grid instance that is a subset of the original
-        """
-
-        sub_grid = Grid(empty=True)
-        for attribute in dir(self):
-            if not attribute.startswith('_'):
-                # TODO for now just copying the numpy arrays -- need something better for WM
-                attr = getattr(self, attribute)
-                if isinstance(attr, np.ndarray) and attr.size == self.id.size:
-                    setattr(sub_grid, attribute, getattr(self, attribute)[self.process == process])
-        return sub_grid
-    
     def __init__(self, config=None, parameters=None, cores=1, empty=False):
         """Initialize the Grid class.
         
@@ -62,7 +43,7 @@ class Grid():
         self.channel_slope = np.empty(0)
         self.channel_width = np.empty(0)
         self.channel_floodplain_width = np.empty(0)
-        self.channel_depth = np.empty(0)
+        self.grid_channel_depth = np.empty(0)
         if config.get('water_management.enabled', False):
             self.reservoir_id = np.empty(0)
             self.reservoir_runoff_capacity = np.empty(0)
