@@ -7,33 +7,6 @@ from xarray import open_dataset
 from mosartwmpy.reservoirs.reservoirs import initialize_reservoir_state
 
 class State():
-    """Data structure for storing state variables."""
-    
-    def get_state_for_process(self, process_logical):
-        """Get a copy of a State instance subsetted by a process number
-
-        Args:
-            process_logical (ndarray): a logical array indicating the slice to take (i.e. pass in `grid.process == 0` to get the first process)
-
-        Returns:
-            State: a State instance that is a subset of the original
-        """
-
-        sub_state = State(empty=True)
-        for attribute in dir(self):
-            if not attribute.startswith('_'):
-                # TODO for now just copying the numpy arrays -- need something better for WM
-                if isinstance(getattr(self, attribute), np.ndarray): 
-                    setattr(sub_state, attribute, getattr(self, attribute)[process_logical])
-        return sub_state
-    
-    def recombine_sub_states(self, processes, sub_states):
-        for n, sub_state in enumerate(sub_states):
-            for attribute in dir(self):
-                if not attribute.startswith('_'):
-                    # TODO for now just copying the numpy arrays -- need something better for WM
-                    if isinstance(getattr(self, attribute), np.ndarray):
-                        getattr(self, attribute)[processes==n] = getattr(sub_state, attribute)
     
     def __init__(self, grid=None, config=None, parameters=None, grid_size=None, empty=False):
         """Initialize the state.

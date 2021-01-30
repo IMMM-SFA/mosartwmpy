@@ -1,4 +1,5 @@
 import numpy as np
+import numexpr as ne
 import pandas as pd
 
 def direct_to_ocean(state, grid, parameters, config):

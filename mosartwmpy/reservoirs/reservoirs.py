@@ -47,12 +47,18 @@ def load_reservoirs(grid, config, parameters):
     grid.reservoir_to_grid_mapping = grid.reservoir_to_grid_mapping[grid.reservoir_to_grid_mapping.grid_cell_id.notna()]
     # correct to zero-based grid indexing
     grid.reservoir_to_grid_mapping.loc[:, grid.reservoir_to_grid_mapping.grid_cell_id.name] = grid.reservoir_to_grid_mapping.grid_cell_id.values - 1
+    grid.reservoir_to_grid_mapping.loc[:, grid.reservoir_to_grid_mapping.reservoir_id.name] = grid.reservoir_to_grid_mapping.reservoir_id.values - 1
+    # set to integer
+    grid.reservoir_to_grid_mapping = grid.reservoir_to_grid_mapping.astype(int)
     
     # count of the number of reservoirs that can supply each grid cell
     grid.reservoir_count = np.array(pd.DataFrame(grid.id).join(
         grid.reservoir_to_grid_mapping.groupby('grid_cell_id').count().rename(columns={'reservoir_id': 'reservoir_count'}),
         how='left'
     ).reservoir_count)
+    
+    # index by grid cell
+    grid.reservoir_to_grid_mapping = grid.reservoir_to_grid_mapping.set_index('grid_cell_id')
     
     # prepare the month or epiweek based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(grid, config, parameters, reservoirs)
@@ -152,7 +158,7 @@ def initialize_reservoir_start_of_operation_year(state, grid, config, parameters
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
     
     # find the peak flow and peak flow month for each reservoir
-    peak = grid.reservoir_streamflow_schedule.max(dim=streamflow_time_name).values
+    peak = np.max(grid.reservoir_streamflow_schedule.values, axis=0)
     month_start_operations = grid.reservoir_streamflow_schedule.idxmax(dim=streamflow_time_name).values
     
     # correct the month start for reservoirs where average flow is greater than a small value and magnitude of peak flow difference from average is greater than smaller value

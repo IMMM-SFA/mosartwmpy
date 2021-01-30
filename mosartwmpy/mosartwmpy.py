@@ -5,16 +5,21 @@ import psutil
 
 from benedict import benedict
 from bmipy import Bmi
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
+from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
 
 from mosartwmpy.config.config import get_config, Parameters
 from mosartwmpy.grid.grid import Grid
+from mosartwmpy.input.runoff import load_runoff
+from mosartwmpy.input.demand import load_demand
 from mosartwmpy.output.output import initialize_output, update_output, write_restart
+from mosartwmpy.reservoirs.reservoirs import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
+from mosartwmpy.utilities.pretty_timer import pretty_timer
 
 class Model(Bmi):
     # MosartWmPy Basic Model Interface
@@ -54,14 +59,6 @@ class Model(Bmi):
                 datefmt='%m/%d/%Y %I:%M:%S %p')
             logging.info('Initalizing model.')
             logging.debug(self.config.dump())
-            # setup multiprocessing
-            if self.config.get('multiprocessing.enabled', False) or self.config.get('batch.enabled', False):
-                max_cores = psutil.cpu_count(logical=False)
-                requested = self.config.get('multiprocessing.cores', None)
-                if requested is None or requested > max_cores:
-                    requested = max_cores
-                self.cores = requested
-            logging.info(f'Cores: {self.cores}.')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
@@ -98,7 +95,7 @@ class Model(Bmi):
             logging.exception('Failed to initialize output; see below for stacktrace.')
             raise e
         
-        logging.info(f'Initialization completed in {self.pretty_timer(timer() - t)}.')
+        logging.info(f'Initialization completed in {pretty_timer(timer() - t)}.')
         
     def update(self):
         t = timer()
@@ -106,11 +103,36 @@ class Model(Bmi):
         # perform one timestep
         logging.info(f'Begin timestep {step}.')
         try:
-            update(self)
+            # read runoff
+            if self.config.get('runoff.enabled', False):
+                load_runoff(self.state, self.grid, self.config, self.current_time)
+            # advance timestep
+            self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))
+            # read demand
+            if self.config.get('water_management.enabled', False):
+                # only read new demand and compute new release if it's the very start of simulation or new time period
+                # TODO this is currently adjusted to try to match fortran mosart
+                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time(3)) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    # load the demand from file
+                    load_demand(self.state, self.config, self.current_time)
+                    # release water from reservoirs
+                    reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
+                # zero supply and demand
+                self.state.reservoir_supply[:] = 0
+                self.state.reservoir_demand[:] = 0
+                self.state.reservoir_deficit[:] = 0
+                # get streamflow for this time period
+                # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
+                epiweek = Week.fromdate(self.current_time).week
+                month = self.current_time.month
+                streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
+                self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
+            # perform simulation for one timestep
+            update(self.state, self.grid, self.parameters, self.config)
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
-        logging.info(f'Timestep {step} completed in {self.pretty_timer(timer() - t)}.')
+        logging.info(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
         try:
             # update the output buffer and write restart file if needed
             update_output(self)
@@ -120,26 +142,14 @@ class Model(Bmi):
 
     def update_until(self, time: float):
         # perform timesteps until time
+        t = timer()
         while self.get_current_time() < time:
             self.update()
+        logging.info(f'Simulation completed in {pretty_timer(timer() - t)}.')
 
     def finalize(self):
         # simulation is over so free memory, write data, etc
         return
-
-    def pretty_timer(self, seconds):
-        # format elapsed times in a human friendly way
-        # TODO move to a utitities file
-        if seconds < 1:
-            return f'{round(seconds * 1.0e3, 0)} milliseconds'
-        elif seconds < 60:
-            return f'{round(seconds, 3)} seconds'
-        elif seconds < 3600:
-            return f'{int(round(seconds) // 60)} minutes and {int(round(seconds) % 60)} seconds'
-        elif seconds < 86400:
-            return f'{int(round(seconds) // 3600)} hours, {int((round(seconds) % 3600) // 60)} minutes, and {int(round(seconds) % 60)} seconds'
-        else:
-            return f'{int(round(seconds) // 86400)} days, {int((round(seconds) % 86400) // 3600)} hours, and {int((round(seconds) % 3600) // 60)} minutes'
 
     def get_component_name(self):
         # TODO include version/hash info?
