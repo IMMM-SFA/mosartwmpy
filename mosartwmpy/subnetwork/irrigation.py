@@ -77,7 +77,7 @@ calculate_reservoir_demand = ne.NumExpr(
 
 update_flow_volume = ne.NumExpr(
     'where('
-        'depth_condition & ~volume_condition,'
+        'depth_condition & (~volume_condition),'
         '0,'
         'flow_volume'
     ')',

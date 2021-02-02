@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 
 from mosartwmpy.direct_to_ocean.direct_to_ocean import direct_to_ocean
 from mosartwmpy.flood.flood import flood

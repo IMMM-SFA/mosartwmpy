@@ -2,6 +2,7 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
+import subprocess
 
 from benedict import benedict
 from bmipy import Bmi
@@ -22,9 +23,17 @@ from mosartwmpy.update.update import update
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 
 class Model(Bmi):
-    # MosartWmPy Basic Model Interface
+    """[summary]
+
+    Args:
+        Bmi (Bmi): The Basic Model Interface class
+
+    Returns:
+        Model: A BMI instance of the MOSART-WM model.
+    """
+    
     def __init__(self):
-        # initialize properties
+        """Initialize the mosartwmpy BMI"""
         self.name = None
         self.config = benedict()
         self.grid = None
@@ -41,6 +50,12 @@ class Model(Bmi):
         self.reservoir_prerelease_schedule = None
 
     def initialize(self, config_file_path: str = None):
+        """Prepare the mosartwmpy model prior to running a simulation
+
+        Args:
+            config_file_path (str, optional): Path to a yaml file for overriding default settings. Defaults to None.
+        """
+        
         t = timer()
 
         try:
@@ -53,12 +68,22 @@ class Model(Bmi):
             # setup logging and output directory
             Path(f'./output/{self.name}').mkdir(parents=True, exist_ok=True)
             logging.basicConfig(
-                filename=f'./output/{self.name}/mosart.log',
+                filename=f'./output/{self.name}/mosartwmpy.log',
                 level=self.config.get('simulation.log_level', 'INFO'),
-                format='%(asctime)s - Mosart: %(message)s',
+                format='%(asctime)s - mosartwmpy: %(message)s',
                 datefmt='%m/%d/%Y %I:%M:%S %p')
             logging.info('Initalizing model.')
-            logging.debug(self.config.dump())
+            logging.info(self.config.dump())
+            try:
+                githash = subprocess.check_output(['git', 'describe', '--always']).strip()
+                untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().split(b'\n')
+                logging.info(f'Version: {githash}')
+                if len(untracked) > 0:
+                    logging.info(f'Uncommitted changes:')
+                    for u in untracked:
+                        logging.info(f'  * {u}')
+            except:
+                pass
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e

@@ -19,13 +19,13 @@ def initialize_output(self):
 
 def update_output(self):
     # handle updating output buffer and writing to file when appropriate
-    
+
     # update buffer
     self.output_n += 1
     for output in self.config.get('simulation.output'):
         if getattr(self.state, output.get('variable'), None) is not None:
             self.output_buffer.loc[:, output.get('name')] += getattr(self.state, output.get('variable'))
-        
+
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 75600: # 0: TODO
         logging.info('Writing to output file.')
@@ -41,12 +41,12 @@ def update_output(self):
 def write_output(self):
     # handle writing output to file
     # TODO only daily resolution is currently supported - need to support arbitrary resolutions
-    
+
     # logging.info(f'WRM_DEMAND0 sum: {self.output_buffer.WRM_DEMAND0.sum()}')
     # logging.info(f'WRM_DEMAND sum: {self.output_buffer.WRM_DEMAND.sum()}')
     # logging.info(f'WRM_SUPPLY sum: {self.output_buffer.WRM_SUPPLY.sum()}')
     # logging.info(f'QSUR sum: {self.output_buffer.QSUR_LIQ.sum()}')
-    
+
     # check the write frequency to see if writing to new file or appending to existing file
     # also construct the file name
     period = self.config.get('simulation.output_file_frequency')
