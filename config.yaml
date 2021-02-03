@@ -26,7 +26,7 @@ simulation:
 #     enabled: true
 #     demand:
 #       # path to the demand file; can be absolute or relative to the source code root
-#       path: /pic/projects/im3/iwmm/input_data/demand/GCAM_waterdemand_nc/rcp8.5/RCP8.5_GCAM_water_demand_*.nc
+#       path: /pic/projects/im3/iwmm/input_data/demand/GCAM_waterdemand_nc/rcp8.5/RCP8.5_GCAM_water_demand_{year}_{month}.nc
 #     reservoirs:
 #       # path to the reservoir parameter file; can be absolute or relative to the source code root
 #       path: /pic/projects/im3/iwmm/input_data/runoff/US_reservoir_8th_NLDAS3_updated_20200421.nc
