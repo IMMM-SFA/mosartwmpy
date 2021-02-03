@@ -195,11 +195,14 @@ class Grid():
             self.channel_slope
         )
 
-        # load the land grid to get the land fraction
+        # load the land grid to get the land fraction; if it's not there, default to 1
         # TODO need to just add this field to mosart grid file
-        land = open_dataset(config.get('grid.land.path'))
-        self.land_fraction = np.array(land[config.get('grid.land.land_fraction')]).flatten()
-        land.close()
+        try:
+            land = open_dataset(config.get('grid.land.path'))
+            self.land_fraction = np.array(land[config.get('grid.land.land_fraction')]).flatten()
+            land.close()
+        except:
+            self.land_fraction = np.full(self.id.size, 1.0)
 
         logging.debug(' - main channel iterations')
 
