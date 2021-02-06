@@ -1,5 +1,6 @@
 import logging
 import matplotlib.pyplot as plt
+import numexpr as ne
 import numpy as np
 import psutil
 import subprocess
@@ -84,6 +85,14 @@ class Model(Bmi):
                         logging.info(f'  * {u}')
             except:
                 pass
+            # detect available physical cores
+            max_cores = psutil.cpu_count(logical=False)
+            requested = self.config.get('multiprocessing.cores', None)
+            if requested is None or requested > max_cores:
+                requested = max_cores
+            self.cores = requested
+            logging.info(f'Cores: {self.cores}.')
+            ne.set_num_threads(self.cores)
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e

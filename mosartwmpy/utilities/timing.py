@@ -10,6 +10,6 @@ def timing(f):
         t = timer()
         result = f(*args, **kw)
         seconds = timer() - t
-        logging.debug(f'{f.__name__}: {pretty_timer(seconds)}')
+        logging.info(f'{f.__name__}: {pretty_timer(seconds)}')
         return result
     return wrap

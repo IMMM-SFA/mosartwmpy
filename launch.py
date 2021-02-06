@@ -3,7 +3,6 @@ if __name__ == '__main__':
     import logging
     import matplotlib.pyplot as plt
     import pandas as pd
-    import numexpr as ne
     import numpy as np
 
     from mosartwmpy.mosartwmpy import Model
