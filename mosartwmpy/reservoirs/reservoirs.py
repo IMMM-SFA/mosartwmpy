@@ -45,9 +45,8 @@ def load_reservoirs(grid, config, parameters):
     })
     # drop nan grid ids
     grid.reservoir_to_grid_mapping = grid.reservoir_to_grid_mapping[grid.reservoir_to_grid_mapping.grid_cell_id.notna()]
-    # correct to zero-based grid indexing
+    # correct to zero-based grid indexing for grid cell
     grid.reservoir_to_grid_mapping.loc[:, grid.reservoir_to_grid_mapping.grid_cell_id.name] = grid.reservoir_to_grid_mapping.grid_cell_id.values - 1
-    grid.reservoir_to_grid_mapping.loc[:, grid.reservoir_to_grid_mapping.reservoir_id.name] = grid.reservoir_to_grid_mapping.reservoir_id.values - 1
     # set to integer
     grid.reservoir_to_grid_mapping = grid.reservoir_to_grid_mapping.astype(int)
     

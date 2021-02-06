@@ -76,7 +76,7 @@ def regulation(state, grid, parameters, delta_t):
         state.channel_outflow_downstream
     )
 
-#@timing
+# @timing
 def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     # extract water from the reservoir release
     # the extraction needs to be distributed across the dependent cells demand
@@ -109,6 +109,24 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     # - Each dam is associated with a particular gridcell and each gridcell has
     #   either 0 or 1 dam associated with it.
     # - The local dam decomposition
+    #
+    # convert reservoir flow volume to grid cell supply
+    # notes from fortran mosart:
+    # Covert dam flow_vol to gridcell supply.  In doing so, reduce the flow_vol
+    # at the dam, reduce the demand at the gridcell, and increase the supply at
+    # the gridcell by the same amount.  There are three conditions for this conversion
+    # to occur and these are carried out in the following order.  dam fraction
+    # is the ratio of the dam flow_vol over the total dam demand.
+    # 1. if any dam fraction >= 1.0 for a gridcell, then provide full demand to gridcell
+    #    prorated by the number of dams that can provide all the water.
+    # 2. if any sum of dam fraction >= 1.0 for a gridcell, then provide full demand to
+    #    gridcell prorated by the dam fraction of each dam.
+    # 3. if any sum of dam fraction < 1.0 for a gridcell, then provide fraction of 
+    #    demand to gridcell prorated by the dam fraction of each dam.
+    #
+    # dam_uptake is the amount of water removed from the dam, it's a global array.
+    # Gridcells from different tasks will accumluate the amount of water removed
+    # from each dam in this array.
     
     base_condition = np.isfinite(grid.reservoir_id)
     
@@ -124,106 +142,71 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
         state.channel_outflow_downstream
     )
     
+    cells = pd.DataFrame({'id': grid.id[state.reservoir_demand > 0]}).set_index('id')
+    cells['supply'] = 0
+    
     # join grid cell demand, then drop where no demand
     demand = grid.reservoir_to_grid_mapping.join(pd.DataFrame(state.reservoir_demand, columns=['grid_cell_demand']))
     demand = demand[demand.grid_cell_demand.gt(0)]
-    # aggregate to the total demand potential on each reservoir
-    demand = demand.merge(
-        demand.groupby('reservoir_id')[['grid_cell_demand']].sum().rename(columns={'grid_cell_demand': 'reservoir_demand'}),
-        how='left', left_on='reservoir_id', right_index=True
-    )
-    # assign the flow volume to each reservoir in the mapping
-    demand = demand.merge(pd.DataFrame({'flow_volume': flow_volume, 'reservoir_id': grid.reservoir_id}).dropna().set_index('reservoir_id'), how='left', left_on='reservoir_id', right_index=True)
+    
+    # aggregate demand to each reservoir and join to flow volume
+    reservoir_demand_flow = demand.groupby('reservoir_id')[['grid_cell_demand']].sum().rename(columns={'grid_cell_demand': 'reservoir_demand'}).join(pd.DataFrame({'flow_volume': flow_volume, 'reservoir_id': grid.reservoir_id}).dropna().set_index('reservoir_id'))
     
     for _ in np.arange(parameters.reservoir_supply_iterations):
-        # for each reservoir calculate the ratio of flow volume over demand; if greater than 1 it means there is more water than demanded
-        demand.eval('demand_fraction = flow_volume / reservoir_demand', inplace=True)
-        case = demand[demand.grid_cell_demand.gt(0)]
-
-        # convert reservoir flow volume to grid cell supply
-        # notes from fortran mosart:
-        # Covert dam flow_vol to gridcell supply.  In doing so, reduce the flow_vol
-        # at the dam, reduce the demand at the gridcell, and increase the supply at
-        # the gridcell by the same amount.  There are three conditions for this conversion
-        # to occur and these are carried out in the following order.  dam fraction
-        # is the ratio of the dam flow_vol over the total dam demand.
-        # 1. if any dam fraction >= 1.0 for a gridcell, then provide full demand to gridcell
-        #    prorated by the number of dams that can provide all the water.
-        # 2. if any sum of dam fraction >= 1.0 for a gridcell, then provide full demand to
-        #    gridcell prorated by the dam fraction of each dam.
-        # 3. if any sum of dam fraction < 1.0 for a gridcell, then provide fraction of 
-        #    demand to gridcell prorated by the dam fraction of each dam.
-        #
-        # dam_uptake is the amount of water removed from the dam, it's a global array.
-        # Gridcells from different tasks will accumluate the amount of water removed
-        # from each dam in this array.
         
-        # case 1 - reservoirs capable of supplying all demand
-        # TODO the code is written with strictly greater than one, but comment says greater or equal...
+        if _ == 0:
+            case = reservoir_demand_flow
+        else:
+            # subset reservoir list to speed up calculation
+            case = reservoir_demand_flow[reservoir_demand_flow.index.isin(demand.reservoir_id.unique())]
+            case.loc[:, 'reservoir_demand'] = case.join(demand.groupby('reservoir_id')[['grid_cell_demand']].sum()).grid_cell_demand.fillna(0)
+        
+        # ratio of flow to total demand
+        case.loc[:, 'demand_fraction'] = case.flow_volume.values / case.reservoir_demand.values
+        
+        # case 1
         if case.demand_fraction.gt(1).any():
-            # logging.info('case1')
-            # reduce to the set and get the count of reservoirs that satisfy this condition
-            case = case[case.demand_fraction.gt(1)]
-            case['condition_count'] = case.groupby(case.index)['reservoir_id'].transform('count')
-            case.eval('supply = grid_cell_demand / condition_count', inplace=True)
-
-        else: 
-            # sum the demand_fraction for each grid_cell; if greater than 1 it means all demand can be met, otherwise it can't
-            case['demand_fraction_sum'] = case.groupby(case.index)['demand_fraction'].transform('sum')
-            # case 2 - grid cells capable of fulfilling all demand from their reservoirs
-            if case.demand_fraction_sum.ge(1).any():
-                # logging.info('case2')
-                case = case[case.demand_fraction_sum.ge(1)]
-                # prorate by demand_fraction
-                case.eval('supply = grid_cell_demand * demand_fraction / demand_fraction_sum', inplace=True)
-
-            # case 3 - grid cells incapable of fulfilling all demand from their reservoirs
-            else:
-                # logging.info('case3')
-                case = case[case.demand_fraction_sum.gt(0)]
-                # prorate by demand_fraction
-                case.eval('supply = grid_cell_demand * demand_fraction', inplace=True)
-            
-            del case['demand_fraction_sum']
-
-        demand['supplied_to_grid'] = demand.join(case.groupby(case.index)[['supply']].sum().rename(columns={'supply': 'supplied_to_grid'})).supplied_to_grid.fillna(0)
-        demand['taken_from_reservoir'] = demand.merge(case.groupby('reservoir_id')[['supply']].sum().rename(columns={'supply': 'taken_from_reservoir'}), how='left', left_on='reservoir_id', right_index=True).taken_from_reservoir.fillna(0)
-        demand.eval('grid_cell_demand = grid_cell_demand - supplied_to_grid', inplace=True)
-        demand.eval('reservoir_demand = reservoir_demand - taken_from_reservoir', inplace=True)
-        demand.eval('flow_volume = flow_volume - taken_from_reservoir', inplace=True)
-        del demand['supplied_to_grid']
-        del demand['taken_from_reservoir']
+            case = demand[demand.reservoir_id.isin(case[case.demand_fraction.gt(1)].index)]
+            case.loc[:, 'condition_count'] = case.groupby(case.index)['reservoir_id'].transform('count')
+            case.loc[:, 'supply'] = case.grid_cell_demand / case.condition_count
+            taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id').supply.sum()).supply.fillna(0).values
+            reservoir_demand_flow.loc[:, 'reservoir_demand'] -= taken_from_reservoir
+            reservoir_demand_flow.loc[:, 'flow_volume'] -= taken_from_reservoir
+            # all demand was supplied to these cells
+            cells.loc[:, 'supply'] += cells.join(case.groupby(case.index)[['grid_cell_demand']].first()).grid_cell_demand.fillna(0)
+            demand = demand[~demand.index.isin(case.index.unique())]
         
-        # set small values to zero
-        demand.loc[demand.grid_cell_demand.abs().lt(parameters.small_value), 'grid_cell_demand'] = 0
+        else:
+            # sum demand fraction
+            case = demand.merge(case, how='left', left_on='reservoir_id', right_index=True)
+            case.loc[:, 'demand_fraction_sum'] = case.groupby(case.index).demand_fraction.transform('sum').fillna(0).values
+            
+            # case 2
+            if case.demand_fraction_sum.ge(1).any():
+                case = case[case.demand_fraction_sum.ge(1)]
+                case.loc[:, 'supply'] = case.grid_cell_demand.values  * case.demand_fraction.values / case.demand_fraction_sum.values
+                taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id')['supply'].sum()).supply.fillna(0).values
+                reservoir_demand_flow.loc[:, 'reservoir_demand'] -= taken_from_reservoir
+                reservoir_demand_flow.loc[:, 'flow_volume'] -= taken_from_reservoir
+                # all demand was supplied to these cells
+                cells.loc[:, 'supply'] += cells.join(case.groupby(case.index)[['grid_cell_demand']].first()).grid_cell_demand.fillna(0)
+                demand = demand[~demand.index.isin(case.index.unique())]
+                
+            else:
+                case = case[case.demand_fraction_sum.gt(0)]
+                case.loc[:, 'supply'] = case.grid_cell_demand.values * case.demand_fraction.values
+                taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id')['supply'].sum()).supply.fillna(0).values
+                reservoir_demand_flow.loc[:, 'reservoir_demand'] -= taken_from_reservoir
+                reservoir_demand_flow.loc[:, 'flow_volume'] -= taken_from_reservoir
+                # not all demand was supplied to these cells
+                supplied = cells[[]].join(case.groupby(case.index)[['supply']].sum()).supply.fillna(0)
+                cells.loc[:, 'supply'] += supplied
+                demand.loc[:, 'grid_cell_demand'] -= demand[[]].join(supplied).fillna(0).supply.values
     
-    remaining_demand = pd.DataFrame(grid.id).join(demand.groupby(demand.index)[['grid_cell_demand']].first()).grid_cell_demand.values
-    flow_volume = pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(demand.groupby('reservoir_id')[['flow_volume']].first(), how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values
+    # merge the supply back in and update demand
+    supplied = pd.DataFrame(grid.id).join(cells).supply.fillna(0).values
+    state.reservoir_supply[:] += supplied
+    state.reservoir_demand[:] -= supplied
     
-    # accumulate the supplied water to the supply at the grid cells
-    state.reservoir_supply[:] = np.where(
-        np.isfinite(remaining_demand),
-        state.reservoir_supply + state.reservoir_demand - remaining_demand,
-        state.reservoir_supply
-    )
-    # remove the supplied water from the demand at the grid cells
-    state.reservoir_demand[:] = np.where(
-        np.isfinite(remaining_demand),
-        remaining_demand,
-        state.reservoir_demand
-    )
-    
-    # accumulate the deficit to the grid cell
-    
-    state.reservoir_deficit = np.where(
-        np.isfinite(state.reservoir_demand),
-        state.reservoir_deficit + state.reservoir_demand,
-        state.reservoir_deficit
-    )
-    
-    # add residual flow volume back into the main channel flow
-    state.channel_outflow_downstream = np.where(
-        base_condition,
-        state.channel_outflow_downstream - flow_volume / delta_t,
-        state.channel_outflow_downstream
-    )
+    # add the residual flow volume back
+    state.channel_outflow_downstream[:] -= pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(reservoir_demand_flow.flow_volume, how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values / delta_t
