@@ -4,7 +4,7 @@ import numexpr as ne
 from mosartwmpy.subnetwork.state import update_subnetwork_state
 from mosartwmpy.utilities.timing import timing
 
-#@timing
+# @timing
 def subnetwork_irrigation(state, grid, parameters):
     # subnetwork channel routing irrigation extraction
     

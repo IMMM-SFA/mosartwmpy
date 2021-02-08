@@ -4,7 +4,7 @@ import numexpr as ne
 from mosartwmpy.main_channel.state import update_main_channel_state
 from mosartwmpy.utilities.timing import timing
 
-#@timing
+# @timing
 def main_channel_irrigation(state, grid, parameters):
     # main channel routing irrigation extraction
     

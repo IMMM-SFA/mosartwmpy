@@ -3,7 +3,11 @@ import regex as re
 
 from xarray import open_dataset
 
+from mosartwmpy.utilities.timing import timing
+
 # TODO this currently can only act on the entire domain... need to make more robust so can be handled in parallel
+
+# @timing
 def load_demand(state, config, current_time):
 
     # demand path can have placeholders for year and month and day, so check for those and replace if needed

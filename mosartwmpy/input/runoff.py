@@ -2,6 +2,9 @@ import numpy as np
 from datetime import datetime, time, timedelta
 from xarray import open_dataset
 
+from mosartwmpy.utilities.timing import timing
+
+# @timing
 def load_runoff(state, grid, config, current_time):
     # note that the forcing is provided in mm/s
     # the flood section needs m3/s, but the routing needs m/s, so be aware of the conversions

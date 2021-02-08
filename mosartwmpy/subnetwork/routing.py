@@ -4,7 +4,7 @@ import numexpr as ne
 from mosartwmpy.subnetwork.state import update_subnetwork_state
 from mosartwmpy.utilities.timing import timing
 
-#@timing
+# @timing
 def subnetwork_routing(state, grid, parameters, config, delta_t):
     # perform the subnetwork (tributary) routing
     # TODO describe what is happening here
