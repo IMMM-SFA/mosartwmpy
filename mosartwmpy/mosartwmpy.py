@@ -76,8 +76,8 @@ class Model(Bmi):
             logging.info('Initalizing model.')
             logging.info(self.config.dump())
             try:
-                githash = subprocess.check_output(['git', 'describe', '--always']).strip()
-                untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().split(b'\n')
+                githash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
+                untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
                 logging.info(f'Version: {githash}')
                 if len(untracked) > 0:
                     logging.info(f'Uncommitted changes:')

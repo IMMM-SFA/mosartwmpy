@@ -2,9 +2,11 @@ import numpy as np
 import numexpr as ne
 import pandas as pd
 
+from numba import jit, prange
+
 from mosartwmpy.utilities.timing import timing
 
-#@timing
+# @timing
 def regulation(state, grid, parameters, delta_t):
     # regulation of the flow from the reservoirs, applied to flow entering the grid cell, i.e. subnetwork storage downstream of reservoir
     
@@ -128,19 +130,11 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     # Gridcells from different tasks will accumluate the amount of water removed
     # from each dam in this array.
     
-    base_condition = np.isfinite(grid.reservoir_id)
+    has_reservoir = np.isfinite(grid.reservoir_id)
     
-    flow_volume = np.where(
-        base_condition,
-        parameters.reservoir_flow_volume_ratio * delta_t * -state.channel_outflow_downstream,
-        np.nan
-    )
+    flow_volume = calculate_flow_volume(has_reservoir, parameters.reservoir_flow_volume_ratio, delta_t, state.channel_outflow_downstream)
     
-    state.channel_outflow_downstream = np.where(
-        base_condition,
-        state.channel_outflow_downstream + flow_volume / delta_t,
-        state.channel_outflow_downstream
-    )
+    state.channel_outflow_downstream = remove_flow(has_reservoir, state.channel_outflow_downstream, flow_volume, delta_t)
     
     cells = pd.DataFrame({'id': grid.id[state.reservoir_demand > 0]}).set_index('id')
     cells['supply'] = 0
@@ -158,17 +152,17 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
             case = reservoir_demand_flow
         else:
             # subset reservoir list to speed up calculation
-            case = reservoir_demand_flow[reservoir_demand_flow.index.isin(demand.reservoir_id.unique())]
+            case = reservoir_demand_flow[parallel_is_in(reservoir_demand_flow.index.astype(int).values, demand.reservoir_id.unique())]
             case.loc[:, 'reservoir_demand'] = case.join(demand.groupby('reservoir_id')[['grid_cell_demand']].sum()).grid_cell_demand.fillna(0)
         
         # ratio of flow to total demand
-        case.loc[:, 'demand_fraction'] = case.flow_volume.values / case.reservoir_demand.values
+        case.loc[:, 'demand_fraction'] = divide(case.flow_volume.values, case.reservoir_demand.values)
         
         # case 1
         if case.demand_fraction.gt(1).any():
-            case = demand[demand.reservoir_id.isin(case[case.demand_fraction.gt(1)].index)]
+            case = demand[parallel_is_in(demand.reservoir_id.values, case[case.demand_fraction.gt(1)].index.astype(int).values)]
             case.loc[:, 'condition_count'] = case.groupby(case.index)['reservoir_id'].transform('count')
-            case.loc[:, 'supply'] = case.grid_cell_demand / case.condition_count
+            case.loc[:, 'supply'] = divide(case.grid_cell_demand, case.condition_count)
             taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id').supply.sum()).supply.fillna(0).values
             reservoir_demand_flow.loc[:, 'reservoir_demand'] -= taken_from_reservoir
             reservoir_demand_flow.loc[:, 'flow_volume'] -= taken_from_reservoir
@@ -186,8 +180,8 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
                 case = case[case.demand_fraction_sum.ge(1)]
                 case.loc[:, 'supply'] = case.grid_cell_demand.values  * case.demand_fraction.values / case.demand_fraction_sum.values
                 taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id')['supply'].sum()).supply.fillna(0).values
-                reservoir_demand_flow.loc[:, 'reservoir_demand'] -= taken_from_reservoir
-                reservoir_demand_flow.loc[:, 'flow_volume'] -= taken_from_reservoir
+                reservoir_demand_flow.loc[:, 'reservoir_demand'] = subtract(reservoir_demand_flow.reservoir_demand.values, taken_from_reservoir)
+                reservoir_demand_flow.loc[:, 'flow_volume'] = subtract(reservoir_demand_flow.flow_volume.values, taken_from_reservoir)
                 # all demand was supplied to these cells
                 cells.loc[:, 'supply'] += cells.join(case.groupby(case.index)[['grid_cell_demand']].first()).grid_cell_demand.fillna(0)
                 demand = demand[~demand.index.isin(case.index.unique())]
@@ -205,8 +199,53 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     
     # merge the supply back in and update demand
     supplied = pd.DataFrame(grid.id).join(cells).supply.fillna(0).values
-    state.reservoir_supply[:] += supplied
-    state.reservoir_demand[:] -= supplied
+    state.reservoir_supply = add(state.reservoir_supply, supplied)
+    state.reservoir_demand = subtract(state.reservoir_demand, supplied)
     
     # add the residual flow volume back
     state.channel_outflow_downstream[:] -= pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(reservoir_demand_flow.flow_volume, how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values / delta_t
+
+@jit(nopython=True, parallel=True, fastmath=True, cache=True)
+def parallel_is_in(a, b):
+    s = set(b)
+    l = len(a)
+    result = np.full(l, False)
+    for i in prange(l):
+        for j in range(len(s)):
+            if a[i] == b[j]:
+                result[i] = True
+                break
+    return result
+
+calculate_flow_volume = ne.NumExpr(
+    'where('
+        'has_reservoir,'
+        '-(reservoir_flow_volume_ratio * delta_t * channel_outflow_downstream),'
+        '0'
+    ')',
+    (('has_reservoir', np.bool), ('reservoir_flow_volume_ratio',  np.float64), ('delta_t', np.float64), ('channel_outflow_downstream', np.float64))
+)
+
+remove_flow = ne.NumExpr(
+    'where('
+        'has_reservoir,'
+        'channel_outflow_downstream + flow_volume / delta_t,'
+        'channel_outflow_downstream'
+    ')',
+    (('has_reservoir', np.bool), ('channel_outflow_downstream',  np.float64), ('flow_volume', np.float64), ('delta_t', np.float64))
+)
+
+divide = ne.NumExpr(
+    'a / b',
+    (('a', np.float64), ('b', np.float64))
+)
+
+subtract = ne.NumExpr(
+    'a - b',
+    (('a', np.float64), ('b', np.float64))
+)
+
+add = ne.NumExpr(
+    'a + b',
+    (('a', np.float64), ('b', np.float64))
+)

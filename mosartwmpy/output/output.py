@@ -5,6 +5,8 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 from xarray import concat, open_dataset
 
+from mosartwmpy.utilities.timing import timing
+
 def initialize_output(self):
     # setup output buffer and averaging
     logging.info('Initalizing output buffer.')
@@ -17,6 +19,7 @@ def initialize_output(self):
             else:
                 self.output_buffer = self.output_buffer.join(pd.DataFrame(self.state.zeros, columns=[output.get('name')]))
 
+# @timing
 def update_output(self):
     # handle updating output buffer and writing to file when appropriate
 
