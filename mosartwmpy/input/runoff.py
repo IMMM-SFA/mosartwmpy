@@ -12,7 +12,6 @@ def load_runoff(state, grid, config, current_time):
     
     runoff = open_dataset(config.get('runoff.path'))
     
-    # TODO hacking in the three hour offset seen in fortran mosart
     sel = {
         config.get('runoff.time'): current_time
     }

@@ -6,33 +6,6 @@
 ### To override configuration defaults, edit config.yaml
 
 ###
-### Batch
-### note: so far only supported on PNNL's constance cluster
-### TODO this isn't in use yet
-###
-batch:
-    # whether to run in batch mode using slurm (otherwise runs in default mode)
-    enabled: false
-    # which job queue to use, i.e. slurm or short
-    queue: slurm
-    # project to charge the time to
-    project: IM3
-    # number of nodes; note: only 1 supported so far
-    nodes: 4
-
-###
-### Multiprocessing
-### note: if running on a local machine, it is best not to use all your cores if you plan on doing other things in the meantime
-### note: when running in batch mode, all cores are used no matter what is specified here
-### TODO this isn't working quite right for WM yet, but works somewhat for just routing
-###
-multiprocessing:
-    # whether or not to use multiple cores
-    enabled: false
-    # number of cores to use; set to ~ to use all available cores
-    cores: 4
-
-###
 ### Simulation
 ###
 simulation:
@@ -57,8 +30,8 @@ simulation:
     # resume simulation from restart file
     # TODO not yet supported
     restart_file: ~
-    # how often to write a restart file; one of 'daily', 'monthly', 'yearly', 'end' -- 'end' meaning only at the end of the simulation
-    restart_file_frequency: end
+    # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation
+    restart_file_frequency: yearly
     # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged across the intervening timesteps
     # TODO only daily (86400) is currently supported
     output_resolution: 86400 # output values once each day, averaged across the timesteps
