@@ -30,7 +30,7 @@ def update_output(self):
             self.output_buffer.loc[:, output.get('name')] += getattr(self.state, output.get('variable'))
 
     # if a new period has begun: average output buffer, write to file, and zero output buffer
-    if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 75600: # 0: TODO
+    if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 0:
         logging.info('Writing to output file.')
         self.output_buffer = self.output_buffer / self.output_n
         write_output(self)
@@ -38,35 +38,35 @@ def update_output(self):
         for output in self.config.get('simulation.output'):
             if getattr(self.state, output.get('variable'), None) is not None:
                 self.output_buffer.loc[:, output.get('name')] = 0.0 * self.state.zeros
-        # check if restart file if need
-        check_restart(self)
+    
+    # check if restart file if need
+    check_restart(self)
 
 def write_output(self):
     # handle writing output to file
     # TODO only daily resolution is currently supported - need to support arbitrary resolutions
 
-    # logging.info(f'WRM_DEMAND0 sum: {self.output_buffer.WRM_DEMAND0.sum()}')
-    # logging.info(f'WRM_DEMAND sum: {self.output_buffer.WRM_DEMAND.sum()}')
-    # logging.info(f'WRM_SUPPLY sum: {self.output_buffer.WRM_SUPPLY.sum()}')
-    # logging.info(f'QSUR sum: {self.output_buffer.QSUR_LIQ.sum()}')
-
     # check the write frequency to see if writing to new file or appending to existing file
     # also construct the file name
     period = self.config.get('simulation.output_file_frequency')
     is_new_period = False
-    true_date = self.current_time #- timedelta(days=1) TODO
+    # use yesterday's date as the file name, to match with what is actually being averaged
+    true_date = self.current_time if not (self.current_time.hour == 0 and self.current_time.minute == 0 and self.current_time.second == 0) else (self.current_time - timedelta(days=1))
     filename = f'./output/{self.name}/{self.name}_{true_date.year}'
     if period == 'daily':
         filename += f'_{true_date.strftime("%m")}_{true_date.strftime("%d")}'
         if self.current_time.hour == 0 and self.current_time.second == 0:
             is_new_period = True
-    if period == 'monthly':
+    elif period == 'monthly':
         filename += f'_{true_date.strftime("%m")}'
-        if self.current_time.day == 1 and self.current_time.hour == 21: #2 and self.current_time.hour == 0 and self.current_time.second == 0: TODO
+        if self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
             is_new_period = True
-    if period == 'yearly':
+    elif period == 'yearly':
         if self.current_time.month == 1 and self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
             is_new_period = True
+    else:
+        logging.warn(f'Configuration value for `simulation.output_file_frequency: {period}` is not recognized.')
+        return
     filename += '.nc'
 
     # create the data frame
@@ -102,6 +102,8 @@ def write_output(self):
     # if new period, write to new file and include grid variables, otherwise update file
     if not is_new_period:
         nc = open_dataset(filename).load()
+        # slice the existing data to account for restarts
+        nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1ms')))
         frame = concat([nc, frame], dim='time', data_vars='minimal')
         nc.close()
     else:
@@ -131,20 +133,24 @@ def check_restart(self):
     # check if new restart file is desired
     frequency = self.config.get('simulation.restart_file_frequency')
     is_needed = False
-    true_date = self.current_time - timedelta(days=1)
     if frequency == 'daily':
         if self.current_time.hour == 0 and self.current_time.second == 0:
             is_needed = True
-    if frequency == 'monthly':
-        if self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
+    elif frequency == 'monthly':
+        if self.current_time.day == 1 and self.current_time.hour == 0 and self.current_time.second == 0:
             is_needed = True
-    if frequency == 'yearly':
-        if self.current_time.month == 1 and self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
+    elif frequency == 'yearly':
+        if self.current_time.month == 1 and self.current_time.day == 1 and self.current_time.hour == 0 and self.current_time.second == 0:
             is_needed = True
+    if self.current_time.timestamp() >= self.get_end_time():
+        # always write a restart file at the end of simulation
+        is_needed = True
     if is_needed:
         write_restart(self)
 
 def write_restart(self):
-    # TODO
-    # need to save state and possibly some wm stuff? ideally just state
-    pass
+    # save all state values to file
+    logging.info('Writing restart file.')
+    x = self.state.to_dataframe().to_xarray()
+    filename = f'./output/{self.name}/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc'
+    x.to_netcdf(filename)

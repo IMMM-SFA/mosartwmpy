@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import pandas as pd
 from datetime import datetime, time
 from xarray import open_dataset
 
@@ -248,3 +249,30 @@ class State():
             ]:
                 setattr(self, var, np.zeros(grid_size))
             initialize_reservoir_state(self, grid, config, parameters)
+    
+    def to_dataframe(self):
+        """Builds a dataframe from all the state values.
+
+        Returns:
+            pd.DataFrame: a dataframe with all the state values as columns
+        """
+        keys = [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]
+        df = pd.DataFrame()
+        for key in keys:
+            df[key] = getattr(self, key)
+        return df
+    
+    @staticmethod
+    def from_dataframe(df):
+        """Creates a State instance from a dataframe.
+
+        Args:
+            df (pd.DataFrame): the dataframe from which to build the state
+
+        Returns:
+            State: a State instance populated with the columns from the dataframe
+        """
+        state = State(empty=True)
+        for key in df.columns:
+            setattr(state, key, df[key].values)
+        return state

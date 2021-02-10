@@ -2,7 +2,9 @@ import logging
 import matplotlib.pyplot as plt
 import numexpr as ne
 import numpy as np
+import pandas as pd
 import psutil
+import regex as re
 import subprocess
 
 from benedict import benedict
@@ -12,6 +14,7 @@ from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
+from xarray import open_dataset
 
 from mosartwmpy.config.config import get_config, Parameters
 from mosartwmpy.grid.grid import Grid
@@ -86,11 +89,7 @@ class Model(Bmi):
             except:
                 pass
             # detect available physical cores
-            max_cores = psutil.cpu_count(logical=False)
-            requested = self.config.get('multiprocessing.cores', None)
-            if requested is None or requested > max_cores:
-                requested = max_cores
-            self.cores = requested
+            self.cores = psutil.cpu_count(logical=False)
             logging.info(f'Cores: {self.cores}.')
             ne.set_num_threads(self.cores)
         except Exception as e:
@@ -108,11 +107,20 @@ class Model(Bmi):
         try:
             # restart file
             if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
-                logging.info('Loading restart file.')
-                # TODO set current timestep based on restart
-                # TODO initialize state from restart file
-                logging.error('Restart file not yet implemented. Aborting.')
-                raise NotImplementedError
+                path = self.config.get('simulation.restart_file')
+                logging.info(f'Loading restart file from: `{path}`.')
+                # set simulation start time based on file name
+                date = re.search(r'\d{4}_\d{2}_\d{2}', path)
+                if date:
+                    date = date[len(date) - 1].split('_')
+                    self.current_time = datetime(int(date[0]), int(date[1]), int(date[2]))
+                else:
+                    logging.warn('Unable to parse date from restart file name, falling back to configured start date.')
+                    self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
+                x = open_dataset(path)
+                self.state = State.from_dataframe(x.to_dataframe())
+                x.close()
+                # TODO ensure output file writes still workr
             else:
                 # simulation start time
                 self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
@@ -139,14 +147,14 @@ class Model(Bmi):
         try:
             # read runoff
             if self.config.get('runoff.enabled', False):
+                logging.debug(f'Reading runoff input.')
                 load_runoff(self.state, self.grid, self.config, self.current_time)
-            # advance timestep
-            self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))
             # read demand
             if self.config.get('water_management.enabled', False):
                 # only read new demand and compute new release if it's the very start of simulation or new time period
-                # TODO this is currently adjusted to try to match fortran mosart
-                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time(3)) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                # TODO this currently assumes monthly demand input
+                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    logging.debug(f'Reading demand input.')
                     # load the demand from file
                     load_demand(self.state, self.config, self.current_time)
                     # release water from reservoirs
@@ -163,6 +171,8 @@ class Model(Bmi):
                 self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
             # perform simulation for one timestep
             update(self.state, self.grid, self.parameters, self.config)
+            # advance timestep
+            self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
