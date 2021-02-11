@@ -1,11 +1,20 @@
 import numpy as np
 import numexpr as ne
 
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.hillslope.state import update_hillslope_state
 
-def hillslope_routing(state, grid, parameters, delta_t):
-    # perform the hillslope routing for the whole grid
-    # TODO describe what is happening heres
+def hillslope_routing(state: State, grid: Grid, parameters: Parameters, delta_t: float) -> None:
+    """Tracks the storage of runoff water in the hillslope and the flow of runoff water from the hillslope into the channels.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
+    """
     
     base_condition = (grid.mosart_mask > 0) & state.euler_mask
     

@@ -1,8 +1,19 @@
 import numpy as np
 import numexpr as ne
 
-def update_subnetwork_state(state, grid, parameters, base_condition):
-    # update the physical properties of the subnetwork
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
+def update_subnetwork_state(state: State, grid: Grid, parameters: Parameters, base_condition: np.ndarray) -> None:
+    """Updates the physical properties of the subnetwork river channels based on current state.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        base_condition (np.ndarray): a boolean array representing where the update should occur in the state
+    """
         
     # update state variables
     length_condition = calculate_length_condition(grid.subnetwork_length, state.subnetwork_storage)

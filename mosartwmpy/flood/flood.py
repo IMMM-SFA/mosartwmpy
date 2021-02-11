@@ -1,6 +1,19 @@
 import numpy as np
 
-def flood(state, grid, parameters, config):
+from benedict.dicts import benedict as Benedict
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
+def flood(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
+    """Excess runoff is removed from the available groundwater; mutates state.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+    """
     
     ###
     ### Compute Flood

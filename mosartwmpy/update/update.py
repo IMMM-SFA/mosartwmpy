@@ -2,6 +2,12 @@ import numpy as np
 import pandas as pd
 import logging
 
+from benedict.dicts import benedict as Benedict
+
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
 from mosartwmpy.direct_to_ocean.direct_to_ocean import direct_to_ocean
 from mosartwmpy.flood.flood import flood
 from mosartwmpy.hillslope.routing import hillslope_routing
@@ -18,7 +24,15 @@ np.seterr(all='ignore')
 pd.options.mode.chained_assignment = None
 
 # TODO add docstrings to each method/class
-def update(state, grid, parameters, config):
+def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
+    """Advance the simulation one timestamp.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+    """
     # perform one timestep
     
     # ignore nan, overflow, underflow, and div by 0 warnings, since they are handled correctly
@@ -214,5 +228,3 @@ def update(state, grid, parameters, config):
         state.delta_storage,
         0
     )
-    
-    #return state

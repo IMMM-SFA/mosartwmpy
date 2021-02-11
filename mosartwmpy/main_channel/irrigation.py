@@ -1,12 +1,21 @@
 import numpy as np
 import numexpr as ne
 
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.main_channel.state import update_main_channel_state
 from mosartwmpy.utilities.timing import timing
 
 # @timing
-def main_channel_irrigation(state, grid, parameters):
-    # main channel routing irrigation extraction
+def main_channel_irrigation(state: State, grid: Grid, parameters: Parameters) -> None:
+    """Tracks the supply of water from the main river channel extracted into the grid cells.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+    """
     
     depth_condition = calculate_depth_condition(grid.mosart_mask, state.euler_mask, state.tracer, parameters.LIQUID_TRACER, state.channel_depth, parameters.irrigation_extraction_condition)
     

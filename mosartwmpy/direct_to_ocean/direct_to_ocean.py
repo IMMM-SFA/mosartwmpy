@@ -2,10 +2,21 @@ import numpy as np
 import numexpr as ne
 import pandas as pd
 
-def direct_to_ocean(state, grid, parameters, config):
-    ###
-    ### Direct transfer to outlet point
-    ###
+from benedict.dicts import benedict as Benedict
+
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
+def direct_to_ocean(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
+    """Direct transfer to outlet point; mutates state.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+    """
 
     # direct to ocean
     # note - in fortran mosart this direct_to_ocean forcing could be provided from LND component, but we don't seem to be using it

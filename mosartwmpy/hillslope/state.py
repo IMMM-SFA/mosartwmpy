@@ -1,8 +1,16 @@
 import numpy as np
 import numexpr as ne
 
-def update_hillslope_state(state, base_condition):
-    # update hillslope water depth
+from mosartwmpy.state.state import State
+
+def update_hillslope_state(state: State, base_condition: np.ndarray) -> None:
+    """Updates the depth of water remaining in the hillslope.
+
+    Args:
+        state (State): the current model state; will be mutated
+        base_condition (np.ndarray): a boolean array representing where the update should occur in the state
+    """
+    
     state.hillslope_depth = calculate_hillslope_depth(base_condition, state.hillslope_storage, state.hillslope_depth)
 
 calculate_hillslope_depth = ne.NumExpr(

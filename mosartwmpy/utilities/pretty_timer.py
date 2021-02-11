@@ -1,5 +1,12 @@
-def pretty_timer(seconds):
-    # format elapsed times in a human friendly way
+def pretty_timer(seconds: float) -> str:
+    """Formats an elapsed time in a human friendly way.
+
+    Args:
+        seconds (float): a duration of time in seconds
+
+    Returns:
+        str: human friendly string representing the duration
+    """
     if seconds < 1:
         return f'{round(seconds * 1.0e3, 0)} milliseconds'
     elif seconds < 60:

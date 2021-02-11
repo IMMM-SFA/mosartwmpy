@@ -1,8 +1,19 @@
 import numpy as np
 import numexpr as ne
 
-def update_main_channel_state(state, grid, parameters, base_condition):
-    # update the physical properties of the main channel
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
+def update_main_channel_state(state: State, grid: Grid, parameters: Parameters, base_condition: np.ndarray) -> None:
+    """Updates the physical properties of the main river channel based on current state.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        base_condition (np.ndarray): a boolean array representing where the update should occur in the state
+    """
     
     condition = calculate_storage_condition(grid.channel_length, state.channel_storage)
     state.channel_cross_section_area = calculate_channel_cross_section_area(base_condition, condition, state.channel_storage, grid.channel_length, state.channel_cross_section_area)

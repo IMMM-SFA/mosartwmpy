@@ -14,9 +14,11 @@ from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
+from typing import Tuple
 from xarray import open_dataset
 
-from mosartwmpy.config.config import get_config, Parameters
+from mosartwmpy.config.config import get_config
+from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
@@ -25,9 +27,11 @@ from mosartwmpy.reservoirs.reservoirs import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
 from mosartwmpy.utilities.pretty_timer import pretty_timer
+from mosartwmpy.utilities.inherit_docs import inherit_docs
 
+@inherit_docs
 class Model(Bmi):
-    """[summary]
+    """The mosartwmpy basic model interface.
 
     Args:
         Bmi (Bmi): The Basic Model Interface class
@@ -37,7 +41,6 @@ class Model(Bmi):
     """
     
     def __init__(self):
-        """Initialize the mosartwmpy BMI"""
         self.name = None
         self.config = benedict()
         self.grid = None
@@ -52,13 +55,10 @@ class Model(Bmi):
         self.reservoir_streamflow_schedule = None
         self.reservoir_demand_schedule = None
         self.reservoir_prerelease_schedule = None
+        self.git_hash = None
+        self.git_untracked = None
 
-    def initialize(self, config_file_path: str = None):
-        """Prepare the mosartwmpy model prior to running a simulation
-
-        Args:
-            config_file_path (str, optional): Path to a yaml file for overriding default settings. Defaults to None.
-        """
+    def initialize(self, config_file_path: str) -> None:
         
         t = timer()
 
@@ -79,12 +79,12 @@ class Model(Bmi):
             logging.info('Initalizing model.')
             logging.info(self.config.dump())
             try:
-                githash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
-                untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
-                logging.info(f'Version: {githash}')
-                if len(untracked) > 0:
+                self.git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
+                self.git_untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
+                logging.info(f'Version: {self.git_hash}')
+                if len(self.git_untracked) > 0:
                     logging.info(f'Uncommitted changes:')
-                    for u in untracked:
+                    for u in self.git_untracked:
                         logging.info(f'  * {u}')
             except:
                 pass
@@ -98,7 +98,7 @@ class Model(Bmi):
 
         # load grid
         try:
-            self.grid = Grid(config=self.config, parameters=self.parameters, cores=self.cores)
+            self.grid = Grid(config=self.config, parameters=self.parameters)
         except Exception as e:
             logging.exception('Failed to load grid file; see below for stacktrace.')
             raise e
@@ -139,7 +139,7 @@ class Model(Bmi):
         
         logging.info(f'Initialization completed in {pretty_timer(timer() - t)}.')
         
-    def update(self):
+    def update(self) -> None:
         t = timer()
         step = datetime.fromtimestamp(self.get_current_time()).isoformat(" ")
         # perform one timestep
@@ -184,153 +184,153 @@ class Model(Bmi):
             logging.exception('Failed to write output or restart file; see below for stacktrace.')
             raise e
 
-    def update_until(self, time: float):
+    def update_until(self, time: float) -> None:
         # perform timesteps until time
         t = timer()
         while self.get_current_time() < time:
             self.update()
         logging.info(f'Simulation completed in {pretty_timer(timer() - t)}.')
 
-    def finalize(self):
+    def finalize(self) -> None:
         # simulation is over so free memory, write data, etc
         return
 
-    def get_component_name(self):
+    def get_component_name(self) -> str:
         # TODO include version/hash info?
-        return 'Mosart'
+        return f'mosartwmpy ({self.git_hash})'
 
-    def get_input_item_count(self):
+    def get_input_item_count(self) -> int:
         # TODO
         return 0
 
-    def get_output_item_count(self):
+    def get_output_item_count(self) -> int:
         # TODO
         return 0
 
-    def get_input_var_names(self):
+    def get_input_var_names(self) -> Tuple[str]:
         # TODO
         return []
 
-    def get_output_var_names(self):
+    def get_output_var_names(self) -> Tuple[str]:
         # TODO
         return []
 
-    def get_var_grid(self, name: str):
+    def get_var_grid(self, name: str) -> int:
         # only one grid used in mosart, so it is the 0th grid
         return 0
 
-    def get_var_type(self, name: str):
+    def get_var_type(self, name: str) -> str:
         # TODO
         return 'TODO'
 
-    def get_var_units(self, name: str):
+    def get_var_units(self, name: str) -> str:
         # TODO
         return 'TODO'
 
-    def get_var_itemsize(self, name: str):
+    def get_var_itemsize(self, name: str) -> int:
         # TODO
         return 0
 
-    def get_var_nbytes(self, name: str):
+    def get_var_nbytes(self, name: str) -> int:
         # TODO
         return 0
 
-    def get_var_location(self, name: str):
+    def get_var_location(self, name: str) -> str:
         # node, edge, face
         return 'node'
 
-    def get_current_time(self):
+    def get_current_time(self) -> float:
         return self.current_time.timestamp()
 
-    def get_start_time(self):
+    def get_start_time(self) -> float:
         return datetime.combine(self.config.get('simulation.start_date'), time.min).timestamp()
 
-    def get_end_time(self):
+    def get_end_time(self) -> float:
         return datetime.combine(self.config.get('simulation.end_date'), time.max).timestamp()
 
-    def get_time_units(self):
+    def get_time_units(self) -> str:
         return 's'
 
-    def get_time_step(self):
+    def get_time_step(self) -> float:
         return float(self.config.get('simulation.timestep'))
 
-    def get_value(self, name: str, array):
+    def get_value(self, name: str, dest: np.ndarray) -> np.ndarray:
         # TODO copy values into array
         return
 
-    def get_value_ptr(self, name, array):
+    def get_value_ptr(self, name: str) -> np.ndarray:
         # TODO set array to current array pointer
         return
 
-    def get_value_at_indices(self, array, indices):
+    def get_value_at_indices(self, name: str, dest: np.ndarray, inds: np.ndarray) -> np.ndarray:
         # TODO copy values from indices into array
         return
 
-    def set_value(self, name: str, array):
+    def set_value(self, name: str, src: np.ndarray) -> None:
         # TODO set values of name from array
         return
 
-    def set_value_at_indices(self, name: str, indices, array):
+    def set_value_at_indices(self, name: str, inds: np.ndarray, src: np.ndarray) -> None:
         # TODO set values of name at indices from array
         return
 
-    def get_grid_type(self, grid: int = 0):
+    def get_grid_type(self, grid: int = 0) -> str:
         return 'uniform_rectilinear'
 
-    def get_grid_rank(self, grid: int = 0):
+    def get_grid_rank(self, grid: int = 0) -> int:
         return 2
     
-    def get_grid_size(self, grid: int = 0):
+    def get_grid_size(self, grid: int = 0) -> int:
         return self.grid.cell_count
 
-    def get_grid_shape(self, grid: int = 0, shape = np.empty(2, dtype=int)):
+    def get_grid_shape(self, grid: int = 0, shape: np.ndarray = np.empty(2, dtype=int)) -> np.ndarray:
         shape[0] = self.grid.unique_latitudes.size
         shape[1] = self.grid.unique_longitudes.size
         return shape
 
-    def get_grid_spacing(self, grid: int = 0, spacing = np.empty(2)):
+    def get_grid_spacing(self, grid: int = 0, spacing: np.ndarray = np.empty(2)) -> np.ndarray:
         # assumes uniform grid
         spacing[0] = self.grid.latitude_spacing
         spacing[1] = self.grid.longitude_spacing
         return spacing
     
-    def get_grid_origin(self, grid: int = 0, origin = np.empty(2)):
+    def get_grid_origin(self, grid: int = 0, origin: np.ndarray = np.empty(2)) -> np.ndarray:
         origin[0] = self.grid.unique_latitudes[0]
         origin[1] = self.grid.unique_longitudes[0]
         return origin
 
-    def get_grid_x(self, grid: int = 0, x = None):
+    def get_grid_x(self, grid: int = 0, x: np.ndarray = None) -> np.ndarray:
         if not x:
             x = np.empty(self.get_grid_shape()[0])
         x[:] = self.grid.unique_latitudes
         return x
 
-    def get_grid_y(self, grid: int = 0, y = None):
+    def get_grid_y(self, grid: int = 0, y: np.ndarray = None) -> np.ndarray:
         if not y:
             y = np.empty(self.get_grid_shape()[1])
         y[:] = self.grid.unique_longitudes
         return y
 
-    def get_grid_z(self, grid: int = 0, z = None):
+    def get_grid_z(self, grid: int = 0, z: np.ndarray = None) -> np.ndarray:
         raise NotImplementedError
 
-    def get_grid_node_count(self, grid: int = 0):
+    def get_grid_node_count(self, grid: int = 0) -> int:
         raise NotImplementedError
 
-    def get_grid_edge_count(self, grid: int = 0):
+    def get_grid_edge_count(self, grid: int = 0) -> int:
         raise NotImplementedError
 
-    def get_grid_face_count(self, grid: int = 0):
+    def get_grid_face_count(self, grid: int = 0) -> int:
         raise NotImplementedError
 
-    def get_grid_edge_nodes(self, grid: int = 0, edge_nodes = None):
+    def get_grid_edge_nodes(self, grid: int = 0, edge_nodes: np.ndarray = None) -> np.ndarray:
         raise NotImplementedError
 
-    def get_grid_face_edges(self, grid: int = 0, face_edges = None):
+    def get_grid_face_edges(self, grid: int = 0, face_edges: np.ndarray = None) -> np.ndarray:
         raise NotImplementedError
 
-    def get_grid_face_nodes(self, grid: int = 0, face_nodes = None):
+    def get_grid_face_nodes(self, grid: int = 0, face_nodes: np.ndarray = None) -> np.ndarray:
         raise NotImplementedError
 
-    def get_grid_nodes_per_face(self, grid: int = 0, nodes_per_face = None):
+    def get_grid_nodes_per_face(self, grid: int = 0, nodes_per_face: np.ndarray = None) -> np.ndarray:
         raise NotImplementedError
