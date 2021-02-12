@@ -5,22 +5,28 @@ import zipfile
 import logging
 import sys
 
+from benedict import benedict
 from pkg_resources import get_distribution
 
 
-def install_supplement(download_directory):
+def download_data(dataset: str, destination: str = None, manifest: str = './mosartwmpy/data_manifest.yaml') -> None:
     """Convenience wrapper for the InstallSupplement class.
-
+    
     Download and unpack example data supplement from Zenodo that matches the current installed
     distribution.
-
-    :param download_directory:                  Full path to the directory you wish to install
-                                                the example data to.  Must be write-enabled
-                                                for the user.
-
+    
+    Args:
+        dataset (str): name of the dataset to download, as found in the data_manifest.yaml
+        destination (str): full path to the directory in which to unpack the downloaded files; must be write enabled; defaults to the directory listed in the manifest
+        manifest (str): full path to the manifest yaml file describing the available downloads; defaults to the bundled data_manifest.yaml
     """
 
-    get = InstallSupplement(example_data_directory=download_directory)
+    data_dictionary = benedict(manifest, format='yaml')
+    
+    if not data_dictionary.get(dataset, None):
+        raise Exception(f'Dataset "{dataset}" not found in the manifest ({manifest}).')
+    
+    get = InstallSupplement(url = data_dictionary.get(f'{dataset}.url'), destination = destination if destination is not None else data_dictionary.get(f'{dataset}.destination', './'))
     get.fetch_zenodo()
 
 
@@ -34,19 +40,11 @@ class InstallSupplement:
 
     """
 
-    # URL for DOI minted example data hosted on Zenodo matching the version of release
-    # TODO:  this dictionary should really be brought in from a config file within the package
-    # TODO:  replace current test link with a real data link
-    DATA_VERSION_URLS = {'0.1.0': 'https://zenodo.org/record/3856417/files/test.zip?download=1'}
-
-    def __init__(self, example_data_directory, model_name='mosart'):
+    def __init__(self, url, destination):
 
         self.initialize_logger()
-
-        # full path to the Xanthos root directory where the example dir will be stored
-        self.example_data_directory = self.valid_directory(example_data_directory)
-
-        self.model_name = model_name
+        self.destination = self.valid_directory(destination)
+        self.url = url
 
     def initialize_logger(self):
         """Initialize logger to stdout."""
@@ -80,7 +78,7 @@ class InstallSupplement:
         if os.path.isdir(directory):
             return directory
         else:
-            msg = f"The write directory provided by the user does not exist:  {directory}"
+            msg = f"The write directory provided by the user does not exist: {directory}"
             logging.exception(msg)
             self.close_logger()
             raise NotADirectoryError(msg)
@@ -89,36 +87,24 @@ class InstallSupplement:
         """Download and unpack the Zenodo example data supplement for the
         current distribution."""
 
-        # get the current version of the package is installed
-        current_version = get_distribution(self.model_name).version
-
-        try:
-            data_link = InstallSupplement.DATA_VERSION_URLS[current_version]
-
-        except KeyError:
-            msg = f"Link to data missing for current version:  {current_version}.  Please contact admin."
-            logging.exception(msg)
-            self.close_logger()
-            raise
-
         # retrieve content from URL
         try:
-            logging.info(f"Downloading example data for version {current_version} from {data_link}")
-            r = requests.get(data_link)
+            logging.info(f"Downloading example data from {self.url}")
+            r = requests.get(self.url)
 
             with zipfile.ZipFile(io.BytesIO(r.content)) as zipped:
 
                 # extract each file in the zipped dir to the project
                 for f in zipped.namelist():
-                    logging.info("Unzipped: {}".format(os.path.join(self.example_data_directory, f)))
-                    zipped.extract(f, self.example_data_directory)
+                    logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
+                    zipped.extract(f, self.destination)
 
             logging.info("Download and install complete.")
 
             self.close_logger()
 
         except requests.exceptions.MissingSchema:
-            msg = f"URL for data incorrect for current version:  {current_version}.  Please contact admin."
+            msg = f"Unable to download data from {self.url}"
             logging.exception(msg)
             self.close_logger()
             raise

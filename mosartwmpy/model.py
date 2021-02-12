@@ -26,6 +26,7 @@ from mosartwmpy.output.output import initialize_output, update_output, write_res
 from mosartwmpy.reservoirs.reservoirs import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
+from mosartwmpy.utilities.download_data import download_data
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 from mosartwmpy.utilities.inherit_docs import inherit_docs
 
@@ -69,8 +70,8 @@ class Model(Bmi):
             self.parameters = Parameters()
             # sanitize the run name
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
-            # setup logging and output directory
-            Path(f'./output/{self.name}').mkdir(parents=True, exist_ok=True)
+            # setup logging and output directories
+            Path(f'./output/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
             logging.basicConfig(
                 filename=f'./output/{self.name}/mosartwmpy.log',
                 level=self.config.get('simulation.log_level', 'INFO'),
@@ -194,6 +195,10 @@ class Model(Bmi):
     def finalize(self) -> None:
         # simulation is over so free memory, write data, etc
         return
+
+    def download_data(self, *args, **kwargs) -> None:
+        """Downloads data related to the model."""
+        download_data(*args, **kwargs)
 
     def get_component_name(self) -> str:
         # TODO include version/hash info?

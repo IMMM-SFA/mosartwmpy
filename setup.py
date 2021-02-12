@@ -15,7 +15,7 @@ def get_requirements():
 
 setup(
     name='mosartwmpy',
-    version='0.1.0',
+    version='0.0.1',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2',

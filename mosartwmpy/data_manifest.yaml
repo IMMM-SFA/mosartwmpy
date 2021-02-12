@@ -1,0 +1,13 @@
+# listing of publically downloadable data related to mosartwmpy
+
+sample_input:
+  description: Sample input dataset that can be used for testing and development; covers 1980 - 1985.
+  url: https://zenodo.org/record/4537907/files/mosartwmpy_sample_input_data_1980_1985.zip?download=1
+  destination: ./
+
+validation:
+  description: Result datasets that can be used for validating the model; includes results with and without WM; covers 1981-1982.
+  url: TODO
+  destination: ./validation
+
+# TODO add other weather files, demand files, etc as they become ready
