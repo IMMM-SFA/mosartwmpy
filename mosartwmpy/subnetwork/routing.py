@@ -1,13 +1,25 @@
 import numpy as np
 import numexpr as ne
 
+from benedict.dicts import benedict as Benedict
+
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.subnetwork.state import update_subnetwork_state
 from mosartwmpy.utilities.timing import timing
 
 # @timing
-def subnetwork_routing(state, grid, parameters, config, delta_t):
-    # perform the subnetwork (tributary) routing
-    # TODO describe what is happening here
+def subnetwork_routing(state: State, grid: Grid, parameters: Parameters, config: Benedict, delta_t: float) -> None:
+    """Tracks the storage and flow of water in the subnetwork river channels.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
+    """
     
     state.channel_lateral_flow_hillslope[:] = 0
     local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_subnetwork)

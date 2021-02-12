@@ -1,11 +1,10 @@
 if __name__ == '__main__':
 
-    import logging
     import matplotlib.pyplot as plt
     import pandas as pd
     import numpy as np
 
-    from mosartwmpy.mosartwmpy import Model
+    from mosartwmpy import Model
 
     # launch simulation
     mosart_wm = Model()

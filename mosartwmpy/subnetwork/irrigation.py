@@ -1,12 +1,21 @@
 import numpy as np
 import numexpr as ne
 
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.subnetwork.state import update_subnetwork_state
 from mosartwmpy.utilities.timing import timing
 
 # @timing
-def subnetwork_irrigation(state, grid, parameters):
-    # subnetwork channel routing irrigation extraction
+def subnetwork_irrigation(state: State, grid: Grid, parameters: Parameters) -> None:
+    """Tracks the supply of water from the subnetwork river channels extracted into the grid cells.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+    """
     
     depth_condition = calculate_depth_condition(grid.mosart_mask, state.euler_mask, state.tracer, parameters.LIQUID_TRACER, state.subnetwork_depth, parameters.irrigation_extraction_condition)
     

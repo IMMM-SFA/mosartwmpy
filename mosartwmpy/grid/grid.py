@@ -4,27 +4,28 @@ import pandas as pd
 import xarray as xr
 
 from xarray import open_dataset
+from benedict.dicts import benedict as Benedict
 
-from mosartwmpy.reservoirs.reservoirs import load_reservoirs
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.reservoirs.grid import load_reservoirs
 
 class Grid():
     """Class to store grid related values that are constant throughout a simulation."""
     
-    def __init__(self, config=None, parameters=None, cores=1, empty=False):
+    def __init__(self, config: Benedict = None, parameters: Parameters = None, empty: bool = False):
         """Initialize the Grid class.
         
         Args:
-            config (Benedict): Model configuration benedict instance
-            parameters (Parameters): Model parameters instance
-            cores (int): How many CPUs are in use
-            empty (bool): Set to True to return an empty instance
+            config (Benedict): the model configuration
+            parameters (Parameters): the model parameters
+            empty (bool): if true will return an empty instance
         """
         
         # shortcut to get an empty grid instance
         if empty:
             return
         
-        # initialize all properties that need to be shared across cores
+        # initialize all properties
         self.drainage_fraction = np.empty(0)
         self.local_drainage_area = np.empty(0)
         self.total_drainage_area_multi = np.empty(0)
@@ -316,8 +317,3 @@ class Grid():
         if config.get('water_management.enabled', False):
             logging.debug(' - reservoirs')
             load_reservoirs(self, config, parameters)
-
-        # label each grid cell with a processor number it belongs to
-        self.process = pd.cut(self.outlet_id, bins=cores, labels=False)
-        # remove non interesting grid cells from process list
-        self.process[np.logical_not(self.mosart_mask > 0)] = -1

@@ -1,14 +1,26 @@
 import numpy as np
 import numexpr as ne
 
+from benedict.dicts import benedict as Benedict
+
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.main_channel.kinematic_wave import kinematic_wave_routing
 from mosartwmpy.main_channel.state import update_main_channel_state
 from mosartwmpy.utilities.timing import timing
 
 # @timing
-def main_channel_routing(state, grid, parameters, config, delta_t):
-    # perform the main channel routing
-    # TODO describe what is happening here
+def main_channel_routing(state: State, grid: Grid, parameters: Parameters, config: Benedict, delta_t: float) -> None:
+    """Tracks the storage and flow of water in the main river channels.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
+    """
     
     tmp_outflow_downstream = 0.0 * state.zeros
     local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_main_channel)

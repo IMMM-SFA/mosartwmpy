@@ -1,8 +1,20 @@
 import numpy as np
 import numexpr as ne
 
-def kinematic_wave_routing(state, grid, parameters, delta_t, base_condition):
-    # classic kinematic wave routing method
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
+
+def kinematic_wave_routing(state: State, grid: Grid, parameters: Parameters, delta_t: float, base_condition: np.ndarray) -> None:
+    """Tracks the storage and flow of water in the main channel using the kinematic wave routing method.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
+        base_condition (np.ndarray): a boolean array representing where the update should occur in the state
+    """
     
     # estimation of inflow
     state.channel_inflow_upstream = calculate_channel_inflow_upstream(base_condition, state.channel_outflow_sum_upstream_instant, state.channel_inflow_upstream)

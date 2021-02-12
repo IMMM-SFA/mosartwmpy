@@ -2,13 +2,24 @@ import numpy as np
 import numexpr as ne
 import pandas as pd
 
+from benedict.dicts import benedict as Benedict
 from numba import jit, prange
 
+from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.grid.grid import Grid
+from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
 # @timing
-def regulation(state, grid, parameters, delta_t):
-    # regulation of the flow from the reservoirs, applied to flow entering the grid cell, i.e. subnetwork storage downstream of reservoir
+def regulation(state: State, grid: Grid, parameters: Parameters, delta_t: float) -> None:
+    """Regulates the flow across the reservoirs.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        delta_t (float): the timestep for this routing iteration (overall timestep / subcycles / routing iterations)
+    """
     
     base_condition = (
         (grid.mosart_mask > 0) &
@@ -79,9 +90,16 @@ def regulation(state, grid, parameters, delta_t):
     )
 
 # @timing
-def extraction_regulated_flow(state, grid, parameters, config, delta_t):
-    # extract water from the reservoir release
-    # the extraction needs to be distributed across the dependent cells demand
+def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, config: Benedict, delta_t: float) -> None:
+    """Tracks the supply of water extracted from the reservoirs to fulfill demand from dependent grid cells.
+
+    Args:
+        state (State): the current model state; will be mutated
+        grid (Grid): the model grid
+        parameters (Parameters): the model parameters
+        config (Benedict): the model configuration
+        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
+    """
     
     # notes from fortran mosart:
     # This is an iterative algorithm that converts main channel flow
@@ -126,9 +144,6 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     # 3. if any sum of dam fraction < 1.0 for a gridcell, then provide fraction of 
     #    demand to gridcell prorated by the dam fraction of each dam.
     #
-    # dam_uptake is the amount of water removed from the dam, it's a global array.
-    # Gridcells from different tasks will accumluate the amount of water removed
-    # from each dam in this array.
     
     has_reservoir = np.isfinite(grid.reservoir_id)
     
@@ -206,7 +221,16 @@ def extraction_regulated_flow(state, grid, parameters, config, delta_t):
     state.channel_outflow_downstream[:] -= pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(reservoir_demand_flow.flow_volume, how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values / delta_t
 
 @jit(nopython=True, parallel=True, fastmath=True, cache=True)
-def parallel_is_in(a, b):
+def parallel_is_in(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Just-in-time compiled parallel C code for determing the boolean mask on array a values that exist in array b. This is slightly faster than pandas/numpy.
+
+    Args:
+        a (np.ndarray): the array of values to mask
+        b (np.ndarray): the array of values for comparison
+
+    Returns:
+        np.ndarray: a boolean mask of a in b.
+    """
     s = set(b)
     l = len(a)
     result = np.full(l, False)
