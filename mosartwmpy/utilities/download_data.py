@@ -6,7 +6,6 @@ import logging
 import sys
 
 from benedict import benedict
-from pkg_resources import get_distribution
 
 
 def download_data(dataset: str, destination: str = None, manifest: str = './mosartwmpy/data_manifest.yaml') -> None:
