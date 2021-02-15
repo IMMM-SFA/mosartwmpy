@@ -157,5 +157,5 @@ def write_restart(self):
     
     logging.info('Writing restart file.')
     x = self.state.to_dataframe().to_xarray()
-    filename = f'./output/{self.name}/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc'
+    filename = f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc'
     x.to_netcdf(filename)
