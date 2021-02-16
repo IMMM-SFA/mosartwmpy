@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 
 from xarray import concat, open_dataset, Dataset
-from xarray.ufuncs import logical_not
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
@@ -124,13 +123,13 @@ def prepare_reservoir_schedule(self, config: Benedict, parameters: Parameters, r
     # note that xarray `where` modifies the false values
     condition = (demand_avg >= (0.5 * flow_avg)) & (flow_avg > 0)
     prerelease = prerelease.where(
-        logical_not(condition),
+        ~condition,
         demand_avg/ 10 + 9 / 10 * flow_avg * self.reservoir_demand_schedule / demand_avg
     )
     prerelease = prerelease.where(
         condition,
         prerelease.where(
-            logical_not((flow_avg + self.reservoir_demand_schedule - demand_avg) > 0),
+            ~((flow_avg + self.reservoir_demand_schedule - demand_avg) > 0),
             flow_avg + self.reservoir_demand_schedule - demand_avg
         )
     )
