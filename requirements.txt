@@ -12,5 +12,6 @@ numpy==1.19.4
 pandas==1.1.4
 pathvalidate==2.3.0
 psutil==5.7.3
+pyarrow==3.0.0
 python-benedict==0.22.0
 xarray==0.16.1
