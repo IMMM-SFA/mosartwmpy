@@ -59,7 +59,7 @@ class Model(Bmi):
         self.git_hash = None
         self.git_untracked = None
 
-    def initialize(self, config_file_path: str) -> None:
+    def initialize(self, config_file_path: str, grid: Grid = None, state: State = None) -> None:
         
         t = timer()
 
@@ -98,38 +98,44 @@ class Model(Bmi):
             raise e
 
         # load grid
-        try:
-            self.grid = Grid(config=self.config, parameters=self.parameters)
-        except Exception as e:
-            logging.exception('Failed to load grid file; see below for stacktrace.')
-            raise e
+        if grid is not None:
+            self.grid = grid
+        else:
+            try:
+                self.grid = Grid(config=self.config, parameters=self.parameters)
+            except Exception as e:
+                logging.exception('Failed to load grid file; see below for stacktrace.')
+                raise e
 
         # load restart file or initialize state
-        try:
-            # restart file
-            if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
-                path = self.config.get('simulation.restart_file')
-                logging.info(f'Loading restart file from: `{path}`.')
-                # set simulation start time based on file name
-                date = re.search(r'\d{4}_\d{2}_\d{2}', path)
-                if date:
-                    date = date[len(date) - 1].split('_')
-                    self.current_time = datetime(int(date[0]), int(date[1]), int(date[2]))
+        if state is not None:
+            self.state = state
+        else:
+            try:
+                # restart file
+                if self.config.get('simulation.restart_file') is not None and self.config.get('simulation.restart_file') != '':
+                    path = self.config.get('simulation.restart_file')
+                    logging.info(f'Loading restart file from: `{path}`.')
+                    # set simulation start time based on file name
+                    date = re.search(r'\d{4}_\d{2}_\d{2}', path)
+                    if date:
+                        date = date[len(date) - 1].split('_')
+                        self.current_time = datetime(int(date[0]), int(date[1]), int(date[2]))
+                    else:
+                        logging.warn('Unable to parse date from restart file name, falling back to configured start date.')
+                        self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
+                    x = open_dataset(path)
+                    self.state = State.from_dataframe(x.to_dataframe())
+                    x.close()
+                    # TODO ensure output file writes still workr
                 else:
-                    logging.warn('Unable to parse date from restart file name, falling back to configured start date.')
+                    # simulation start time
                     self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
-                x = open_dataset(path)
-                self.state = State.from_dataframe(x.to_dataframe())
-                x.close()
-                # TODO ensure output file writes still workr
-            else:
-                # simulation start time
-                self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
-                # initialize state
-                self.state = State(grid=self.grid, config=self.config, parameters=self.parameters, grid_size=self.get_grid_size())
-        except Exception as e:
-            logging.exception('Failed to initialize model; see below for stacktrace.')
-            raise e
+                    # initialize state
+                    self.state = State(grid=self.grid, config=self.config, parameters=self.parameters, grid_size=self.get_grid_size())
+            except Exception as e:
+                logging.exception('Failed to initialize model; see below for stacktrace.')
+                raise e
         
         # setup output file averaging
         try:
