@@ -41,10 +41,28 @@ Alternatively, one can update the settings via code in the driving script:
  mosart_wm.config['simulation.end_date'] = datetime(1985, 12, 31)
 ```
 
-By default, key model variables are output on a monthly basis at a daily averaged resolution to `./output/<simulation name>/<simulation name>_<year>_<month>.nc`. Support for the [CSDMS standard names](https://github.com/csdms/standard_names) will be added shortly, but for now see configuration file and the `./src/_initialize_state.py` file for examples of how to modify the outputs.
+By default, key model variables are output on a monthly basis at a daily averaged resolution to `./output/<simulation name>/<simulation name>_<year>_<month>.nc`. Support for the [CSDMS standard names](https://github.com/csdms/standard_names) will be added shortly, but for now see configuration file for examples of how to modify the outputs, and the `./src/_initialize_state.py` file for state variable names.
+
 
 ### input files
 
-More details will be added to this section soon.
+Several input files in NetCDF format are required to successfuly run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files are available for public download as a zip archive [here](https://zenodo.org/record/4537907/files/mosartwmpy_sample_input_data_1980_1985.zip?download=1). This data can also be obtained using the download utility by running `python download.py` in the repository root and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
 
-Several input files are required to successfuly run a simulation, which are not shipped with this repository due to their large size. For now, please reach out to the developers for sample input files. A script will soon be added to download a small subset of input files and validated output files from a public data repository. If you have access to PNNL's Constance, you can download a small subset of inputs at: `/people/thur961/mosartwmpy_input.zip`.
+Name | Description | Configuration Path | Notes
+--- | --- | --- | ---
+Grid | Spatial constants dimensioned by latitude and longitude relating to the physical properties of the river channels | `grid.path` |
+Land Fraction | Fraction of grid cell that is land (as opposed to i.e. ocean water) dimensioned by latitude and longitude | `grid.land.path` | as a TODO item, this variable should be merged into the grid file (historically it was separate for the coupled land model)
+Reservoirs | Locations of reservoirs (possibly aggregated) and their physical and political properties | `water_management.reservoirs.path` |
+Runoff | Surface runoff, subsurface runoff, and wetland runoff per grid cell averaged per unit of time; used to drive the river routing | `runoff.path` |
+Demand | Water demand of grid cells averaged per unit of time; currently assumed to be monthly | `water_management.reservoirs.demand` | there are plans to support other time scales, such as epiweeks
+
+
+### testing and validation
+
+Before running the tests or validation, make sure to download the "sample_input" and "validation" datasets using the download utility `python download.py`.
+
+To execute the tests, run `./test.sh` or `python -m unittest discover mosartwmpy/tests` from the repository root.
+
+To execute the validation, run a model simulation that includes the years 1981 - 1982, note your output directory, and then run `./validation.sh` or `python validation/validate.py` from the repository root. This will ask you for the simulation output directory, think for a moment, and then open a figure with several plots representing the NMAE (Normalized Mean Absolute Error) as a percentage and the spatial sums of several key variables compared between your simulation and the validation scenario. Use these plots to assist you in determining if the changes you have made to the code have caused unintended deviation from the validation scenario. The NMAE should be 0% across time if you have caused no deviations. A non-zero NMAE indicates numerical difference between your simulation and the validation scenario. This might be caused by changes you have made to the code, or alternatively by running a simulation with different configuration or parameters (i.e. larger timestep, fewer iterations, etc). The plots of the spatial sums can assist you in determining what changed and the overall magnitude of the changes.
+
+If you wish to merge code changes that intentionally cause significant deviation from the validation scenario, please work with the maintainers to create a new validation dataset.

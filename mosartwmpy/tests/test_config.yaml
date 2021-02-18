@@ -1,0 +1,10 @@
+simulation:
+  name: unit_tests
+  start_date: 1981-01-01
+runoff:
+  path: ./mosartwmpy/tests/runoff_1981_01_01.nc
+water_management:
+  demand:
+    path: ./mosartwmpy/tests/demand_1981_01_01.nc
+  reservoirs:
+    path: ./mosartwmpy/tests/reservoirs.nc

@@ -1,16 +1,82 @@
 import logging
 import numpy as np
 import pandas as pd
+import pickle
+import tempfile
 import xarray as xr
 
-from xarray import open_dataset
 from benedict.dicts import benedict as Benedict
+from xarray import open_dataset
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.reservoirs.grid import load_reservoirs
 
 class Grid():
     """Class to store grid related values that are constant throughout a simulation."""
+    
+    # initialize all properties
+    id: np.ndarray = np.empty(0)
+    downstream_id: np.ndarray = np.empty(0)
+    longitude: np.ndarray = np.empty(0)
+    latitude: np.ndarray = np.empty(0)
+    unique_longitudes: np.ndarray = np.empty(0)
+    unique_latitudes: np.ndarray = np.empty(0)
+    cell_count: int = 0
+    longitude_spacing: float = 0.0
+    latitude_spacing: float = 0.0
+    land_mask: np.ndarray = np.empty(0)
+    mosart_mask: np.ndarray = np.empty(0)
+    area: np.ndarray = np.empty(0)
+    outlet_id: np.ndarray = np.empty(0)
+    upstream_id: np.ndarray = np.empty(0)
+    upstream_cell_count: np.ndarray = np.empty(0)
+    land_fraction: np.ndarray = np.empty(0)
+    iterations_main_channel: np.ndarray = np.empty(0)
+    iterations_subnetwork: np.ndarray = np.empty(0)
+    drainage_fraction: np.ndarray = np.empty(0)
+    local_drainage_area: np.ndarray = np.empty(0)
+    total_drainage_area_multi: np.ndarray = np.empty(0)
+    total_drainage_area_single: np.ndarray = np.empty(0)
+    flow_direction: np.ndarray = np.empty(0)
+    hillslope_manning: np.ndarray = np.empty(0)
+    subnetwork_manning: np.ndarray = np.empty(0)
+    channel_manning: np.ndarray = np.empty(0)
+    hillslope: np.ndarray = np.empty(0)
+    hillslope_length: np.ndarray = np.empty(0)
+    drainage_density: np.ndarray = np.empty(0)
+    subnetwork_slope: np.ndarray = np.empty(0)
+    subnetwork_width: np.ndarray = np.empty(0)
+    subnetwork_length: np.ndarray = np.empty(0)
+    channel_length: np.ndarray = np.empty(0)
+    channel_slope: np.ndarray = np.empty(0)
+    channel_width: np.ndarray = np.empty(0)
+    channel_floodplain_width: np.ndarray = np.empty(0)
+    total_channel_length: np.ndarray = np.empty(0)
+    grid_channel_depth: np.ndarray = np.empty(0)
+    
+    # Reservoir related properties
+    reservoir_id: np.ndarray = np.empty(0)
+    reservoir_runoff_capacity: np.ndarray = np.empty(0)
+    reservoir_height: np.ndarray = np.empty(0)
+    reservoir_length: np.ndarray = np.empty(0)
+    reservoir_surface_area: np.ndarray = np.empty(0)
+    reservoir_storage_capacity: np.ndarray = np.empty(0)
+    reservoir_depth: np.ndarray = np.empty(0)
+    reservoir_use_irrigation: np.ndarray = np.empty(0)
+    reservoir_use_electricity: np.ndarray = np.empty(0)
+    reservoir_use_supply: np.ndarray = np.empty(0)
+    reservoir_use_flood_control: np.ndarray = np.empty(0)
+    reservoir_use_recreation: np.ndarray = np.empty(0)
+    reservoir_use_navigation: np.ndarray = np.empty(0)
+    reservoir_use_fish_protection: np.ndarray = np.empty(0)
+    reservoir_withdrawal: np.ndarray = np.empty(0)
+    reservoir_conveyance: np.ndarray = np.empty(0)
+    reservoir_count: np.ndarray = np.empty(0)
+    reservoir_to_grid_mapping: pd.DataFrame = pd.DataFrame()
+    reservoir_streamflow_schedule: xr.DataArray = xr.DataArray()
+    reservoir_demand_schedule: xr.DataArray = xr.DataArray()
+    reservoir_prerelease_schedule: xr.DataArray = xr.DataArray()
     
     def __init__(self, config: Benedict = None, parameters: Parameters = None, empty: bool = False):
         """Initialize the Grid class.
@@ -24,49 +90,6 @@ class Grid():
         # shortcut to get an empty grid instance
         if empty:
             return
-        
-        # initialize all properties
-        self.drainage_fraction = np.empty(0)
-        self.local_drainage_area = np.empty(0)
-        self.total_drainage_area_multi = np.empty(0)
-        self.total_drainage_area_single = np.empty(0)
-        self.id = np.empty(0)
-        self.downstream_id = np.empty(0)
-        self.flow_direction = np.empty(0)
-        self.hillslope_manning = np.empty(0)
-        self.subnetwork_manning = np.empty(0)
-        self.channel_manning = np.empty(0)
-        self.hillslope = np.empty(0)
-        self.drainage_density = np.empty(0)
-        self.subnetwork_slope = np.empty(0)
-        self.subnetwork_width = np.empty(0)
-        self.channel_length = np.empty(0)
-        self.channel_slope = np.empty(0)
-        self.channel_width = np.empty(0)
-        self.channel_floodplain_width = np.empty(0)
-        self.grid_channel_depth = np.empty(0)
-        if config.get('water_management.enabled', False):
-            self.reservoir_id = np.empty(0)
-            self.reservoir_runoff_capacity = np.empty(0)
-            self.reservoir_height = np.empty(0)
-            self.reservoir_length = np.empty(0)
-            self.reservoir_surface_area = np.empty(0)
-            self.reservoir_storage_capacity = np.empty(0)
-            self.reservoir_depth = np.empty(0)
-            self.reservoir_use_irrigation = np.empty(0)
-            self.reservoir_use_electricity = np.empty(0)
-            self.reservoir_use_supply = np.empty(0)
-            self.reservoir_use_flood_control = np.empty(0)
-            self.reservoir_use_recreation = np.empty(0)
-            self.reservoir_use_navigation = np.empty(0)
-            self.reservoir_use_fish_protection = np.empty(0)
-            self.reservoir_withdrawal = np.empty(0)
-            self.reservoir_conveyance = np.empty(0)
-            self.reservoir_count = np.empty(0)
-            self.reservoir_to_grid_mapping = pd.DataFrame()
-            self.reservoir_streamflow_schedule = xr.DataArray()
-            self.reservoir_demand_schedule = xr.DataArray()
-            self.reservoir_prerelease_schedule = xr.DataArray()
         
         logging.info('Loading grid file.')
         
@@ -317,3 +340,110 @@ class Grid():
         if config.get('water_management.enabled', False):
             logging.debug(' - reservoirs')
             load_reservoirs(self, config, parameters)
+    
+    def to_files(self, path: str) -> None:
+        """Builds a dataframe from all the grid values.
+        
+        Args:
+            path (str): the file path to save the grid zip file to
+        """
+        
+        if not path.endswith('.zip'):
+            path += '.zip'
+        
+        keys = dir(self)
+        
+        paths = []
+        names = []
+        
+        # handle special cases
+        special = ['unique_longitudes', 'unique_latitudes', 'cell_count', 'longitude_spacing', 'latitude_spacing']
+        to_pickle = {}
+        for key in special:
+            keys.remove(key)
+            to_pickle[key] = getattr(self, key)
+        
+        # handle numpy arrrays
+        npdf = pd.DataFrame()
+        for key in [key for key in keys if isinstance(getattr(self, key), np.ndarray)]:
+            if getattr(self, key).size > 0:
+                npdf[key] = getattr(self, key)
+        
+        # handle dataframes
+        dfs = []
+        for key in [key for key in keys if isinstance(getattr(self, key), pd.DataFrame)]:
+            if getattr(self, key).size > 0:
+                dfs.append({
+                    'key': key,
+                    'frame': getattr(self, key)
+                })
+        
+        # handle xarrays
+        xrs = []
+        for key in [key for key in keys if isinstance(getattr(self, key), xr.DataArray)]:
+            if getattr(self, key).size > 0:
+                xrs.append({
+                    'key': key,
+                    'data_array': getattr(self, key)
+                })
+        
+        # write them all to files and zip
+        with tempfile.TemporaryDirectory() as tmpdir:
+            names.append('special.pickle')
+            paths.append(f'{tmpdir}/{names[-1]}')
+            with open(paths[-1], 'wb') as file:
+                pickle.dump(to_pickle, file)
+            names.append('np.feather')
+            paths.append(f'{tmpdir}/{names[-1]}')
+            npdf.to_feather(paths[-1])
+            for df in dfs:
+                names.append(f'{df["key"]}.df.nc')
+                paths.append(f'{tmpdir}/{names[-1]}')
+                df['frame'].to_xarray().to_netcdf(paths[-1], engine='h5netcdf')
+            for ds in xrs:
+                names.append(f'{ds["key"]}.xr.nc')
+                paths.append(f'{tmpdir}/{names[-1]}')
+                ds['data_array'].to_netcdf(paths[-1], engine='h5netcdf')
+            with ZipFile(path, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zip:
+                for i, filename in enumerate(paths):
+                    zip.write(filename, names[i])
+    
+    @staticmethod
+    def from_files(path: str) -> 'Grid':
+        """Creates a Grid instance from columns in a dataframe.
+
+        Args:
+            path (str): the file path to the zip file to load the grid from
+
+        Returns:
+            Grid: a Grid instance populated with the columns from the dataframe
+        """
+        if not path.endswith('.zip'):
+            path += '.zip'
+
+        grid = Grid(empty=True)
+        
+        with ZipFile(path, 'r') as zip:
+            for filename in zip.namelist():
+                with zip.open(filename) as file:
+                    if filename.endswith('.pickle'):
+                        from_pickle = pickle.load(file)
+                        for key in from_pickle.keys():
+                            setattr(grid, key, from_pickle[key])
+                    if filename.endswith('np.feather'):
+                        npdf = pd.read_feather(file)
+                        for key in npdf.columns:
+                            setattr(grid, key, npdf[key].values)
+                    if filename.endswith('df.nc'):
+                        key = filename.split('.')[0]
+                        ds = xr.open_dataset(file, engine='h5netcdf')
+                        df = ds.to_dataframe()
+                        setattr(grid, key, df)
+                        ds.close()
+                    if filename.endswith('xr.nc'):
+                        key = filename.split('.')[0]
+                        ds = xr.open_dataarray(file, engine='h5netcdf').load()
+                        setattr(grid, key, ds)
+                        ds.close()
+        
+        return grid
