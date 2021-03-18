@@ -340,7 +340,10 @@ class Grid():
         if config.get('water_management.enabled', False):
             logging.debug(' - reservoirs')
             load_reservoirs(self, config, parameters)
-    
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
     def to_files(self, path: str) -> None:
         """Builds a dataframe from all the grid values.
         

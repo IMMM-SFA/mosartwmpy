@@ -151,11 +151,11 @@ def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, 
     
     state.channel_outflow_downstream = remove_flow(has_reservoir, state.channel_outflow_downstream, flow_volume, delta_t)
     
-    cells = pd.DataFrame({'id': grid.id[state.reservoir_demand > 0]}).set_index('id')
+    cells = pd.DataFrame({'id': grid.id[state.grid_cell_unmet_demand > 0]}).set_index('id')
     cells['supply'] = 0
     
     # join grid cell demand, then drop where no demand
-    demand = grid.reservoir_to_grid_mapping.join(pd.DataFrame(state.reservoir_demand, columns=['grid_cell_demand']))
+    demand = grid.reservoir_to_grid_mapping.join(pd.DataFrame(state.grid_cell_unmet_demand, columns=['grid_cell_demand']))
     demand = demand[demand.grid_cell_demand.gt(0)]
     
     # aggregate demand to each reservoir and join to flow volume
@@ -214,8 +214,8 @@ def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, 
     
     # merge the supply back in and update demand
     supplied = pd.DataFrame(grid.id).join(cells).supply.fillna(0).values
-    state.reservoir_supply = add(state.reservoir_supply, supplied)
-    state.reservoir_demand = subtract(state.reservoir_demand, supplied)
+    state.grid_cell_supply = add(state.grid_cell_supply, supplied)
+    state.grid_cell_unmet_demand = subtract(state.grid_cell_unmet_demand, supplied)
     
     # add the residual flow volume back
     state.channel_outflow_downstream[:] -= pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(reservoir_demand_flow.flow_volume, how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values / delta_t

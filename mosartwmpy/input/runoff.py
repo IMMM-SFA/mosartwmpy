@@ -7,6 +7,7 @@ from mosartwmpy.grid.grid import Grid
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
+
 # @timing
 def load_runoff(state: State, grid: Grid, config: Benedict, current_time: datetime) -> None:
     """Loads runoff from file into the state for each grid cell.

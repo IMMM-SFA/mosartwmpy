@@ -23,7 +23,7 @@ np.seterr(all='ignore')
 # filter pandas chained assignment warnings -- pretty sure handling this correctly
 pd.options.mode.chained_assignment = None
 
-# TODO add docstrings to each method/class
+
 def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
     """Advance the simulation one timestamp.
 
@@ -56,6 +56,8 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
     state.delta_storage[:] = 0
     state.delta_storage_land[:] = 0
     state.delta_storage_ocean[:] = 0
+    if config.get('water_management.enabled', False):
+        state.grid_cell_deficit[:] = 0
 
     # flood
     flood(state, grid, parameters, config)
@@ -90,8 +92,8 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
         state.channel_lateral_flow_hillslope_average[:] = 0
         
         # get the demand volume for this substep
-        if config.get('water_management.enabled'):
-            state.reservoir_demand = state.reservoir_monthly_demand * delta_t
+        if config.get('water_management.enabled', False):
+            state.grid_cell_unmet_demand = state.grid_cell_demand_rate * delta_t
         
         # iterate substeps for remaining routing
         for __ in np.arange(config.get('simulation.routing_iterations')):
@@ -169,6 +171,8 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
                 extraction_regulated_flow(state, grid, parameters, config, delta_t)
             state.outflow_after_regulation = -state.channel_outflow_downstream
             state.channel_flow = state.channel_flow - state.channel_outflow_downstream
+            # aggregate deficit
+            state.grid_cell_deficit = state.grid_cell_deficit + state.grid_cell_unmet_demand
         
         # accumulate local flow field
         state.flow = state.flow + state.channel_flow
@@ -181,7 +185,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
     
     if config.get('water_management.enabled'):
         # convert supply to flux
-        state.reservoir_supply = state.reservoir_supply / config.get('simulation.timestep')
+        state.grid_cell_supply = state.grid_cell_supply / config.get('simulation.timestep')
     
     # convert runoff back to m3/s for output
     state.hillslope_surface_runoff = state.hillslope_surface_runoff * grid.area

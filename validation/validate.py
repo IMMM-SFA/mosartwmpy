@@ -22,7 +22,7 @@ print("Please open an issue on GitHub if you have any trouble or suggestions.")
 print("https://github.com/IMMM-SFA/mosartwmpy")
 print()
 
-data_path = input("Where are your output files located? Enter the absolute path or path relative to the wolfgang root directory: ")
+data_path = input("Where are your output files located? Enter the absolute path or path relative to the mosartwmpy root directory: ")
 print()
 
 assert os.path.exists(data_path), f"Unable to find this path, {str(data_path)} - please double check and try again."
@@ -43,7 +43,7 @@ try:
     baseline_data = baseline_data[variables_of_interest]
 except:
     print(f"Either your data or the baseline data does not contain the expected variables: {variables_of_interest}.")
-    print("Please double check and try again or update this code to look for your vairables of interest.")
+    print("Please double check and try again or update this code to look for your variables of interest.")
     quit()
 
 # normalize the time indexes to prevent alignment errors

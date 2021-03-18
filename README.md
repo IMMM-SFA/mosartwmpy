@@ -41,12 +41,21 @@ Alternatively, one can update the settings via code in the driving script:
  mosart_wm.config['simulation.end_date'] = datetime(1985, 12, 31)
 ```
 
-By default, key model variables are output on a monthly basis at a daily averaged resolution to `./output/<simulation name>/<simulation name>_<year>_<month>.nc`. Support for the [CSDMS standard names](https://github.com/csdms/standard_names) will be added shortly, but for now see configuration file for examples of how to modify the outputs, and the `./src/_initialize_state.py` file for state variable names.
+By default, key model variables are output on a monthly basis at a daily averaged resolution to `./output/<simulation name>/<simulation name>_<year>_<month>.nc`. See the configuration file for examples of how to modify the outputs, and the `./mosartwmpy/state/state.py` file for state variable names.
+
+Alternatively, certain model outputs deemed most important can be accessed using the BMI interface methods. For example:
+```python
+# get a list of model output variables
+mosart_wm.get_output_var_names()
+
+# get the flattened numpy.ndarray of values for an output variable
+mosart_wm.get_value_ptr('supply_water_amount')
+```
 
 
-### input files
+### input
 
-Several input files in NetCDF format are required to successfuly run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files are available for public download as a zip archive [here](https://zenodo.org/record/4537907/files/mosartwmpy_sample_input_data_1980_1985.zip?download=1). This data can also be obtained using the download utility by running `python download.py` in the repository root and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
+Several input files in NetCDF format are required to successfully run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files are available for public download as a zip archive [here](https://zenodo.org/record/4537907/files/mosartwmpy_sample_input_data_1980_1985.zip?download=1). This data can also be obtained using the download utility by running `python download.py` in the repository root and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
 
 Name | Description | Configuration Path | Notes
 --- | --- | --- | ---
@@ -56,6 +65,19 @@ Reservoirs | Locations of reservoirs (possibly aggregated) and their physical an
 Runoff | Surface runoff, subsurface runoff, and wetland runoff per grid cell averaged per unit of time; used to drive the river routing | `runoff.path` |
 Demand | Water demand of grid cells averaged per unit of time; currently assumed to be monthly | `water_management.reservoirs.demand` | there are plans to support other time scales, such as epiweeks
 
+Alternatively, certain model inputs can be set using the BMI interface. This can be useful for coupling `mosartwmpy` with other models. If setting an input that would typically be read from a file, be sure to disable the `read_from_file` configuration value for that input. For example:
+```python
+    # get a list of model input variables
+    mosart_wm.get_input_var_names()
+    
+    # disable the runoff read_from_file
+    mosart_wm.config['runoff.read_from_file'] = False
+
+    # set the runoff values manually (i.e. from another model's output)
+    surface_runoff = np.empty(mosart_wm.get_grid_size())
+    surface_runoff[:] = <values from coupled model>
+    mosart_wm.set_value('surface_runoff_flux', surface_runoff)
+```
 
 ### testing and validation
 

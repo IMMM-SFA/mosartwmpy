@@ -22,13 +22,13 @@ def subnetwork_irrigation(state: State, grid: Grid, parameters: Parameters) -> N
     flow_volume = np.empty_like(state.subnetwork_storage)
     np.copyto(flow_volume, state.subnetwork_storage)
     
-    volume_condition = calculate_volume_condition(flow_volume, state.reservoir_demand)
+    volume_condition = calculate_volume_condition(flow_volume, state.grid_cell_unmet_demand)
     
-    state.reservoir_supply = calculate_reservoir_supply(depth_condition, volume_condition,  state.reservoir_supply, state.reservoir_demand, flow_volume)
+    state.grid_cell_supply = calculate_reservoir_supply(depth_condition, volume_condition, state.grid_cell_supply, state.grid_cell_unmet_demand, flow_volume)
     
-    flow_volume = calculate_flow_volume(depth_condition, volume_condition, flow_volume, state.reservoir_demand)
+    flow_volume = calculate_flow_volume(depth_condition, volume_condition, flow_volume, state.grid_cell_unmet_demand)
     
-    state.reservoir_demand = calculate_reservoir_demand(depth_condition, volume_condition, state.reservoir_demand, flow_volume)
+    state.grid_cell_unmet_demand = calculate_reservoir_demand(depth_condition, volume_condition, state.grid_cell_unmet_demand, flow_volume)
     
     flow_volume = update_flow_volume(depth_condition, volume_condition, flow_volume)
     

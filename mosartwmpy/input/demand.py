@@ -8,7 +8,6 @@ from benedict.dicts import benedict as Benedict
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
-# TODO this currently can only act on the entire domain... need to make more robust so can be handled in parallel
 
 # @timing
 def load_demand(state: State, config: Benedict, current_time: datetime) -> None:
@@ -27,15 +26,18 @@ def load_demand(state: State, config: Benedict, current_time: datetime) -> None:
     path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
 
     demand = open_dataset(path)
-    
-    # TODO still won't work with data on Constance, since there is no time axis
 
-    state.reservoir_monthly_demand = np.array(demand[config.get('water_management.demand.demand')].sel({config.get('water_management.demand.time'): current_time}, method='pad')).flatten()
+    # if the demand file has a time axis, use it; otherwise assume data is just 2d
+    if config.get('water_management.demand.time', None) in demand:
+        state.grid_cell_demand_rate = np.array(demand[config.get('water_management.demand.demand')].sel({config.get('water_management.demand.time'): current_time}, method='pad')).flatten()
+    else:
+        state.grid_cell_demand_rate = np.array(demand[config.get('water_management.demand.demand')]).flatten()
 
-    state.reservoir_monthly_demand = np.where(
-        np.logical_not(np.isfinite(state.reservoir_monthly_demand)),
+    # fill missing values with 0
+    state.grid_cell_demand_rate = np.where(
+        np.logical_not(np.isfinite(state.grid_cell_demand_rate)),
         0,
-        state.reservoir_monthly_demand
+        state.grid_cell_demand_rate
     )
 
     demand.close()

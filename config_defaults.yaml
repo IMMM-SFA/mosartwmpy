@@ -63,19 +63,15 @@ simulation:
           name: WRM_STORAGE
           long_name: Mosart storage in reservoir
           units: m3
-        - variable: reservoir_supply
+        - variable: grid_cell_supply
           name: WRM_SUPPLY
           long_name: Mosart reservoir supply to grid cell
           units: m3/s
-        - variable: reservoir_monthly_demand
+        - variable: grid_cell_demand_rate
           name: WRM_DEMAND0
           long_name: Mosart demand reqeusted by grid cell
           units: m3/s
-        - variable: reservoir_demand
-          name: WRM_DEMAND
-          long_name: Mosart unmet demand at grid cell; same as deficit # TODO probably not
-          units: m3
-        - variable: reservoir_deficit
+        - variable: grid_cell_deficit
           name: WRM_DEFICIT
           long_name: Mosart unmet demand at grid cell
           units: m3
@@ -166,8 +162,9 @@ grid:
 ### Runoff (forcing input)
 ###
 runoff:
-    # flag to turn this feature on or off
-    enabled: true
+    # flag to enable/disable reading runoff from file
+    # if disabled, runoff variables should be provided by the model driver
+    read_from_file: true
     # path to the runoff file; can be absolute or relative to the source code root
     path: ./input/runoff/Livneh_NLDAS_1980_1985.nc
     # longitude field name
@@ -199,6 +196,9 @@ water_management:
     extraction_main_channel_enabled: true
     # Demand
     demand:
+        # flag to enable/disable reading demand from file
+        # if disabled, demand should be provided by the model driver
+        read_from_file: true
         # path to the demand file; can be absolute or relative to the source code root
         path: ./input/demand/RCP8.5_GCAM_water_demand_1980_1985.nc
         # longitude field name
