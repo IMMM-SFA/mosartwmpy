@@ -14,9 +14,12 @@ Install requirements with `pip install -r requirements.txt`.
 from datetime import datetime, time
 from mosartwmpy.mosartwmpy import Model
 
+# path to the configuration yaml file
+config_file = "<path to your YAML configuration file>"
+
 # initialize the model
 mosart_wm = Model()
-mosart_wm.initialize()
+mosart_wm.initialize(config_file)
 
 # advance the model one timestep
 mosart_wm.update()
