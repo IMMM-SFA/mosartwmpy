@@ -12,7 +12,7 @@ Install requirements with `pip install -r requirements.txt`.
 
 ```python
 from datetime import datetime, time
-from mosartwmpy.mosartwmpy import Model
+from mosartwmpy import Model
 
 # path to the configuration yaml file
 config_file = "<path to your YAML configuration file>"
