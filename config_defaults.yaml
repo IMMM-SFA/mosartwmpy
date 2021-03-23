@@ -27,6 +27,8 @@ simulation:
     routing_method: 1
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
     log_level: INFO
+    # whether or not to log to console; slightly more efficient to disable this when running on a cluster
+    log_to_std_out: true
     # resume simulation from restart file
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation

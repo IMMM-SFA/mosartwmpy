@@ -76,11 +76,15 @@ class Model(Bmi):
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
             # setup logging and output directories
             Path(f'./output/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
+            handlers = [logging.FileHandler(f'./output/{self.name}/mosartwmpy.log')]
+            if self.config.get('simulation.log_to_std_out'):
+                handlers.append(logging.StreamHandler())
             logging.basicConfig(
-                filename=f'./output/{self.name}/mosartwmpy.log',
                 level=self.config.get('simulation.log_level', 'INFO'),
                 format='%(asctime)s - mosartwmpy: %(message)s',
-                datefmt='%m/%d/%Y %I:%M:%S %p')
+                datefmt='%m/%d/%Y %I:%M:%S %p',
+                handlers=handlers
+            )
             logging.info('Initalizing model.')
             logging.info(self.config.dump())
             try:
