@@ -43,11 +43,11 @@ class Model(Bmi):
     """
     
     def __init__(self):
-        self.name = None
+        self.name: str = None
         self.config = benedict()
         self.grid = None
         self.restart = None
-        self.current_time = None
+        self.current_time: datetime = None
         self.parameters = None
         self.state = None
         self.output_buffer = None
@@ -93,6 +93,9 @@ class Model(Bmi):
                         logging.info(f'  * {u}')
             except:
                 pass
+            # ensure that end date is after start date
+            if self.config.get('simulation.end_date') < self.config.get('simulation.start_date'):
+                raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
             logging.info(f'Cores: {self.cores}.')
@@ -199,6 +202,10 @@ class Model(Bmi):
         self.state.hillslope_wetland_runoff[:] = 0
 
     def update_until(self, time: float) -> None:
+        # make sure that requested end time is after now
+        if time < self.current_time.timestamp():
+            logging.error('`time` is prior to current model time. Please choose a new `time` and try again.')
+            return
         # perform timesteps until time
         t = timer()
         while self.get_current_time() < time:
