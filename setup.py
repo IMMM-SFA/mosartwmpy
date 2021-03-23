@@ -23,6 +23,6 @@ setup(
     author_email='thurber',
     description='Python implementation of MOSART-WM: A water routing and management model',
     long_description=readme(),
-    python_requires='>=3.6.*, <4',
+    python_requires='>=3.9.*, <4',
     install_requires=get_requirements()
 )
