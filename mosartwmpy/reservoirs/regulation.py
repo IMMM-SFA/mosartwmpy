@@ -3,7 +3,6 @@ import numexpr as ne
 import pandas as pd
 
 from benedict.dicts import benedict as Benedict
-from numba import jit, prange
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
@@ -167,7 +166,7 @@ def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, 
             case = reservoir_demand_flow
         else:
             # subset reservoir list to speed up calculation
-            case = reservoir_demand_flow[parallel_is_in(reservoir_demand_flow.index.astype(int).values, demand.reservoir_id.unique())]
+            case = reservoir_demand_flow[np.isin(reservoir_demand_flow.index.astype(int).values, demand.reservoir_id.unique())]
             case.loc[:, 'reservoir_demand'] = case.join(demand.groupby('reservoir_id')[['grid_cell_demand']].sum()).grid_cell_demand.fillna(0)
         
         # ratio of flow to total demand
@@ -175,7 +174,7 @@ def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, 
         
         # case 1
         if case.demand_fraction.gt(1).any():
-            case = demand[parallel_is_in(demand.reservoir_id.values, case[case.demand_fraction.gt(1)].index.astype(int).values)]
+            case = demand[np.isin(demand.reservoir_id.values, case[case.demand_fraction.gt(1)].index.astype(int).values)]
             case.loc[:, 'condition_count'] = case.groupby(case.index)['reservoir_id'].transform('count')
             case.loc[:, 'supply'] = divide(case.grid_cell_demand, case.condition_count)
             taken_from_reservoir = reservoir_demand_flow.join(case.groupby('reservoir_id').supply.sum()).supply.fillna(0).values
@@ -220,26 +219,6 @@ def extraction_regulated_flow(state: State, grid: Grid, parameters: Parameters, 
     # add the residual flow volume back
     state.channel_outflow_downstream[:] -= pd.DataFrame(grid.reservoir_id, columns=['reservoir_id']).merge(reservoir_demand_flow.flow_volume, how='left', left_on='reservoir_id', right_index=True).flow_volume.fillna(0).values / delta_t
 
-@jit(nopython=True, parallel=True, fastmath=True, cache=True)
-def parallel_is_in(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Just-in-time compiled parallel C code for determing the boolean mask on array a values that exist in array b. This is slightly faster than pandas/numpy.
-
-    Args:
-        a (np.ndarray): the array of values to mask
-        b (np.ndarray): the array of values for comparison
-
-    Returns:
-        np.ndarray: a boolean mask of a in b.
-    """
-    s = set(b)
-    l = len(a)
-    result = np.full(l, False)
-    for i in prange(l):
-        for j in range(len(s)):
-            if a[i] == b[j]:
-                result[i] = True
-                break
-    return result
 
 calculate_flow_volume = ne.NumExpr(
     'where('

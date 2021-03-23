@@ -2,7 +2,8 @@ import logging
 import numpy as np
 import pandas as pd
 
-from datetime import datetime, timezone, timedelta
+from datetime import timezone, timedelta
+from pathlib import Path
 from xarray import concat, open_dataset
 
 from mosartwmpy.utilities.timing import timing
@@ -66,7 +67,7 @@ def write_output(self):
         if self.current_time.month == 1 and self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
             is_new_period = True
     else:
-        logging.warn(f'Configuration value for `simulation.output_file_frequency: {period}` is not recognized.')
+        logging.warning(f'Configuration value for `simulation.output_file_frequency: {period}` is not recognized.')
         return
     filename += '.nc'
 
@@ -100,8 +101,8 @@ def write_output(self):
             if output.get('units'):
                 frame[output.get('name')].attrs['units'] = output.get('units')
 
-    # if new period, write to new file and include grid variables, otherwise update file
-    if not is_new_period:
+    # if file exists and it's not a new period, update existing file else write to new file and include grid variables
+    if not is_new_period and Path(filename).is_file():
         nc = open_dataset(filename).load()
         # slice the existing data to account for restarts
         nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1ms')))

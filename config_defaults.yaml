@@ -23,12 +23,11 @@ simulation:
     routing_iterations: 5
     # routing method to use
     # TODO only 1 is implemented so far
-    # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?  ( 1 -- Kinematic wave method; 4 -- Diffusion wave method. --Inund. )
+    # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?
     routing_method: 1
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
     log_level: INFO
     # resume simulation from restart file
-    # TODO not yet supported
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation
     restart_file_frequency: yearly
@@ -151,7 +150,7 @@ grid:
         # bankfull depth of main channel field name [m]
         grid_channel_depth: rdep
     # land grid information
-    # TODO this is just needed for land_frac, so should just add it to mosart grid
+    # TODO this is only needed for land_frac variable, so should just add it to mosart grid
     # TODO assumed to be the same grid as the main grid
     land:
       # path to the land grid domain file; can be absolute or relative to the source code root
@@ -209,7 +208,7 @@ water_management:
         time: time
         # demand field name # TODO support the different demand types using the flags
         demand: totalDemand
-        # TODO these aren't available yet
+        # TODO these modules aren't available yet
         # flag to enable or disable groundwater
         groundwater_enabled: false
         # flag to enable or disable return flow
