@@ -13,6 +13,18 @@ authors:
   - name: Chris R. Vernon
     orcid: 0000-0002-3406-6214
     affiliation: 1
+  - name: Ning Sun
+    orcid: xxxx-xxxx-xxxx-xxxx
+    affiliation: 1
+  - name: Sean W. D. Turner
+    orcid: 0000-0003-4400-9800
+    affiliation: 1
+  - name: Jim Yoon
+    orcid: 0000-0002-8025-2587
+    affiliation: 1
+  - name: Nathalie Voisin
+    orcid: 0000-0002-6848-449X
+    affiliation: 1
 affiliations:
  - name: Pacific Northwest National Laboratory, Richland, WA., USA
    index: 1
