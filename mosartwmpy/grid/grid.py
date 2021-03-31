@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import pickle
 import tempfile
 import xarray as xr
@@ -340,7 +341,10 @@ class Grid():
         if config.get('water_management.enabled', False):
             logging.debug(' - reservoirs')
             load_reservoirs(self, config, parameters)
-    
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
     def to_files(self, path: str) -> None:
         """Builds a dataframe from all the grid values.
         
@@ -418,7 +422,7 @@ class Grid():
         Returns:
             Grid: a Grid instance populated with the columns from the dataframe
         """
-        if not path.endswith('.zip'):
+        if not Path(path).suffix == '.zip':
             path += '.zip'
 
         grid = Grid(empty=True)

@@ -1,0 +1,4 @@
+graft mosartwmpy/tests
+include mosartwmpy/*.yaml
+global-exclude *.py[cod]
+prune input output validation paper docs dask-worker-space **/.mypy_cache .github

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from pathlib import Path
 from xarray import open_mfdataset
 
 # TODO accept command line path input as alternative
@@ -8,7 +9,7 @@ from xarray import open_mfdataset
 # TODO allow easily toggling between scenarios for variables of interest (no-wm, wm, heat, etc)
 
 years = [1981, 1982]
-baseline_data_path = 'validation/mosartwmpy_validation_wm_1981_1982.nc'
+baseline_data_path = Path('validation/mosartwmpy_validation_wm_1981_1982.nc')
 variables_of_interest = ['STORAGE_LIQ', 'RIVER_DISCHARGE_OVER_LAND_LIQ', 'WRM_STORAGE', 'WRM_SUPPLY']
 physical_dimensions = ['lat', 'lon']
 temporal_dimension = 'time'
@@ -22,14 +23,14 @@ print("Please open an issue on GitHub if you have any trouble or suggestions.")
 print("https://github.com/IMMM-SFA/mosartwmpy")
 print()
 
-data_path = input("Where are your output files located? Enter the absolute path or path relative to the wolfgang root directory: ")
+data_path = input("Where are your output files located? Enter the absolute path or path relative to the mosartwmpy root directory: ")
 print()
 
 assert os.path.exists(data_path), f"Unable to find this path, {str(data_path)} - please double check and try again."
 data = open_mfdataset(f"{data_path}/*.nc" if data_path[-3:] != '.nc' else data_path)
 
 try:
-    data = data.sel({ temporal_dimension: slice(f"{years[0]}", f"{years[-1]}") })
+    data = data.sel({temporal_dimension: slice(f"{years[0]}", f"{years[-1]}")})
     timeslice = slice(data[temporal_dimension].values[0], data[temporal_dimension].values[len(data[temporal_dimension].values) - 1])
     baseline_data = open_mfdataset(baseline_data_path)
     baseline_data = baseline_data.sel({ temporal_dimension: timeslice })
@@ -43,7 +44,7 @@ try:
     baseline_data = baseline_data[variables_of_interest]
 except:
     print(f"Either your data or the baseline data does not contain the expected variables: {variables_of_interest}.")
-    print("Please double check and try again or update this code to look for your vairables of interest.")
+    print("Please double check and try again or update this code to look for your variables of interest.")
     quit()
 
 # normalize the time indexes to prevent alignment errors

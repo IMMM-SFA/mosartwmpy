@@ -19,18 +19,18 @@ def main_channel_irrigation(state: State, grid: Grid, parameters: Parameters) ->
     
     depth_condition = calculate_depth_condition(grid.mosart_mask, state.euler_mask, state.tracer, parameters.LIQUID_TRACER, state.channel_depth, parameters.irrigation_extraction_condition)
     
-    tiny_condition = calculate_tiny_condition(state.channel_storage, parameters.tinier_value, state.reservoir_demand, grid.channel_length)
+    tiny_condition = calculate_tiny_condition(state.channel_storage, parameters.tinier_value, state.grid_cell_unmet_demand, grid.channel_length)
     
     flow_volume = np.empty_like(state.channel_storage)
     np.copyto(flow_volume, state.channel_storage)
     
-    volume_condition = calculate_volume_condition(parameters.irrigation_extraction_maximum_fraction, flow_volume, state.reservoir_demand)
+    volume_condition = calculate_volume_condition(parameters.irrigation_extraction_maximum_fraction, flow_volume, state.grid_cell_unmet_demand)
     
-    state.reservoir_supply = calculate_reservoir_supply(depth_condition, tiny_condition, volume_condition, state.reservoir_supply, state.reservoir_demand, parameters.irrigation_extraction_maximum_fraction, flow_volume)
+    state.grid_cell_supply = calculate_reservoir_supply(depth_condition, tiny_condition, volume_condition, state.grid_cell_supply, state.grid_cell_unmet_demand, parameters.irrigation_extraction_maximum_fraction, flow_volume)
     
-    flow_volume = calculate_flow_volume(depth_condition, tiny_condition, volume_condition, flow_volume, state.reservoir_demand)
+    flow_volume = calculate_flow_volume(depth_condition, tiny_condition, volume_condition, flow_volume, state.grid_cell_unmet_demand)
     
-    state.reservoir_demand = calculate_reservoir_demand(depth_condition, tiny_condition, volume_condition, state.reservoir_demand, parameters.irrigation_extraction_maximum_fraction, flow_volume)
+    state.grid_cell_unmet_demand = calculate_reservoir_demand(depth_condition, tiny_condition, volume_condition, state.grid_cell_unmet_demand, parameters.irrigation_extraction_maximum_fraction, flow_volume)
     
     flow_volume = update_flow_volume(depth_condition, tiny_condition, volume_condition, parameters.irrigation_extraction_maximum_fraction, flow_volume)
     

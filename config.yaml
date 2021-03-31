@@ -4,9 +4,9 @@ simulation:
     # name this simulation
     name: mosartwmpy demo
     # date to begin the simulation
-    start_date: 1980-01-01
+    start_date: 1981-01-01
     # date to end the simulation
-    end_date: 1980-01-31
+    end_date: 1981-01-31
 
 # For example -- to change the input files, update the paths below:
 
@@ -17,8 +17,8 @@ simulation:
 #       # path to the land grid domain file; can be absolute or relative to the source code root
 #       path: /pic/projects/im3/iwmm/share/domains/domain.clm/domain.lnd.nldas2_0224x0464_c110415.nc
 # runoff:
-#     # flag to turn this feature on or off
-#     enabled: true
+#     # whether or not to read runoff input from file
+#     read_from_file: true
 #     # path to the runoff file; can be absolute or relative to the source code root
 #     path: /pic/projects/im3/iwmm/lnd/dlnd7/NLDAS/Livneh_NLDAS_1980_2011.nc
 # water_management:
@@ -30,5 +30,3 @@ simulation:
 #     reservoirs:
 #       # path to the reservoir parameter file; can be absolute or relative to the source code root
 #       path: /pic/projects/im3/iwmm/input_data/runoff/US_reservoir_8th_NLDAS3_updated_20200421.nc
-# multiprocessing:
-#     enabled: false
