@@ -1,11 +1,8 @@
-import enum
-import os
-
 from benedict import benedict
-
 from mosartwmpy.utilities.download_data import download_data
+import pkg_resources
 
-available_data = benedict.from_yaml('./mosartwmpy/data_manifest.yaml')
+available_data = benedict.from_yaml(pkg_resources.resource_filename('mosartwmpy', 'data_manifest.yaml'))
 
 data_list = []
 data = []
@@ -33,7 +30,7 @@ print(f"""
         0) exit
         
 """)
-try: 
+try:
     user_input = int(input("""
     Please select a number and press enter: """))
 except:
@@ -50,4 +47,3 @@ else:
     print("")
     print("")
     download_data(data_list[user_input - 1])
-

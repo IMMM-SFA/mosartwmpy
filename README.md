@@ -6,46 +6,111 @@
 
 ## getting started
 
-Install requirements with `pip install -r requirements.txt`.
+Install `mosartwmpy` with:
+```shell
+pip install mosartwmpy
+```
 
-`mosartwmpy` implements the [Basic Model Interface](https://csdms.colorado.edu/wiki/BMI) defined by the CSDMS, so driving it should be familiar to those accustomed to the BMI:
+Download a sample input dataset spanning 1980-1985 by running the following and selecting option `1`. This will download and unpack the inputs to your current directory. Note that this data is about 1.5GB in size.
+
+```shell
+python -m mosartwmpy.download
+```
+
+Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and a user specified file which can override any of the default settings. Create a `config.yaml` file that defines your simulation:
+
+> `config.yaml`
+> ```yaml
+> simulation:
+>   name: tutorial
+>   start_date: 1981-05-24
+>   end_date: 1981-05-26
+> 
+> grid:
+>   path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+>   land:
+>     path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
+> 
+> runoff:
+>   read_from_file: true
+>   path: ./input/runoff/Livneh_NLDAS_1980_1985.nc
+> 
+> water_management:
+>   enabled: true
+>   demand:
+>     read_from_file: true
+>     path: ./input/demand/RCP8.5_GCAM_water_demand_1980_1985.nc
+>   reservoirs:
+>     path: ./input/reservoirs/US_reservoir_8th_NLDAS3_updated_20200421.nc
+> ```
+
+`mosartwmpy` implements the [Basic Model Interface](https://csdms.colorado.edu/wiki/BMI) defined by the CSDMS, so driving it should be familiar to those accustomed to the BMI. To launch the simulation, open a python shell and run the following:
 
 ```python
-from datetime import datetime, time
-from mosartwmpy.mosartwmpy import Model
+from mosartwmpy import Model
+
+# path to the configuration yaml file
+config_file = "config.yaml"
 
 # initialize the model
 mosart_wm = Model()
-mosart_wm.initialize()
+mosart_wm.initialize(config_file)
 
 # advance the model one timestep
 mosart_wm.update()
 
-# advance until a specificed timestamp
-mosart_wm.update_until(datetime.combine(datetime(2030, 12, 31), time.max).timestamp())
+# advance until the `simulation.end_date` specified in config.yaml
+mosart_wm.update_until(mosart_wm.get_end_time())
 ```
 
-Settings are defined by the merger of the `config_defaults.yaml` and an optional user specified file which can override any of the default settings:
+Alternatively, one can update the settings via code in the driving script using dot notation:
 
 ```python
-mosart_wm = Model('path/to/config/file.yaml')
-```
+from mosartwmpy import Model
+from datetime import datetime
 
-Alternatively, one can update the settings via code in the driving script:
-
-```python
- mosart_wm = Model()
- mosart_wm.initialize()
+mosart_wm = Model()
+mosart_wm.initialize()
  
- mosart_wm.config['simulation.name'] = 'Water Management'
- mosart_wm.config['simulation.start_date'] = datetime(1981, 1, 1)
- mosart_wm.config['simulation.end_date'] = datetime(1985, 12, 31)
+mosart_wm.config['simulation.name'] = 'Tutorial'
+mosart_wm.config['simulation.start_date'] = datetime(1981, 5, 24)
+mosart_wm.config['simulation.end_date'] = datetime(1985, 5, 26)
+# etc...
 ```
 
+One can use the usual python plotting libraries to visualize data. Model state and output are stored as one-dimensional numpy ndarrays, so they must be reshaped to visualize two-dimensionally:
+
+```python
+import xarray as xr
+import matplotlib.pyplot  as plt
+from mosartwmpy import Model
+
+mosart_wm = Model()
+mosart_wm.initialize('./config.yaml')
+
+mosart_wm.update_until(mosart_wm.get_end_time())
+
+surface_water = mosart_wm.get_value_ptr('surface_water_amount')
+
+# create an xarray from the data, which has some convenience wrappers for matplotlib methods
+data_array = xr.DataArray(
+    surface_water.reshape(mosart_wm.get_grid_shape()),
+    dims=['latitude', 'longitude'],
+    coords={'latitude': mosart_wm.get_grid_x(), 'longitude': mosart_wm.get_grid_y()},
+    name='Surface Water Amount',
+    attrs={'units': mosart_wm.get_var_units('surface_water_amount')}
+)
+
+# plot as a pcolormesh
+data_array.plot(robust=True, levels=32, cmap='winter_r')
+
+plt.show()
+
+```
 
 ## model input
 
-Several input files in NetCDF format are required to successfully run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files can be obtained using the download utility by running `python download.py` in the repository root and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
+Several input files in NetCDF format are required to successfully run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files can be obtained using the download utility by running `python -m mosartwmpy.download` and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
 
 <table>
 <thead>
@@ -134,16 +199,27 @@ Several input files in NetCDF format are required to successfully run a simulati
 
 Alternatively, certain model inputs can be set using the BMI interface. This can be useful for coupling `mosartwmpy` with other models. If setting an input that would typically be read from a file, be sure to disable the `read_from_file` configuration value for that input. For example:
 ```python
-    # get a list of model input variables
-    mosart_wm.get_input_var_names()
-    
-    # disable the runoff read_from_file
-    mosart_wm.config['runoff.read_from_file'] = False
+import numpy as np
+from mosartwmpy import Model
 
-    # set the runoff values manually (i.e. from another model's output)
-    surface_runoff = np.empty(mosart_wm.get_grid_size())
-    surface_runoff[:] = <values from coupled model>
-    mosart_wm.set_value('surface_runoff_flux', surface_runoff)
+mosart_wm = Model()
+mosart_wm.initialize()
+
+# get a list of model input variables
+mosart_wm.get_input_var_names()
+
+# disable the runoff read_from_file
+mosart_wm.config['runoff.read_from_file'] = False
+
+# set the runoff values manually (i.e. from another model's output)
+surface_runoff = np.empty(mosart_wm.get_grid_size())
+surface_runoff[:] = # <values from coupled model>
+mosart_wm.set_value('surface_runoff_flux', surface_runoff)
+
+# advance one timestep
+mosart_wm.update()
+
+# continue coupling...
 ```
 
 ## model output
@@ -152,19 +228,25 @@ By default, key model variables are output on a monthly basis at a daily average
 
 Alternatively, certain model outputs deemed most important can be accessed using the BMI interface methods. For example:
 ```python
+import numpy as np
+from mosartwmpy import Model
+
+mosart_wm = Model()
+mosart_wm.initialize()
+
 # get a list of model output variables
 mosart_wm.get_output_var_names()
 
 # get the flattened numpy.ndarray of values for an output variable
-mosart_wm.get_value_ptr('supply_water_amount')
+supply = mosart_wm.get_value_ptr('supply_water_amount')
 ```
 
 ## testing and validation
 
-Before running the tests or validation, make sure to download the "sample_input" and "validation" datasets using the download utility `python download.py`.
+Before running the tests or validation, make sure to download the "sample_input" and "validation" datasets using the download utility `python -m mosartwmpy.download`.
 
 To execute the tests, run `./test.sh` or `python -m unittest discover mosartwmpy/tests` from the repository root.
 
-To execute the validation, run a model simulation that includes the years 1981 - 1982, note your output directory, and then run `./validation.sh` or `python validation/validate.py` from the repository root. This will ask you for the simulation output directory, think for a moment, and then open a figure with several plots representing the NMAE (Normalized Mean Absolute Error) as a percentage and the spatial sums of several key variables compared between your simulation and the validation scenario. Use these plots to assist you in determining if the changes you have made to the code have caused unintended deviation from the validation scenario. The NMAE should be 0% across time if you have caused no deviations. A non-zero NMAE indicates numerical difference between your simulation and the validation scenario. This might be caused by changes you have made to the code, or alternatively by running a simulation with different configuration or parameters (i.e. larger timestep, fewer iterations, etc). The plots of the spatial sums can assist you in determining what changed and the overall magnitude of the changes.
+To execute the validation, run a model simulation that includes the years 1981 - 1982, note your output directory, and then run `python -m mosartwmpy.validate` from the repository root. This will ask you for the simulation output directory, think for a moment, and then open a figure with several plots representing the NMAE (Normalized Mean Absolute Error) as a percentage and the spatial sums of several key variables compared between your simulation and the validation scenario. Use these plots to assist you in determining if the changes you have made to the code have caused unintended deviation from the validation scenario. The NMAE should be 0% across time if you have caused no deviations. A non-zero NMAE indicates numerical difference between your simulation and the validation scenario. This might be caused by changes you have made to the code, or alternatively by running a simulation with different configuration or parameters (i.e. larger timestep, fewer iterations, etc). The plots of the spatial sums can assist you in determining what changed and the overall magnitude of the changes.
 
 If you wish to merge code changes that intentionally cause significant deviation from the validation scenario, please work with the maintainers to create a new validation dataset.

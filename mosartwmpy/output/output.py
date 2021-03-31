@@ -103,7 +103,7 @@ def write_output(self):
 
     # if file exists and it's not a new period, update existing file else write to new file and include grid variables
     if not is_new_period and Path(filename).is_file():
-        nc = open_dataset(filename).load()
+        nc = open_dataset(Path(filename)).load()
         # slice the existing data to account for restarts
         nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1ms')))
         frame = concat([nc, frame], dim='time', data_vars='minimal')
@@ -158,5 +158,5 @@ def write_restart(self):
     
     logging.info('Writing restart file.')
     x = self.state.to_dataframe().to_xarray()
-    filename = f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc'
+    filename = Path(f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
     x.to_netcdf(filename)

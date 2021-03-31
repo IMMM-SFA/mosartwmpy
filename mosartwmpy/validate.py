@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from pathlib import Path
 from xarray import open_mfdataset
 
 # TODO accept command line path input as alternative
@@ -8,7 +9,7 @@ from xarray import open_mfdataset
 # TODO allow easily toggling between scenarios for variables of interest (no-wm, wm, heat, etc)
 
 years = [1981, 1982]
-baseline_data_path = 'validation/mosartwmpy_validation_wm_1981_1982.nc'
+baseline_data_path = Path('validation/mosartwmpy_validation_wm_1981_1982.nc')
 variables_of_interest = ['STORAGE_LIQ', 'RIVER_DISCHARGE_OVER_LAND_LIQ', 'WRM_STORAGE', 'WRM_SUPPLY']
 physical_dimensions = ['lat', 'lon']
 temporal_dimension = 'time'
@@ -29,7 +30,7 @@ assert os.path.exists(data_path), f"Unable to find this path, {str(data_path)} -
 data = open_mfdataset(f"{data_path}/*.nc" if data_path[-3:] != '.nc' else data_path)
 
 try:
-    data = data.sel({ temporal_dimension: slice(f"{years[0]}", f"{years[-1]}") })
+    data = data.sel({temporal_dimension: slice(f"{years[0]}", f"{years[-1]}")})
     timeslice = slice(data[temporal_dimension].values[0], data[temporal_dimension].values[len(data[temporal_dimension].values) - 1])
     baseline_data = open_mfdataset(baseline_data_path)
     baseline_data = baseline_data.sel({ temporal_dimension: timeslice })

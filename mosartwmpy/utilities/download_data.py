@@ -1,14 +1,16 @@
-import os
 import io
-import requests
-import zipfile
 import logging
+import os
+from pathlib import Path
+import pkg_resources
+import requests
 import sys
+import zipfile
 
 from benedict import benedict
 
 
-def download_data(dataset: str, destination: str = None, manifest: str = './mosartwmpy/data_manifest.yaml') -> None:
+def download_data(dataset: str, destination: str = None, manifest: str = pkg_resources.resource_filename('mosartwmpy', 'data_manifest.yaml')) -> None:
     """Convenience wrapper for the InstallSupplement class.
     
     Download and unpack example data supplement from Zenodo that matches the current installed
@@ -25,7 +27,10 @@ def download_data(dataset: str, destination: str = None, manifest: str = './mosa
     if not data_dictionary.get(dataset, None):
         raise Exception(f'Dataset "{dataset}" not found in the manifest ({manifest}).')
     
-    get = InstallSupplement(url = data_dictionary.get(f'{dataset}.url'), destination = destination if destination is not None else data_dictionary.get(f'{dataset}.destination', './'))
+    get = InstallSupplement(
+        url=data_dictionary.get(f'{dataset}.url'),
+        destination=destination if destination is not None else Path(data_dictionary.get(f'{dataset}.destination', './'))
+    )
     get.fetch_zenodo()
 
 

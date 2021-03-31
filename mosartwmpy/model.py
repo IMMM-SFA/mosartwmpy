@@ -76,7 +76,7 @@ class Model(Bmi):
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
             # setup logging and output directories
             Path(f'./output/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
-            handlers = [logging.FileHandler(f'./output/{self.name}/mosartwmpy.log')]
+            handlers = [logging.FileHandler(Path(f'./output/{self.name}/mosartwmpy.log'))]
             if self.config.get('simulation.log_to_std_out'):
                 handlers.append(logging.StreamHandler())
             logging.basicConfig(

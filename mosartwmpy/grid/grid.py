@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import pickle
 import tempfile
 import xarray as xr
@@ -421,7 +422,7 @@ class Grid():
         Returns:
             Grid: a Grid instance populated with the columns from the dataframe
         """
-        if not path.endswith('.zip'):
+        if not Path(path).suffix == '.zip':
             path += '.zip'
 
         grid = Grid(empty=True)
