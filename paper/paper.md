@@ -14,7 +14,7 @@ authors:
     orcid: 0000-0002-3406-6214
     affiliation: 1
   - name: Ning Sun
-    orcid: xxxx-xxxx-xxxx-xxxx
+    orcid: 0000-0002-4094-4482
     affiliation: 1
   - name: Sean W. D. Turner
     orcid: 0000-0003-4400-9800
