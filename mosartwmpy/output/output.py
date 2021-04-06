@@ -105,7 +105,7 @@ def write_output(self):
     logging.info(f'Writing to output file: {Path(filename)}.')
     if not is_new_period and Path(filename).is_file():
         nc = open_dataset(Path(filename)).load()
-        # slice the existing data to account for
+        # slice the existing data to account for restarts
         # TODO this assumes daily averaged output
         nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1d 1s')))
         frame = concat([nc, frame], dim='time', data_vars='minimal')
