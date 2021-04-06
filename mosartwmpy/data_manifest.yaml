@@ -1,4 +1,9 @@
-# listing of publically downloadable data related to mosartwmpy
+# listing of publicly downloadable data related to mosartwmpy
+
+tutorial:
+  description: Minimal input dataset that can be used to run the tutorial; covers May 1981.
+  url: https://zenodo.org/record/4667171/files/mosartwmpy-tutorial-1981-05.zip?download=1
+  destination: ./
 
 sample_input:
   description: Sample input dataset that can be used for testing and development; covers 1980 - 1985.

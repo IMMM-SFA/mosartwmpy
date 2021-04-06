@@ -63,7 +63,7 @@ class Model(Bmi):
     def __getitem__(self, item):
         return getattr(self, item)
 
-    def initialize(self, config_file_path: str, grid: Grid = None, state: State = None) -> None:
+    def initialize(self, config_file_path: str = None, grid: Grid = None, state: State = None) -> None:
         
         t = timer()
 
@@ -87,6 +87,8 @@ class Model(Bmi):
             )
             logging.info('Initalizing model.')
             logging.info(self.config.dump())
+            if config_file_path is None or config_file_path == '':
+                logging.info("No configuration file provided; initializing with all default values.")
             try:
                 self.git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
                 self.git_untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')

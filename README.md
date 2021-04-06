@@ -6,18 +6,18 @@
 
 ## getting started
 
-Install `mosartwmpy` with:
+Ensure you have Python >= 3.9 available (consider using a [virtual environment](https://github.com/pyenv/pyenv)), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
 ```
 
-Download a sample input dataset spanning 1980-1985 by running the following and selecting option `1`. This will download and unpack the inputs to your current directory. Note that this data is about 1.5GB in size.
+Download a sample input dataset spanning May 1981 by running the following and selecting option `1` for "tutorial". This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.
 
 ```shell
 python -m mosartwmpy.download
 ```
 
-Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and a user specified file which can override any of the default settings. Create a `config.yaml` file that defines your simulation:
+Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and a user specified file which can override any of the default settings. Create a `config.yaml` file that defines your simulation (if you chose an alternate download directory in the step above, you will need to update the paths to point at your data):
 
 > `config.yaml`
 > ```yaml
@@ -27,21 +27,21 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >   end_date: 1981-05-26
 > 
 > grid:
->   path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+>   path: ./input/domains/mosart.nc
 >   land:
->     path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
+>     path: ./input/domains/land.nc
 > 
 > runoff:
 >   read_from_file: true
->   path: ./input/runoff/Livneh_NLDAS_1980_1985.nc
+>   path: ./input/runoff/runoff_1981_05.nc
 > 
 > water_management:
 >   enabled: true
 >   demand:
 >     read_from_file: true
->     path: ./input/demand/RCP8.5_GCAM_water_demand_1980_1985.nc
+>     path: ./input/demand/demand_1981_05.nc
 >   reservoirs:
->     path: ./input/reservoirs/US_reservoir_8th_NLDAS3_updated_20200421.nc
+>     path: ./input/reservoirs/reservoirs.nc
 > ```
 
 `mosartwmpy` implements the [Basic Model Interface](https://csdms.colorado.edu/wiki/BMI) defined by the CSDMS, so driving it should be familiar to those accustomed to the BMI. To launch the simulation, open a python shell and run the following:
@@ -82,7 +82,7 @@ One can use the usual python plotting libraries to visualize data. Model state a
 
 ```python
 import xarray as xr
-import matplotlib.pyplot  as plt
+import matplotlib.pyplot as plt
 from mosartwmpy import Model
 
 mosart_wm = Model()
@@ -228,7 +228,6 @@ By default, key model variables are output on a monthly basis at a daily average
 
 Alternatively, certain model outputs deemed most important can be accessed using the BMI interface methods. For example:
 ```python
-import numpy as np
 from mosartwmpy import Model
 
 mosart_wm = Model()
