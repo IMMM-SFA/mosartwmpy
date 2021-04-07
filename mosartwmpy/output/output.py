@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import timezone, timedelta
 from pathlib import Path
 from xarray import concat, open_dataset
+import rioxarray
 
 from mosartwmpy.utilities.timing import timing
 
@@ -33,7 +34,6 @@ def update_output(self):
 
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 0:
-        logging.info('Writing to output file.')
         self.output_buffer = self.output_buffer / self.output_n
         write_output(self)
         self.output_n = 0
@@ -102,10 +102,12 @@ def write_output(self):
                 frame[output.get('name')].attrs['units'] = output.get('units')
 
     # if file exists and it's not a new period, update existing file else write to new file and include grid variables
+    logging.info(f'Writing to output file: {Path(filename)}.')
     if not is_new_period and Path(filename).is_file():
         nc = open_dataset(Path(filename)).load()
         # slice the existing data to account for restarts
-        nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1ms')))
+        # TODO this assumes daily averaged output
+        nc = nc.sel(time=slice(None, pd.to_datetime(self.current_time) - pd.Timedelta('1d 1s')))
         frame = concat([nc, frame], dim='time', data_vars='minimal')
         nc.close()
     else:
@@ -131,6 +133,7 @@ def write_output(self):
                         frame[grid_output.get('name')].attrs['long_name'] = grid_output.get('long_name')
                     if grid_output.get('units'):
                         frame[grid_output.get('name')].attrs['units'] = grid_output.get('units')
+    frame = frame.rio.write_crs(4326)
     frame.to_netcdf(filename, unlimited_dims=['time'])
 
 def check_restart(self):
@@ -155,8 +158,9 @@ def check_restart(self):
 
 def write_restart(self):
     """Writes the state to a netcdf file, with the current simulation time in the file name."""
-    
-    logging.info('Writing restart file.')
+
     x = self.state.to_dataframe().to_xarray()
     filename = Path(f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
+    x = x.rio.write_crs(4326)
+    logging.info(f'Writing restart file: {filename}.')
     x.to_netcdf(filename)

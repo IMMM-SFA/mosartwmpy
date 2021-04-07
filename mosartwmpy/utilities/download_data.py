@@ -5,6 +5,7 @@ from pathlib import Path
 import pkg_resources
 import requests
 import sys
+from tqdm import tqdm
 import zipfile
 
 from benedict import benedict
@@ -94,14 +95,22 @@ class InstallSupplement:
         # retrieve content from URL
         try:
             logging.info(f"Downloading example data from {self.url}")
-            r = requests.get(self.url)
-
-            with zipfile.ZipFile(io.BytesIO(r.content)) as zipped:
-
-                # extract each file in the zipped dir to the project
-                for f in zipped.namelist():
-                    logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
-                    zipped.extract(f, self.destination)
+            r = requests.get(self.url, stream=True)
+            with io.BytesIO() as stream:
+                with tqdm.wrapattr(
+                    stream,
+                    'write',
+                    miniters=1,
+                    desc=self.url,
+                    total=int(r.headers.get('content-length', 0))
+                ) as file:
+                    for chunk in r.iter_content(chunk_size=4096):
+                        file.write(chunk)
+                with zipfile.ZipFile(stream) as zipped:
+                    # extract each file in the zipped dir to the project
+                    for f in zipped.namelist():
+                        logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
+                        zipped.extract(f, self.destination)
 
             logging.info("Download and install complete.")
 

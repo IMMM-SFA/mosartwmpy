@@ -3,7 +3,7 @@ from benedict import benedict
 from benedict.dicts import benedict as Benedict
 
 
-def get_config(config_file_path: str) -> Benedict:
+def get_config(config_file_path: str = None) -> Benedict:
     """Configuration object for the model, using the Benedict type.
     
     Args:

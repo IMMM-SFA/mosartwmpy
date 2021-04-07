@@ -1,5 +1,6 @@
 from benedict import benedict
 from mosartwmpy.utilities.download_data import download_data
+from pathlib import Path
 import pkg_resources
 
 available_data = benedict.from_yaml(pkg_resources.resource_filename('mosartwmpy', 'data_manifest.yaml'))
@@ -42,8 +43,32 @@ if not user_input or user_input == 0 or user_input > len(data):
         Exiting...
         
     """)
+    exit()
 
-else:
-    print("")
-    print("")
-    download_data(data_list[user_input - 1])
+
+try:
+    destination = Path(input("""
+    Where would you like to download and unpack the data? (default: './'): """) or './')
+except:
+    print("""
+
+            Failed to parse download directory. Exiting...
+
+        """)
+    exit()
+
+if not destination.exists() or not destination.is_dir():
+    try:
+        destination.mkdir()
+    except:
+        print("""
+
+                Failed to create download directory. Exiting...
+
+            """)
+        exit()
+
+
+print("")
+print("")
+download_data(data_list[user_input - 1], destination=destination)

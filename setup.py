@@ -15,10 +15,10 @@ def get_requirements():
 
 setup(
     name='mosartwmpy',
-    version='0.0.1',
+    version='0.0.3',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
-    license='BSD 2-Clause',
+    license='BSD2-Simplified',
     author='Travis Thurber',
     author_email='travis.thurber@pnnl.gov',
     description='Python implementation of MOSART-WM: A water routing and management model',
