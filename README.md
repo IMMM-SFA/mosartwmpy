@@ -1,4 +1,4 @@
-![build](https://github.com/IMMM-SFA/mosartwmpy/workflows/build/badge.svg) [![codecov](https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/mosartwmpy)
+[![linux](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_linux.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_linux.yml) [![osx](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_osx.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_osx.yml) [![windows](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_windows.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_windows.yml) [![codecov](https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/mosartwmpy)
 
 ## mosartwmpy
 
@@ -25,16 +25,16 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >   name: tutorial
 >   start_date: 1981-05-24
 >   end_date: 1981-05-26
-> 
+>
 > grid:
 >   path: ./input/domains/mosart.nc
 >   land:
 >     path: ./input/domains/land.nc
-> 
+>
 > runoff:
 >   read_from_file: true
 >   path: ./input/runoff/runoff_1981_05.nc
-> 
+>
 > water_management:
 >   enabled: true
 >   demand:
@@ -71,7 +71,7 @@ from datetime import datetime
 
 mosart_wm = Model()
 mosart_wm.initialize()
- 
+
 mosart_wm.config['simulation.name'] = 'Tutorial'
 mosart_wm.config['simulation.start_date'] = datetime(1981, 5, 24)
 mosart_wm.config['simulation.end_date'] = datetime(1985, 5, 26)
@@ -135,7 +135,7 @@ Several input files in NetCDF format are required to successfully run a simulati
     Grid
 </td>
 <td>
-    Spatial constants dimensioned by latitude and longitude relating to the physical properties of the river channels 
+    Spatial constants dimensioned by latitude and longitude relating to the physical properties of the river channels
 </td>
 <td>
     <code>grid.path</code>
@@ -147,7 +147,7 @@ Several input files in NetCDF format are required to successfully run a simulati
     Land Fraction
 </td>
 <td>
-    Fraction of grid cell that is land (as opposed to i.e. ocean water) dimensioned by latitude and longitude 
+    Fraction of grid cell that is land (as opposed to i.e. ocean water) dimensioned by latitude and longitude
 </td>
 <td>
     <code>grid.land.path</code>
