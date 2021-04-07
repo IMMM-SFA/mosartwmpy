@@ -34,15 +34,10 @@ jobs:
             pip install rasterio-1.2.1-cp39-cp39-win_amd64.whl
             pip install -r requirements.txt
             python setup.py install
+            pip install numpy --upgrade
 
         - name: Test and generate coverage report
           run: |
             pip install pytest
             pip install pytest-cov
             pytest --cov=./ --cov-report=xml
-
-        - name: Upload coverage to Codecov
-          uses: codecov/codecov-action@v1
-          with:
-            file: ./coverage.xml
-            fail_ci_if_error: true
