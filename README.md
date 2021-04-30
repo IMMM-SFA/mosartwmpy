@@ -6,7 +6,7 @@
 
 ## getting started
 
-Ensure you have Python >= 3.9 available (consider using a [virtual environment](https://github.com/pyenv/pyenv)), then install `mosartwmpy` with:
+Ensure you have Python >= 3.9 available (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
 ```
