@@ -35,6 +35,7 @@ jobs:
             pip install -r requirements.txt
             python setup.py install
             pip install numpy --upgrade
+            pip install slugify --upgrade
 
         - name: Test and generate coverage report
           run: |
