@@ -35,8 +35,7 @@ jobs:
             pip install -r requirements.txt
             python setup.py install
             pip install numpy --upgrade
-            pip install slugify --upgrade
-            pip install python-fsutil --upgrade
+            pip install python-benedict --upgrade
 
         - name: Test and generate coverage report
           run: |
