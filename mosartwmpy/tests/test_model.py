@@ -2,6 +2,8 @@ import numpy as np
 from pathlib import Path
 import unittest
 
+import pkg_resources
+
 from mosartwmpy import Model
 from mosartwmpy.grid.grid import Grid
 
@@ -9,11 +11,23 @@ from mosartwmpy.grid.grid import Grid
 class ModelTest(unittest.TestCase):
     """Test that the model initializes and runs with the default settings."""
 
+    # package data
+    GRID_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/grid.zip')
+    CONFIG_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_config.yaml')
+    RUNOFF_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/runoff_1981_01_01.nc')
+    DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
+    RESERVOIRS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/reservoirs.nc')
+
     @classmethod
     def setUpClass(self):
         self.model = Model()
-        self.grid = Grid.from_files(Path('./mosartwmpy/tests/grid.zip'))
-        self.model.initialize(Path('./mosartwmpy/tests/test_config.yaml'), grid=self.grid)
+        self.grid = Grid.from_files(self.GRID_FILE)
+        self.model.initialize(self.CONFIG_FILE, grid=self.grid)
+
+        # set paths for runoff data relative to package
+        self.model.config['runoff.path'] = self.RUNOFF_FILE
+        self.model.config['water_management.demand.path'] = self.DEMAND_FILE
+        self.model.config['water_management.reservoirs.path'] = self.RESERVOIRS_FILE
 
     @classmethod
     def tearDownClass(self):
