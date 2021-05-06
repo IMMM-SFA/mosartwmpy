@@ -36,6 +36,7 @@ jobs:
             python setup.py install
             pip install numpy --upgrade
             pip install slugify --upgrade
+            pip install python-fsutil --upgrade
 
         - name: Test and generate coverage report
           run: |
