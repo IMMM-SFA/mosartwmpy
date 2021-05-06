@@ -13,6 +13,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.reservoirs.grid import load_reservoirs
 
+
 class Grid():
     """Class to store grid related values that are constant throughout a simulation."""
     
@@ -413,7 +414,7 @@ class Grid():
                     zip.write(filename, names[i])
     
     @staticmethod
-    def from_files(path: str) -> 'Grid':
+    def from_files(path: Path) -> 'Grid':
         """Creates a Grid instance from columns in a dataframe.
 
         Args:

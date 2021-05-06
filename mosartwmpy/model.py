@@ -31,6 +31,7 @@ from mosartwmpy.utilities.download_data import download_data
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 from mosartwmpy.utilities.inherit_docs import inherit_docs
 
+
 @inherit_docs
 class Model(Bmi):
     """The mosartwmpy basic model interface.
@@ -220,6 +221,10 @@ class Model(Bmi):
 
     def finalize(self) -> None:
         # simulation is over so free memory, write data, etc
+        for handler in logging.getLogger().handlers:
+            handler.close()
+        logging.getLogger().handlers.clear()
+        logging.shutdown()
         return
 
     def download_data(self, *args, **kwargs) -> None:
