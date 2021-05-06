@@ -30,6 +30,8 @@ jobs:
             pip install numpy-1.20.2+mkl-cp39-cp39-win_amd64.whl
             curl -O https://download.lfd.uci.edu/pythonlibs/w4tscw6k/GDAL-3.2.2-cp39-cp39-win_amd64.whl
             pip install GDAL-3.2.2-cp39-cp39-win_amd64.whl
+            curl -O https://download.lfd.uci.edu/pythonlibs/w4tscw6k/rasterio-1.2.3-cp39-cp39-win_amd64.whl
+            pip install rasterio-1.2.3-cp39-cp39-win_amd64.whl
             pip install -r requirements.txt
             python setup.py install
             pip install numpy --upgrade
