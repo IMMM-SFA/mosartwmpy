@@ -93,7 +93,7 @@ class Grid():
         if empty:
             return
         
-        logging.info('Loading grid file.')
+        logging.debug('Loading grid file.')
         
         # open dataset
         grid_dataset = open_dataset(config.get('grid.path'))

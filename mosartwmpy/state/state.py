@@ -237,7 +237,7 @@ class State():
             return
         
         # initialize all the state variables
-        logging.info('Initializing state variables.')
+        logging.debug('Initializing state variables.')
         for key in [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]:
             setattr(self, key, np.zeros(grid_size))
         
