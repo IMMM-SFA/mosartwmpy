@@ -3,10 +3,12 @@
 simulation:
     # name this simulation
     name: mosartwmpy demo
+    # path to a directory for writing output files; will be created if doesn't exist
+    output_path: ./output
     # date to begin the simulation
-    start_date: 1981-01-01
+    start_date: 1981-05-24
     # date to end the simulation
-    end_date: 1981-01-31
+    end_date: 1981-05-26
 
 # For example -- to change the input files, update the paths below:
 

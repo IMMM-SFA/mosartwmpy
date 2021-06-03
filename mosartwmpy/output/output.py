@@ -54,7 +54,7 @@ def write_output(self):
     is_new_period = False
     # use yesterday's date as the file name, to match with what is actually being averaged
     true_date = self.current_time if not (self.current_time.hour == 0 and self.current_time.minute == 0 and self.current_time.second == 0) else (self.current_time - timedelta(days=1))
-    filename = f'./output/{self.name}/{self.name}_{true_date.year}'
+    filename = f'{self.config.get("simulation.output_path")}/{self.name}/{self.name}_{true_date.year}'
     if period == 'daily':
         filename += f'_{true_date.strftime("%m")}_{true_date.strftime("%d")}'
         if self.current_time.hour == 0 and self.current_time.second == 0:
@@ -160,7 +160,7 @@ def write_restart(self):
     """Writes the state to a netcdf file, with the current simulation time in the file name."""
 
     x = self.state.to_dataframe().to_xarray()
-    filename = Path(f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
+    filename = Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
     x = x.rio.write_crs(4326)
     logging.info(f'Writing restart file: {filename}.')
     x.to_netcdf(filename)
