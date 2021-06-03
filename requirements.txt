@@ -1,7 +1,6 @@
 bmipy==2.0
 dask[complete]==2021.01.1
 epiweeks==2.1.2
-fastparquet==0.4.1
 h5netcdf==0.10.0
 matplotlib==3.3.3
 nc-time-axis==1.2.0
