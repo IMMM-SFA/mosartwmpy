@@ -15,7 +15,7 @@ def get_requirements():
 
 setup(
     name='mosartwmpy',
-    version='0.0.4',
+    version='0.0.5',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
@@ -28,6 +28,6 @@ setup(
     include_package_data=True,
     install_requires=get_requirements(),
     extras_require={
-        'dev': ['recommonmark==0.7.1', 'setuptools==54.1.2', 'sphinx==3.5.2', 'sphinx-rtd-theme==0.5.1']
+        'dev': ['build==0.4.0', 'recommonmark==0.7.1', 'setuptools==54.1.2', 'sphinx==3.5.2', 'sphinx-rtd-theme==0.5.1', 'twine==3.4.1']
     }
 )

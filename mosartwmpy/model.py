@@ -10,7 +10,7 @@ import subprocess
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time, timedelta
-from epiweeks import Week
+# from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
@@ -188,7 +188,7 @@ class Model(Bmi):
                 self.state.grid_cell_unmet_demand[:] = 0
                 # get streamflow for this time period
                 # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-                epiweek = Week.fromdate(self.current_time).week
+                # epiweek = Week.fromdate(self.current_time).week
                 month = self.current_time.month
                 streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
                 self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values

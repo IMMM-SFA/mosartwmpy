@@ -1,7 +1,7 @@
 import numpy as np
 
 from datetime import datetime
-from epiweeks import Week
+# from epiweeks import Week
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
@@ -14,7 +14,7 @@ def reservoir_release(state, grid, config, parameters, current_time):
     # compute release from reservoirs
     
     # TODO so much logic was dependent on monthly, so still assuming monthly for now, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
+    # epiweek = Week.fromdate(current_time).week
     month = current_time.month
     
     # if it's the start of the operational year for the reservoir, set it's start of op year storage to the current storage
@@ -32,7 +32,7 @@ def regulation_release(state, grid, config, parameters, current_time):
     # compute the expected monthly release based on Biemans (2011)
     
     # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
+    # epiweek = Week.fromdate(current_time).week
     month = current_time.month
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
     
@@ -78,7 +78,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
     # TODO the logic here is really hard to follow... can it be simplified or made more readable?
 
     # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
+    # epiweek = Week.fromdate(current_time).week
     month = current_time.month
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
 
