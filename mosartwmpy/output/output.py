@@ -12,7 +12,7 @@ from mosartwmpy.utilities.timing import timing
 def initialize_output(self):
     """Initializes the output buffer."""
     
-    logging.info('Initalizing output buffer.')
+    logging.debug('Initalizing output buffer.')
     if self.config.get('simulation.output_resolution') % self.config.get('simulation.timestep') != 0 or self.config.get('simulation.output_resolution') < self.config.get('simulation.timestep'):
         raise Exception('The `simulation.output_resolution` must be greater than or equal to and evenly divisible by the `simulation.timestep`.')
     for output in self.config.get('simulation.output'):
@@ -54,7 +54,7 @@ def write_output(self):
     is_new_period = False
     # use yesterday's date as the file name, to match with what is actually being averaged
     true_date = self.current_time if not (self.current_time.hour == 0 and self.current_time.minute == 0 and self.current_time.second == 0) else (self.current_time - timedelta(days=1))
-    filename = f'./output/{self.name}/{self.name}_{true_date.year}'
+    filename = f'{self.config.get("simulation.output_path")}/{self.name}/{self.name}_{true_date.year}'
     if period == 'daily':
         filename += f'_{true_date.strftime("%m")}_{true_date.strftime("%d")}'
         if self.current_time.hour == 0 and self.current_time.second == 0:
@@ -102,7 +102,7 @@ def write_output(self):
                 frame[output.get('name')].attrs['units'] = output.get('units')
 
     # if file exists and it's not a new period, update existing file else write to new file and include grid variables
-    logging.info(f'Writing to output file: {Path(filename)}.')
+    logging.debug(f'Writing to output file: {Path(filename)}.')
     if not is_new_period and Path(filename).is_file():
         nc = open_dataset(Path(filename)).load()
         # slice the existing data to account for restarts
@@ -160,7 +160,7 @@ def write_restart(self):
     """Writes the state to a netcdf file, with the current simulation time in the file name."""
 
     x = self.state.to_dataframe().to_xarray()
-    filename = Path(f'./output/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
+    filename = Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
     x = x.rio.write_crs(4326)
-    logging.info(f'Writing restart file: {filename}.')
+    logging.debug(f'Writing restart file: {filename}.')
     x.to_netcdf(filename)

@@ -33,6 +33,8 @@ simulation:
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation
     restart_file_frequency: yearly
+    # path to a directory for writing output files; will be created if doesn't exist
+    output_path: ./output
     # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged across the intervening timesteps
     # TODO only daily (86400) is currently supported
     output_resolution: 86400 # output values once each day, averaged across the timesteps

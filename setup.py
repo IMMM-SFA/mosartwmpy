@@ -15,7 +15,7 @@ def get_requirements():
 
 setup(
     name='mosartwmpy',
-    version='0.0.3',
+    version='0.0.4',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
@@ -24,7 +24,10 @@ setup(
     description='Python implementation of MOSART-WM: A water routing and management model',
     long_description=readme(),
     long_description_content_type="text/markdown",
-    python_requires='>=3.9.*, <4',
+    python_requires='>=3.7.*, <4',
     include_package_data=True,
-    install_requires=get_requirements()
+    install_requires=get_requirements(),
+    extras_require={
+        'dev': ['recommonmark==0.7.1', 'setuptools==54.1.2', 'sphinx==3.5.2', 'sphinx-rtd-theme==0.5.1']
+    }
 )

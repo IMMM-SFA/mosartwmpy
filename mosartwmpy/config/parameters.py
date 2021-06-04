@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Parameters:
     """Constant parameters used in the model."""
     
@@ -12,7 +13,7 @@ class Parameters:
         self.tiny_value = 1.0e-14
         # new and improved even tinier value, MYTINYVALUE
         self.tinier_value = 1.0e-50
-        # small value, for less precise arithmatic
+        # small value, for less precise arithmetic
         self.small_value = 1.0e-10
         # radius of the earth [m]
         self.radius_earth = 6.37122e6
@@ -34,7 +35,7 @@ class Parameters:
         # minimum main channel slope (replaces 0s from grid file)
         self.channel_slope_minimum = 0.0001
         # kinematic wave condition # TODO what is it?
-        self.kinematic_wave_condition =  1.0e6
+        self.kinematic_wave_condition = 1.0e6
         
         # reservoir parameters # TODO better describe
         self.reservoir_minimum_flow_condition = 0.05

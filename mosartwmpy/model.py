@@ -1,8 +1,8 @@
 import logging
-import matplotlib.pyplot as plt
+import sys
+
 import numexpr as ne
 import numpy as np
-import pandas as pd
 import psutil
 import regex as re
 import subprocess
@@ -76,28 +76,31 @@ class Model(Bmi):
             # sanitize the run name
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
             # setup logging and output directories
-            Path(f'./output/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
-            handlers = [logging.FileHandler(Path(f'./output/{self.name}/mosartwmpy.log'))]
+            Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
+            handlers = [logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log'))]
             if self.config.get('simulation.log_to_std_out'):
-                handlers.append(logging.StreamHandler())
+                h = logging.StreamHandler(sys.stdout)
+                h.setFormatter(logging.Formatter(""))
+                handlers.append(h)
             logging.basicConfig(
                 level=self.config.get('simulation.log_level', 'INFO'),
                 format='%(asctime)s - mosartwmpy: %(message)s',
                 datefmt='%m/%d/%Y %I:%M:%S %p',
                 handlers=handlers
             )
-            logging.info('Initalizing model.')
-            logging.info(self.config.dump())
+            logging.info('Initalizing model...')
+            # write config to output directory for posterity
+            self.config.to_yaml(filepath=f'{self.config.get("simulation.output_path")}/{self.name}/config.yaml')
             if config_file_path is None or config_file_path == '':
                 logging.info("No configuration file provided; initializing with all default values.")
             try:
                 self.git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
                 self.git_untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
-                logging.info(f'Version: {self.git_hash}')
+                logging.debug(f'Version: {self.git_hash}')
                 if len(self.git_untracked) > 0:
-                    logging.info(f'Uncommitted changes:')
+                    logging.debug(f'Uncommitted changes:')
                     for u in self.git_untracked:
-                        logging.info(f'  * {u}')
+                        logging.debug(f'  * {u}')
             except:
                 pass
             # ensure that end date is after start date
@@ -105,7 +108,7 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            logging.info(f'Cores: {self.cores}.')
+            logging.debug(f'Cores: {self.cores}.')
             ne.set_num_threads(self.cores)
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
@@ -157,13 +160,13 @@ class Model(Bmi):
             logging.exception('Failed to initialize output; see below for stacktrace.')
             raise e
         
-        logging.info(f'Initialization completed in {pretty_timer(timer() - t)}.')
+        logging.debug(f'Initialization completed in {pretty_timer(timer() - t)}.')
         
     def update(self) -> None:
         t = timer()
         step = datetime.fromtimestamp(self.get_current_time()).isoformat(" ")
         # perform one timestep
-        logging.info(f'Begin timestep {step}.')
+        logging.debug(f'Beginning timestep {step}...')
         try:
             # read runoff
             if self.config.get('runoff.read_from_file', False):
@@ -196,7 +199,7 @@ class Model(Bmi):
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
-        logging.info(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
+        logging.debug(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
         try:
             # update the output buffer and write restart file if needed
             update_output(self)
@@ -214,8 +217,14 @@ class Model(Bmi):
             logging.error('`time` is prior to current model time. Please choose a new `time` and try again.')
             return
         # perform timesteps until time
+        logging.info(f'Beginning simulation for {datetime.fromtimestamp(self.get_current_time()).date().isoformat()} through {datetime.fromtimestamp(time).date().isoformat()}...')
         t = timer()
         while self.get_current_time() < time:
+            # if it's a new month, log a message
+            current_datetime = datetime.fromtimestamp(self.get_current_time())
+            if current_datetime.day == 1 and current_datetime.hour == 0:
+                logging.info(f'Current model time is {current_datetime.isoformat(" ")}...')
+            # advance one timestep
             self.update()
         logging.info(f'Simulation completed in {pretty_timer(timer() - t)}.')
 

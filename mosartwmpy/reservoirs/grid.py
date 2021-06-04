@@ -15,7 +15,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         parameters (Parameters): the model parameters
     """
 
-    logging.info('Loading reservoir file.')
+    logging.debug('Loading reservoir file.')
 
     # reservoir parameter file
     reservoirs = open_dataset(config.get('water_management.reservoirs.path'))
