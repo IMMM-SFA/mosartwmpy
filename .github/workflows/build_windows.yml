@@ -26,11 +26,11 @@ jobs:
         - name: Install dependencies
           run: |
             python -m pip install --upgrade pip
-            curl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/numpy-1.20.3+mkl-cp37-cp37m-win_amd64.whl -o np.whl
+            curl -o ./np.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/numpy-1.20.3+mkl-cp37-cp37m-win_amd64.whl
             pip install np.whl
-            curl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/GDAL-3.2.3-cp37-cp37m-win_amd64.whl -o gdal.whl
+            curl -o ./gdal.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/GDAL-3.2.3-cp37-cp37m-win_amd64.whl
             pip install gdal.whl
-            curl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/rasterio-1.2.4-cp37-cp37m-win_amd64.whl -o rasterio.whl
+            curl -o ./rasterio.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/rasterio-1.2.4-cp37-cp37m-win_amd64.whl
             pip install rasterio.whl
             pip install .
 
