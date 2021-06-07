@@ -26,15 +26,15 @@ jobs:
         - name: Install dependencies
           run: |
             python -m pip install --upgrade pip
-            curl -o ./np.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/numpy-1.20.3+mkl-cp37-cp37m-win_amd64.whl
-            pip install np.whl
-            curl -o ./gdal.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/GDAL-3.2.3-cp37-cp37m-win_amd64.whl
-            pip install gdal.whl
-            curl -o ./rasterio.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/rasterio-1.2.4-cp37-cp37m-win_amd64.whl
-            pip install rasterio.whl
+            curl -O ./np.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/numpy-1.20.3+mkl-cp37-cp37m-win_amd64.whl
+            pip install numpy-1.20.3+mkl-cp37-cp37m-win_amd64.whl
+            curl -O ./gdal.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/GDAL-3.2.3-cp37-cp37m-win_amd64.whl
+            pip install GDAL-3.2.3-cp37-cp37m-win_amd64.whl
+            curl -O ./rasterio.whl https://download.lfd.uci.edu/pythonlibs/q4trcu4l/rasterio-1.2.4-cp37-cp37m-win_amd64.whl
+            pip install rasterio-1.2.4-cp37-cp37m-win_amd64.whl
             pip install .
 
-        - name: Test and generate coverage report
+        - name: Test
           run: |
             pip install pytest
             pytest
