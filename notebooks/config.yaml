@@ -1,0 +1,21 @@
+simulation:
+  name: tutorial
+  start_date: 1981-05-01
+  end_date: 1981-05-31
+
+grid:
+  path: ./input/domains/mosart.nc
+  land:
+    path: ./input/domains/land.nc
+
+runoff:
+  read_from_file: true
+  path: ./input/runoff/runoff_1981_05.nc
+
+water_management:
+  enabled: true
+  demand:
+    read_from_file: true
+    path: ./input/demand/demand_1981_05.nc
+  reservoirs:
+    path: ./input/reservoirs/reservoirs.nc

@@ -161,6 +161,7 @@ class Model(Bmi):
             raise e
         
         logging.debug(f'Initialization completed in {pretty_timer(timer() - t)}.')
+        logging.info(f'Done.')
         
     def update(self) -> None:
         t = timer()
@@ -168,10 +169,15 @@ class Model(Bmi):
         # perform one timestep
         logging.debug(f'Beginning timestep {step}...')
         try:
-            # read runoff
             if self.config.get('runoff.read_from_file', False):
+                # read runoff from file
                 logging.debug(f'Reading runoff input from file.')
                 load_runoff(self.state, self.grid, self.config, self.current_time)
+            else:
+                # convert provided runoff from mm/s to m3/s
+                self.state.hillslope_surface_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_surface_runoff
+                self.state.hillslope_subsurface_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_subsurface_runoff
+                self.state.hillslope_wetland_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_wetland_runoff
             # read demand
             if self.config.get('water_management.enabled', False):
                 if self.config.get('water_management.demand.read_from_file', False):
@@ -206,10 +212,16 @@ class Model(Bmi):
         except Exception as e:
             logging.exception('Failed to write output or restart file; see below for stacktrace.')
             raise e
-        # clear runoff input arrays
-        self.state.hillslope_surface_runoff[:] = 0
-        self.state.hillslope_subsurface_runoff[:] = 0
-        self.state.hillslope_wetland_runoff[:] = 0
+        if self.config.get('runoff.read_from_file', False):
+            # clear runoff input arrays
+            self.state.hillslope_surface_runoff[:] = 0
+            self.state.hillslope_subsurface_runoff[:] = 0
+            self.state.hillslope_wetland_runoff[:] = 0
+        else:
+            # convert back to mm/s
+            self.state.hillslope_surface_runoff = self.state.hillslope_surface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
+            self.state.hillslope_subsurface_runoff = self.state.hillslope_subsurface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
+            self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
 
     def update_until(self, time: float) -> None:
         # make sure that requested end time is after now
