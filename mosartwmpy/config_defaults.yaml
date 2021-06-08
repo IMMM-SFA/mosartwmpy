@@ -229,11 +229,11 @@ water_management:
         latitude: lat
         # streamflow field name [m3/s]
         streamflow: Qmon
-        # streamflow time resolution - 'month' or 'epiweek'
+        # streamflow time resolution - only 'month' supported so far
         streamflow_time_resolution: month
         # demand field name [m3/s]
         demand: demand
-        # demand time resolution - 'month' or 'epiweek'
+        # demand time resolution - only 'month' supported so far
         demand_time_resolution: month
         # grid id to reservoir id mapping field
         grid_to_reservoir: gridID_from_Dam

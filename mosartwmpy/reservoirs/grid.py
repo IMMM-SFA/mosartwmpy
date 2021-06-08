@@ -57,7 +57,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # index by grid cell
     self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.set_index('grid_cell_id')
 
-    # prepare the month or epiweek based reservoir schedules mapped to the domain
+    # prepare the month based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(self, config, parameters, reservoirs)
 
     reservoirs.close()
@@ -75,8 +75,6 @@ def prepare_reservoir_schedule(self, config: Benedict, parameters: Parameters, r
     # the reservoir streamflow and demand are specified by the time resolution and reservoir id
     # so let's remap those to the actual mosart domain for ease of use
 
-    # TODO i had wanted to convert these all to epiweeks no matter what format provided, but we don't know what year all the data came from
-
     # streamflow flux
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
     streamflow = reservoirs[config.get('water_management.reservoirs.streamflow')]
@@ -92,7 +90,7 @@ def prepare_reservoir_schedule(self, config: Benedict, parameters: Parameters, r
         else:
             schedule = concat([schedule, sched], dim=streamflow_time_name)
     self.reservoir_streamflow_schedule = schedule.assign_coords(
-        # if monthly, convert to 1 based month index (instead of starting from 0)
+        # convert to 1 based month index (instead of starting from 0)
         {streamflow_time_name: (streamflow_time_name, schedule[streamflow_time_name].values + (1 if streamflow_time_name == 'month' else 0))}
     ).streamflow
 
@@ -110,12 +108,11 @@ def prepare_reservoir_schedule(self, config: Benedict, parameters: Parameters, r
         else:
             schedule = concat([schedule, sched], dim=demand_time_name)
     self.reservoir_demand_schedule = schedule.assign_coords(
-        # if monthly, convert to 1 based month index (instead of starting from 0)
+        # convert to 1 based month index (instead of starting from 0)
         {demand_time_name: (demand_time_name, schedule[demand_time_name].values + (1 if demand_time_name == 'month' else 0))}
     ).demand
 
     # initialize prerelease based on long term mean flow and demand (Biemans 2011)
-    # TODO this assumes demand and flow use the same timescale :(
     flow_avg = self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name)
     demand_avg = self.reservoir_demand_schedule.mean(dim=demand_time_name)
     prerelease = (1.0 * self.reservoir_streamflow_schedule)

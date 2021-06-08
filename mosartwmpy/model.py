@@ -10,7 +10,6 @@ import subprocess
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time, timedelta
-# from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
@@ -182,7 +181,6 @@ class Model(Bmi):
             if self.config.get('water_management.enabled', False):
                 if self.config.get('water_management.demand.read_from_file', False):
                     # only read new demand and compute new release if it's the very start of simulation or new time period
-                    # TODO this currently assumes monthly demand input
                     if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
@@ -193,8 +191,6 @@ class Model(Bmi):
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
                 # get streamflow for this time period
-                # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-                # epiweek = Week.fromdate(self.current_time).week
                 month = self.current_time.month
                 streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
                 self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
