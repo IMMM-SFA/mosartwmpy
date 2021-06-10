@@ -10,7 +10,6 @@ import subprocess
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time, timedelta
-from epiweeks import Week
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
@@ -161,6 +160,7 @@ class Model(Bmi):
             raise e
         
         logging.debug(f'Initialization completed in {pretty_timer(timer() - t)}.')
+        logging.info(f'Done.')
         
     def update(self) -> None:
         t = timer()
@@ -168,15 +168,19 @@ class Model(Bmi):
         # perform one timestep
         logging.debug(f'Beginning timestep {step}...')
         try:
-            # read runoff
             if self.config.get('runoff.read_from_file', False):
+                # read runoff from file
                 logging.debug(f'Reading runoff input from file.')
                 load_runoff(self.state, self.grid, self.config, self.current_time)
+            else:
+                # convert provided runoff from mm/s to m3/s
+                self.state.hillslope_surface_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_surface_runoff
+                self.state.hillslope_subsurface_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_subsurface_runoff
+                self.state.hillslope_wetland_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_wetland_runoff
             # read demand
             if self.config.get('water_management.enabled', False):
                 if self.config.get('water_management.demand.read_from_file', False):
                     # only read new demand and compute new release if it's the very start of simulation or new time period
-                    # TODO this currently assumes monthly demand input
                     if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
@@ -187,8 +191,6 @@ class Model(Bmi):
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
                 # get streamflow for this time period
-                # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-                epiweek = Week.fromdate(self.current_time).week
                 month = self.current_time.month
                 streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
                 self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
@@ -206,10 +208,16 @@ class Model(Bmi):
         except Exception as e:
             logging.exception('Failed to write output or restart file; see below for stacktrace.')
             raise e
-        # clear runoff input arrays
-        self.state.hillslope_surface_runoff[:] = 0
-        self.state.hillslope_subsurface_runoff[:] = 0
-        self.state.hillslope_wetland_runoff[:] = 0
+        if self.config.get('runoff.read_from_file', False):
+            # clear runoff input arrays
+            self.state.hillslope_surface_runoff[:] = 0
+            self.state.hillslope_subsurface_runoff[:] = 0
+            self.state.hillslope_wetland_runoff[:] = 0
+        else:
+            # convert back to mm/s
+            self.state.hillslope_surface_runoff = self.state.hillslope_surface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
+            self.state.hillslope_subsurface_runoff = self.state.hillslope_subsurface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
+            self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
 
     def update_until(self, time: float) -> None:
         # make sure that requested end time is after now

@@ -1,20 +1,16 @@
 import numpy as np
 
 from datetime import datetime
-from epiweeks import Week
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.state.state import State
 from mosartwmpy.grid.grid import Grid
 
-# TODO in fortran mosart there is a StorCalibFlag that affects how storage targets are calculated -- code so far is written assuming that it == 0
 
 def reservoir_release(state, grid, config, parameters, current_time):
     # compute release from reservoirs
-    
-    # TODO so much logic was dependent on monthly, so still assuming monthly for now, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
+
     month = current_time.month
     
     # if it's the start of the operational year for the reservoir, set it's start of op year storage to the current storage
@@ -30,9 +26,7 @@ def reservoir_release(state, grid, config, parameters, current_time):
 
 def regulation_release(state, grid, config, parameters, current_time):
     # compute the expected monthly release based on Biemans (2011)
-    
-    # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
+
     month = current_time.month
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
     
@@ -77,8 +71,6 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
 
     # TODO the logic here is really hard to follow... can it be simplified or made more readable?
 
-    # TODO this is still written assuming monthly, but here's the epiweek for when that is relevant
-    epiweek = Week.fromdate(current_time).week
     month = current_time.month
     streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
 
@@ -96,7 +88,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
     )
     drop = 0 * state.reservoir_month_flood_control_start
     n_month = 0 * drop
-    for m in np.arange(1,13): # TODO assumes monthly
+    for m in np.arange(1,13):
         m_and_condition = (m >= state.reservoir_month_flood_control_start) & (m < state.reservoir_month_flood_control_end)
         m_or_condition = (m >= state.reservoir_month_flood_control_start) | (m < state.reservoir_month_flood_control_end)
         drop = np.where(
@@ -128,25 +120,6 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
         (month >= state.reservoir_month_flood_control_end) |
         (month < state.reservoir_month_start_operations)
     )
-    # TODO this logic exists in fortran mosart but isn't used...
-    # fill = 0 * drop
-    # n_month = 0 * drop
-    # for m in np.arange(1,13): # TODO assumes monthly
-    #     m_condition = (m >= self.state.reservoir_month_flood_control_end.values) &
-    #         (self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values > self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (
-    #             (first_condition & (m <= self.state.reservoir_month_start_operations)) |
-    #             (second_condition & (m <= 12))
-    #         )
-    #     fill = np.where(
-    #         m_condition,
-    #         fill + np.abs(self.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values - self.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values),
-    #         fill
-    #     )
-    #     n_month = np.where(
-    #         m_condition,
-    #         n_month + 1,
-    #         n_month
-    #     )
     state.reservoir_release = np.where(
         (state.reservoir_release> grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
         grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,

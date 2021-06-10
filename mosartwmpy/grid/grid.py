@@ -404,11 +404,11 @@ class Grid():
             for df in dfs:
                 names.append(f'{df["key"]}.df.nc')
                 paths.append(f'{tmpdir}/{names[-1]}')
-                df['frame'].to_xarray().to_netcdf(paths[-1], engine='h5netcdf')
+                df['frame'].to_xarray().to_netcdf(paths[-1], engine='scipy')
             for ds in xrs:
                 names.append(f'{ds["key"]}.xr.nc')
                 paths.append(f'{tmpdir}/{names[-1]}')
-                ds['data_array'].to_netcdf(paths[-1], engine='h5netcdf')
+                ds['data_array'].to_netcdf(paths[-1], engine='scipy')
             with ZipFile(path, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zip:
                 for i, filename in enumerate(paths):
                     zip.write(filename, names[i])
@@ -441,13 +441,13 @@ class Grid():
                             setattr(grid, key, npdf[key].values)
                     if filename.endswith('df.nc'):
                         key = filename.split('.')[0]
-                        ds = xr.open_dataset(file, engine='h5netcdf')
+                        ds = xr.open_dataset(file, engine='scipy')
                         df = ds.to_dataframe()
                         setattr(grid, key, df)
                         ds.close()
                     if filename.endswith('xr.nc'):
                         key = filename.split('.')[0]
-                        ds = xr.open_dataarray(file, engine='h5netcdf').load()
+                        ds = xr.open_dataarray(file, engine='scipy').load()
                         setattr(grid, key, ds)
                         ds.close()
         

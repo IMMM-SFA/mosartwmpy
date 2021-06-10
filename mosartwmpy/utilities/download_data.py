@@ -61,7 +61,7 @@ class InstallSupplement:
         # logger console handler
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        console_handler.setFormatter(logging.Formatter(""))
         logger.addHandler(console_handler)
 
     @staticmethod
@@ -100,6 +100,7 @@ class InstallSupplement:
                 with tqdm.wrapattr(
                     stream,
                     'write',
+                    file=sys.stdout,
                     miniters=1,
                     desc=self.url,
                     total=int(r.headers.get('content-length', 0))

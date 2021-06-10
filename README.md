@@ -6,9 +6,14 @@
 
 ## getting started
 
-Ensure you have Python >= 3.9 available (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
+Ensure you have Python >= 3.7 available (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
+```
+
+Alternatively, install via conda with:
+```shell
+conda install mosartwmpy
 ```
 
 Download a sample input dataset spanning May 1981 by running the following and selecting option `1` for "tutorial". This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.
@@ -108,6 +113,10 @@ plt.show()
 
 ```
 
+## model coupling
+
+A common use case for `mosartwmpy` is to run coupled with output from the Community Land Model (CLM). To see an example of how to drive `mosartwmpy` with runoff from a coupled model, check out the [Jupyter notebook tutorial](https://github.com/IMMM-SFA/mosartwmpy/blob/main/notebooks/tutorial.ipynb)!
+
 ## model input
 
 Several input files in NetCDF format are required to successfully run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files can be obtained using the download utility by running `python -m mosartwmpy.download` and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
@@ -196,31 +205,6 @@ Several input files in NetCDF format are required to successfully run a simulati
 </tr>
 </tbody>
 </table>
-
-Alternatively, certain model inputs can be set using the BMI interface. This can be useful for coupling `mosartwmpy` with other models. If setting an input that would typically be read from a file, be sure to disable the `read_from_file` configuration value for that input. For example:
-```python
-import numpy as np
-from mosartwmpy import Model
-
-mosart_wm = Model()
-mosart_wm.initialize()
-
-# get a list of model input variables
-mosart_wm.get_input_var_names()
-
-# disable the runoff read_from_file
-mosart_wm.config['runoff.read_from_file'] = False
-
-# set the runoff values manually (i.e. from another model's output)
-surface_runoff = np.empty(mosart_wm.get_grid_size())
-surface_runoff[:] = # <values from coupled model>
-mosart_wm.set_value('surface_runoff_flux', surface_runoff)
-
-# advance one timestep
-mosart_wm.update()
-
-# continue coupling...
-```
 
 ## model output
 
