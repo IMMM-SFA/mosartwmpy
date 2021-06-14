@@ -13,7 +13,7 @@ pip install mosartwmpy
 
 Alternatively, install via conda with:
 ```shell
-conda install mosartwmpy
+conda install -c conda-forge mosartwmpy
 ```
 
 Download a sample input dataset spanning May 1981 by running the following and selecting option `1` for "tutorial". This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.
