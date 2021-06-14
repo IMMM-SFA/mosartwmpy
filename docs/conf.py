@@ -31,6 +31,7 @@ release = 'latest'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'nbsphinx',
     'recommonmark',                                                             
     'sphinx.ext.napoleon',                                                      
     'sphinx.ext.autodoc',                                                       
