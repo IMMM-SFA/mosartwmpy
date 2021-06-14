@@ -23,6 +23,7 @@ setup(
     install_requires=[
         'bmipy==2.0',
         'dask[complete]==2021.5.1',
+        'ipython==7.24.1',
         'matplotlib==3.4.2',
         'nc-time-axis==1.2.0',
         'netCDF4==1.5.6',
