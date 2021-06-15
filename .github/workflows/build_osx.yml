@@ -1,6 +1,6 @@
 name: osx
 
-on: [push]
+on: [pull_request]
 
 jobs:
   build:
@@ -28,14 +28,7 @@ jobs:
             python -m pip install --upgrade pip
             pip install .
 
-        - name: Test and generate coverage report
+        - name: Test
           run: |
             pip install pytest
-            pip install pytest-cov
-            pytest --cov=./ --cov-report=xml
-
-        - name: Upload coverage to Codecov
-          uses: codecov/codecov-action@v1
-          with:
-            file: ./coverage.xml
-            fail_ci_if_error: true
+            pytest

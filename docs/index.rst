@@ -5,8 +5,15 @@ Introduction
 ------------
 .. toctree::
    :maxdepth: 1
-   
+
    README.md
+
+Tutorial
+--------
+.. toctree::
+   :maxdepth: 1
+
+   tutorial.ipynb
 
 Tips and Tricks
 ---------------

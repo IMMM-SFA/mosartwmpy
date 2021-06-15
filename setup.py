@@ -9,7 +9,7 @@ def readme():
 
 setup(
     name='mosartwmpy',
-    version='0.0.6',
+    version='0.0.7',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
@@ -23,6 +23,7 @@ setup(
     install_requires=[
         'bmipy==2.0',
         'dask[complete]==2021.5.1',
+        'ipython==7.24.1',
         'matplotlib==3.4.2',
         'nc-time-axis==1.2.0',
         'netCDF4==1.5.6',
@@ -42,6 +43,7 @@ setup(
     extras_require={
         'dev': [
             'build==0.4.0',
+            'nbsphinx==0.8.6',
             'recommonmark==0.7.1',
             'setuptools==54.1.2',
             'sphinx==3.5.2',
