@@ -9,7 +9,7 @@ def readme():
 
 setup(
     name='mosartwmpy',
-    version='0.0.7',
+    version='0.0.8',
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
