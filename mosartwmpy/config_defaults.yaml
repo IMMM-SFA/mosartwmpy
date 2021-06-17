@@ -21,14 +21,12 @@ simulation:
     subcycles: 3
     # routing iterations - subsubtimestep will be timestep / subcycles / routing_iterations - then further subdivided within subnetwork and main channel based on convergence estimations
     routing_iterations: 5
-    # routing method to use
-    # TODO only 1 is implemented so far
-    # 1 --> variable storage method from SWAT model; 2 --> Muskingum method?
-    routing_method: 1
     # log level, one of DEBUG, INFO, WARNING, ERROR, CRITICAL
     log_level: INFO
     # whether or not to log to console; slightly more efficient to disable this when running on a cluster
     log_to_std_out: true
+    # whether or not to log to file; slightly more efficient to disable, but useful for keeping a record of experiment
+    log_to_file: true
     # resume simulation from restart file
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation
@@ -191,12 +189,6 @@ runoff:
 water_management:
     # flag to turn this feature on or off
     enabled: true
-    # flag to enable or disable regulation
-    regulation_enabled: true
-    # flag to enable or disable extraction
-    extraction_enabled: true
-    # extraction from main channel
-    extraction_main_channel_enabled: true
     # Demand
     demand:
         # flag to enable/disable reading demand from file

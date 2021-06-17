@@ -1,103 +1,65 @@
-import numpy as np
-import numexpr as ne
+import numba as nb
 
-from mosartwmpy.config.parameters import Parameters
-from mosartwmpy.grid.grid import Grid
-from mosartwmpy.state.state import State
 from mosartwmpy.subnetwork.state import update_subnetwork_state
-from mosartwmpy.utilities.timing import timing
 
-# @timing
-def subnetwork_irrigation(state: State, grid: Grid, parameters: Parameters) -> None:
-    """Tracks the supply of water from the subnetwork river channels extracted into the grid cells.
 
-    Args:
-        state (State): the current model state; will be mutated
-        grid (Grid): the model grid
-        parameters (Parameters): the model parameters
-    """
-    
-    depth_condition = calculate_depth_condition(grid.mosart_mask, state.euler_mask, state.tracer, parameters.LIQUID_TRACER, state.subnetwork_depth, parameters.irrigation_extraction_condition)
-    
-    flow_volume = np.empty_like(state.subnetwork_storage)
-    np.copyto(flow_volume, state.subnetwork_storage)
-    
-    volume_condition = calculate_volume_condition(flow_volume, state.grid_cell_unmet_demand)
-    
-    state.grid_cell_supply = calculate_reservoir_supply(depth_condition, volume_condition, state.grid_cell_supply, state.grid_cell_unmet_demand, flow_volume)
-    
-    flow_volume = calculate_flow_volume(depth_condition, volume_condition, flow_volume, state.grid_cell_unmet_demand)
-    
-    state.grid_cell_unmet_demand = calculate_reservoir_demand(depth_condition, volume_condition, state.grid_cell_unmet_demand, flow_volume)
-    
-    flow_volume = update_flow_volume(depth_condition, volume_condition, flow_volume)
-    
-    state.subnetwork_storage = calculate_subnetwork_storage(depth_condition, flow_volume, state.subnetwork_storage)
-    
-    update_subnetwork_state(state, grid, parameters, depth_condition)
-
-calculate_depth_condition = ne.NumExpr(
-    '(mosart_mask > 0) &'
-    'euler_mask &'
-    '(tracer == LIQUID_TRACER) &'
-    '(subnetwork_depth >= irrigation_extraction_condition)',
-    (('mosart_mask', np.int64), ('euler_mask', np.bool), ('tracer', np.int64), ('LIQUID_TRACER', np.int64), ('subnetwork_depth', np.float64), ('irrigation_extraction_condition', np.float64))
+@nb.jit(
+    "void("
+        "int64, int64[:], float64[:], float64[:], boolean[:],"
+        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64, float64"
+    ")",
+    parallel=True,
+    nopython=True,
+    nogil=True
 )
+def subnetwork_irrigation(
+    n,
+    mosart_mask,
+    subnetwork_length,
+    subnetwork_width,
+    euler_mask,
+    subnetwork_depth,
+    subnetwork_storage,
+    grid_cell_unmet_demand,
+    grid_cell_supply,
+    subnetwork_cross_section_area,
+    subnetwork_wetness_perimeter,
+    subnetwork_hydraulic_radii,
+    irrigation_extraction_parameter,
+    tiny_value,
+):
+    """Tracks the supply of water from the subnetwork river channels extracted into the grid cells."""
 
-calculate_volume_condition = ne.NumExpr(
-    'flow_volume >= reservoir_demand',
-    (('flow_volume', np.float64), ('reservoir_demand', np.float64))
-)
+    for i in nb.prange(n):
 
-calculate_reservoir_supply = ne.NumExpr(
-    'where('
-        'depth_condition,'
-        'where('
-            'volume_condition,'
-            'reservoir_supply + reservoir_demand,'
-            'reservoir_supply + flow_volume'
-        '),'
-        'reservoir_supply'
-    ')',
-    (('depth_condition', np.bool), ('volume_condition', np.bool), ('reservoir_supply', np.float64), ('reservoir_demand', np.float64), ('flow_volume', np.float64))
-)
+        # is the channel deep enough to extract from
+        depth_condition = (mosart_mask[i] > 0) and euler_mask[i] and (subnetwork_depth[i] >= irrigation_extraction_parameter)
 
-calculate_flow_volume = ne.NumExpr(
-    'where('
-        'depth_condition & volume_condition,'
-        'flow_volume - reservoir_demand,'
-        'flow_volume'
-    ')',
-    (('depth_condition', np.bool), ('volume_condition', np.bool), ('flow_volume', np.float64), ('reservoir_demand', np.float64))
-)
+        flow_volume = 1.0 * subnetwork_storage[i]
 
-calculate_reservoir_demand = ne.NumExpr(
-    'where('
-        'depth_condition,'
-        'where('
-            'volume_condition,'
-            '0,'
-            'reservoir_demand - flow_volume'
-        '),'
-        'reservoir_demand'
-    ')',
-    (('depth_condition', np.bool), ('volume_condition', np.bool), ('reservoir_demand', np.float64), ('flow_volume', np.float64))
-)
+        # is there enough water to allow full extraction
+        volume_condition = flow_volume >= grid_cell_unmet_demand[i]
 
-update_flow_volume = ne.NumExpr(
-    'where('
-        'depth_condition & (~volume_condition),'
-        '0,'
-        'flow_volume'
-    ')',
-    (('depth_condition', np.bool), ('volume_condition', np.bool), ('flow_volume', np.float64))
-)
+        if depth_condition:
+            if volume_condition:
+                grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
+                flow_volume = flow_volume - grid_cell_unmet_demand[i]
+                grid_cell_unmet_demand[i] = 0.0
+            else:
+                grid_cell_supply[i] = grid_cell_supply[i] + flow_volume
+                grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - flow_volume
+                flow_volume = 0.0
 
-calculate_subnetwork_storage = ne.NumExpr(
-    'where('
-        'depth_condition,'
-        'flow_volume,'
-        'subnetwork_storage'
-    ')',
-    (('depth_condition', np.bool), ('flow_volume', np.float64), ('subnetwork_storage', np.float64))
-)
+            subnetwork_storage[i] = flow_volume
+            update_subnetwork_state(
+                i,
+                subnetwork_length,
+                subnetwork_width,
+                subnetwork_storage,
+                subnetwork_cross_section_area,
+                subnetwork_depth,
+                subnetwork_wetness_perimeter,
+                subnetwork_hydraulic_radii,
+                tiny_value,
+            )

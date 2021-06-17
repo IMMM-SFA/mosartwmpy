@@ -1,152 +1,104 @@
-import numpy as np
-import numexpr as ne
+import numba as nb
 
-from benedict.dicts import benedict as Benedict
-
-from mosartwmpy.config.parameters import Parameters
-from mosartwmpy.grid.grid import Grid
-from mosartwmpy.state.state import State
 from mosartwmpy.subnetwork.state import update_subnetwork_state
 from mosartwmpy.utilities.timing import timing
 
+
 # @timing
-def subnetwork_routing(state: State, grid: Grid, parameters: Parameters, config: Benedict, delta_t: float) -> None:
-    """Tracks the storage and flow of water in the subnetwork river channels.
-
-    Args:
-        state (State): the current model state; will be mutated
-        grid (Grid): the model grid
-        parameters (Parameters): the model parameters
-        config (Benedict): the model configuration
-        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
-    """
-    
-    state.channel_lateral_flow_hillslope[:] = 0
-    local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_subnetwork)
-    
-    # step through max iterations, masking out the unnecessary cells each time
-    base_condition = (grid.mosart_mask > 0) & state.euler_mask
-    sub_condition = grid.subnetwork_length > grid.hillslope_length # has tributaries
-    
-    for _ in np.arange(np.nanmax(grid.iterations_subnetwork)):
-        iteration_condition = base_condition & (grid.iterations_subnetwork > _)
-
-        state.subnetwork_flow_velocity = calculate_subnetwork_flow_velocity(iteration_condition, sub_condition, state.subnetwork_hydraulic_radii, grid.subnetwork_slope, grid.subnetwork_manning, state.subnetwork_flow_velocity)
-        
-        state.subnetwork_discharge = calculate_subnetwork_discharge(iteration_condition, sub_condition, state.subnetwork_flow_velocity, state.subnetwork_cross_section_area, state.subnetwork_lateral_inflow, state.subnetwork_discharge)
-        
-        discharge_condition = calculate_discharge_condition(iteration_condition, sub_condition, state.subnetwork_storage, state.subnetwork_lateral_inflow, state.subnetwork_discharge, local_delta_t, parameters.tiny_value)
-        
-        state.subnetwork_discharge = update_subnetwork_discharge(discharge_condition, state.subnetwork_lateral_inflow, state.subnetwork_storage, local_delta_t, state.subnetwork_discharge)
-        
-        state.subnetwork_flow_velocity = update_flow_velocity(discharge_condition, state.subnetwork_cross_section_area, state.subnetwork_discharge, state.subnetwork_flow_velocity)
-        
-        state.subnetwork_delta_storage = calculate_subnetwork_delta_storage(iteration_condition, state.subnetwork_lateral_inflow, state.subnetwork_discharge, state.subnetwork_delta_storage)
-        
-        # update storage
-        state.subnetwork_storage_previous_timestep = calculate_subnetwork_storage_previous_timestep(iteration_condition, state.subnetwork_storage, state.subnetwork_storage_previous_timestep)
-        state.subnetwork_storage = calculate_subnetwork_storage(iteration_condition, state.subnetwork_storage, state.subnetwork_delta_storage, local_delta_t)
-        
-        update_subnetwork_state(state, grid, parameters, iteration_condition)
-        
-        state.channel_lateral_flow_hillslope = calculate_channel_lateral_flow_hillslope(iteration_condition, state.channel_lateral_flow_hillslope, state.subnetwork_discharge)
-    
-    # average lateral flow over substeps
-    state.channel_lateral_flow_hillslope = average_channel_lateral_flow_hillslope(base_condition, state.channel_lateral_flow_hillslope, grid.iterations_subnetwork)
-
-
-calculate_subnetwork_flow_velocity = ne.NumExpr(
-    'where('
-        'base_condition & length_condition,'
-        'where('
-            'subnetwork_hydraulic_radii > 0,'
-            '(subnetwork_hydraulic_radii ** (2/3)) * sqrt(subnetwork_slope) / subnetwork_manning,'
-            '0'
-        '),'
-        'subnetwork_flow_velocity'
-    ')',
-    (('base_condition', np.bool), ('length_condition', np.bool), ('subnetwork_hydraulic_radii', np.float64), ('subnetwork_slope', np.float64), ('subnetwork_manning', np.float64), ('subnetwork_flow_velocity', np.float64))
+@nb.jit(
+    "void("
+        "int64, float64, int64, int64,"
+        "int64[:], int64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64"
+    ")",
+    parallel=True,
+    nopython=True,
+    nogil=True
 )
+def subnetwork_routing(
+    n,
+    delta_t,
+    routing_iterations,
+    max_iterations_subnetwork,
+    iterations_subnetwork,
+    mosart_mask,
+    subnetwork_slope,
+    subnetwork_manning,
+    subnetwork_length,
+    subnetwork_width,
+    hillslope_length,
+    euler_mask,
+    channel_lateral_flow_hillslope,
+    subnetwork_flow_velocity,
+    subnetwork_discharge,
+    subnetwork_lateral_inflow,
+    subnetwork_storage,
+    subnetwork_storage_previous_timestep,
+    subnetwork_delta_storage,
+    subnetwork_depth,
+    subnetwork_cross_section_area,
+    subnetwork_wetness_perimeter,
+    subnetwork_hydraulic_radii,
+    tiny_value,
+):
+    """Tracks the storage and flow of water in the subnetwork river channels."""
 
-calculate_subnetwork_discharge = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'where('
-            'length_condition,'
-            '-subnetwork_flow_velocity * subnetwork_cross_section_area,'
-            '-subnetwork_lateral_inflow'
-        '),'
-        'subnetwork_discharge'
-    ')',
-    (('base_condition', np.bool), ('length_condition', np.bool), ('subnetwork_flow_velocity', np.float64), ('subnetwork_cross_section_area', np.float64), ('subnetwork_lateral_inflow', np.float64), ('subnetwork_discharge', np.float64))
-)
+    for i in nb.prange(n):
 
-calculate_discharge_condition = ne.NumExpr(
-    'base_condition &'
-    'length_condition &'
-    '((subnetwork_storage + (subnetwork_lateral_inflow + subnetwork_discharge) * local_delta_t) < tiny_value)',
-    (('base_condition', np.bool), ('length_condition', np.bool), ('subnetwork_storage', np.float64), ('subnetwork_lateral_inflow', np.float64), ('subnetwork_discharge', np.float64), ('local_delta_t', np.float64), ('tiny_value', np.float64))
-)
+        local_delta_t = (delta_t / routing_iterations) / iterations_subnetwork[i]
+        channel_lateral_flow_hillslope[i] = 0.0
 
-update_subnetwork_discharge = ne.NumExpr(
-    'where('
-        'discharge_condition,'
-        '-(subnetwork_lateral_inflow + subnetwork_storage / local_delta_t),'
-        'subnetwork_discharge'
-    ')',
-    (('discharge_condition', np.bool), ('subnetwork_lateral_inflow', np.float64), ('subnetwork_storage', np.float64), ('local_delta_t', np.float64), ('subnetwork_discharge', np.float64))
-)
+        if ~euler_mask[i] or ~(mosart_mask[i] > 0):
+            continue
 
-update_flow_velocity = ne.NumExpr(
-    'where('
-        'discharge_condition & (subnetwork_cross_section_area > 0),'
-        '-subnetwork_discharge / subnetwork_cross_section_area,'
-        'subnetwork_flow_velocity'
-    ')',
-    (('discharge_condition', np.bool), ('subnetwork_cross_section_area', np.float64), ('subnetwork_discharge', np.float64), ('subnetwork_flow_velocity', np.float64))
-)
+        has_tributaries = subnetwork_length[i] > hillslope_length[i]
 
-calculate_subnetwork_delta_storage = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'subnetwork_lateral_inflow + subnetwork_discharge,'
-        'subnetwork_delta_storage'
-    ')',
-    (('base_condition', np.bool), ('subnetwork_lateral_inflow', np.float64), ('subnetwork_discharge', np.float64), ('subnetwork_delta_storage', np.float64))
-)
+        # step through max iterations
+        for _ in nb.prange(max_iterations_subnetwork):
+            if ~(iterations_subnetwork[i] > _):
+                continue
 
-calculate_subnetwork_storage_previous_timestep = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'subnetwork_storage,'
-        'subnetwork_storage_previous_timestep'
-    ')',
-    (('base_condition', np.bool), ('subnetwork_storage', np.float64), ('subnetwork_storage_previous_timestep', np.float64))
-)
+            if has_tributaries:
+                if subnetwork_hydraulic_radii[i] > 0.0:
+                    subnetwork_flow_velocity[i] = (subnetwork_hydraulic_radii[i] ** (2.0/3.0)) * (subnetwork_slope[i] ** (1.0/2.0)) / subnetwork_manning[i]
+                else:
+                    subnetwork_flow_velocity[i] = 0.0
 
-calculate_subnetwork_storage = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'subnetwork_storage + subnetwork_delta_storage * local_delta_t,'
-        'subnetwork_storage'
-    ')',
-    (('base_condition', np.bool), ('subnetwork_storage', np.float64), ('subnetwork_delta_storage', np.float64), ('local_delta_t', np.float64))
-)
+            if has_tributaries:
+                subnetwork_discharge[i] = -subnetwork_flow_velocity[i] * subnetwork_cross_section_area[i]
+            else:
+                subnetwork_discharge[i] = -1.0 * subnetwork_lateral_inflow[i]
 
-calculate_channel_lateral_flow_hillslope = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'channel_lateral_flow_hillslope - subnetwork_discharge,'
-        'channel_lateral_flow_hillslope'
-    ')',
-    (('base_condition', np.bool), ('channel_lateral_flow_hillslope', np.float64), ('subnetwork_discharge', np.float64))
-)
+            discharge_condition = has_tributaries and ((subnetwork_storage[i] + (subnetwork_lateral_inflow[i] + subnetwork_discharge[i]) * local_delta_t) < tiny_value)
 
-average_channel_lateral_flow_hillslope = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'channel_lateral_flow_hillslope / iterations_subnetwork,'
-        'channel_lateral_flow_hillslope'
-    ')',
-    (('base_condition', np.bool), ('channel_lateral_flow_hillslope', np.float64), ('iterations_subnetwork', np.float64))
-)
+            if discharge_condition:
+                subnetwork_discharge[i] = -(subnetwork_lateral_inflow[i] + subnetwork_storage[i] / local_delta_t)
+
+            if discharge_condition and (subnetwork_cross_section_area[i] > 0.0):
+                subnetwork_flow_velocity[i] = -subnetwork_discharge[i] / subnetwork_cross_section_area[i]
+
+            subnetwork_delta_storage[i] = subnetwork_lateral_inflow[i] + subnetwork_discharge[i]
+
+            # update storage
+            subnetwork_storage_previous_timestep[i] = subnetwork_storage[i]
+            subnetwork_storage[i] = subnetwork_storage[i] + subnetwork_delta_storage[i] * local_delta_t
+
+            # update subnetwork state
+            update_subnetwork_state(
+                i,
+                subnetwork_length,
+                subnetwork_width,
+                subnetwork_storage,
+                subnetwork_cross_section_area,
+                subnetwork_depth,
+                subnetwork_wetness_perimeter,
+                subnetwork_hydraulic_radii,
+                tiny_value,
+            )
+
+            channel_lateral_flow_hillslope[i] = channel_lateral_flow_hillslope[i] - subnetwork_discharge[i]
+
+        # average lateral flow over substeps
+        channel_lateral_flow_hillslope[i] = channel_lateral_flow_hillslope[i] / iterations_subnetwork[i]

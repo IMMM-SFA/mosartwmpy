@@ -24,6 +24,7 @@ def reservoir_release(state, grid, config, parameters, current_time):
     
     storage_targets(state, grid, config, parameters, current_time)
 
+
 def regulation_release(state, grid, config, parameters, current_time):
     # compute the expected monthly release based on Biemans (2011)
 
@@ -38,7 +39,7 @@ def regulation_release(state, grid, config, parameters, current_time):
     
     # TODO what is factor
     factor = np.where(
-        grid.reservoir_runoff_capacity > parameters.reservoir_runoff_capacity_condition,
+        grid.reservoir_runoff_capacity > parameters.reservoir_runoff_capacity_parameter,
         (2.0 / grid.reservoir_runoff_capacity) ** 2.0,
         0
     )
@@ -57,6 +58,7 @@ def regulation_release(state, grid, config, parameters, current_time):
             k * factor * grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
         )
     )
+
 
 def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime) -> None:
     """Define the necessary drop in storage based on the reservoir storage targets at the start of the month.

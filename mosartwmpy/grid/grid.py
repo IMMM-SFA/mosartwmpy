@@ -7,11 +7,17 @@ import tempfile
 import xarray as xr
 
 from benedict.dicts import benedict as Benedict
+from numba.core import types
+from numba.typed import Dict
 from xarray import open_dataset
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.reservoirs.grid import load_reservoirs
+
+# ignore numpy NaN and invalid warnings
+# (i.e. divide by zero and NaN logicals -- in Pandas/Dask, these simply remain NaN instead of becoming infinite)
+np.seterr(all='ignore')
 
 
 class Grid():
@@ -76,6 +82,10 @@ class Grid():
     reservoir_conveyance: np.ndarray = np.empty(0)
     reservoir_count: np.ndarray = np.empty(0)
     reservoir_to_grid_mapping: pd.DataFrame = pd.DataFrame()
+    reservoir_to_grid_map: Dict = Dict.empty(
+        key_type=types.int64,
+        value_type=types.int64[:],
+    )
     reservoir_streamflow_schedule: xr.DataArray = xr.DataArray()
     reservoir_demand_schedule: xr.DataArray = xr.DataArray()
     reservoir_prerelease_schedule: xr.DataArray = xr.DataArray()
@@ -249,7 +259,7 @@ class Grid():
                 1 + config.get('simulation.subcycles'),
                 1
             )
-        )
+        ).astype(np.int64)
 
         logging.debug(' - subnetwork substeps')
 
@@ -335,7 +345,7 @@ class Grid():
                 )
             ),
             1
-        )
+        ).astype(np.int64)
 
         # if water management is enabled, load the reservoir parameters and build the grid cell mapping
         # note that reservoir grid is assumed to be the same as the domain grid
@@ -404,11 +414,11 @@ class Grid():
             for df in dfs:
                 names.append(f'{df["key"]}.df.nc')
                 paths.append(f'{tmpdir}/{names[-1]}')
-                df['frame'].to_xarray().to_netcdf(paths[-1], engine='scipy')
+                df['frame'].to_xarray().to_netcdf(paths[-1], engine='h5netcdf')
             for ds in xrs:
                 names.append(f'{ds["key"]}.xr.nc')
                 paths.append(f'{tmpdir}/{names[-1]}')
-                ds['data_array'].to_netcdf(paths[-1], engine='scipy')
+                ds['data_array'].to_netcdf(paths[-1], engine='h5netcdf')
             with ZipFile(path, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zip:
                 for i, filename in enumerate(paths):
                     zip.write(filename, names[i])
@@ -441,14 +451,19 @@ class Grid():
                             setattr(grid, key, npdf[key].values)
                     if filename.endswith('df.nc'):
                         key = filename.split('.')[0]
-                        ds = xr.open_dataset(file, engine='scipy')
+                        ds = xr.open_dataset(file, engine='h5netcdf')
                         df = ds.to_dataframe()
                         setattr(grid, key, df)
                         ds.close()
                     if filename.endswith('xr.nc'):
                         key = filename.split('.')[0]
-                        ds = xr.open_dataarray(file, engine='scipy').load()
+                        ds = xr.open_dataarray(file, engine='h5netcdf').load()
                         setattr(grid, key, ds)
                         ds.close()
+
+        # recreate the numba grid to reservoir map
+        if grid.reservoir_to_grid_mapping.size > 0:
+            for grid_cell_id, group in grid.reservoir_to_grid_mapping.reset_index().groupby('grid_cell_id'):
+                grid.reservoir_to_grid_map[grid_cell_id] = group.reservoir_id.values
         
         return grid

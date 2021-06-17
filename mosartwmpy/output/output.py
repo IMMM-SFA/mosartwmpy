@@ -9,6 +9,7 @@ import rioxarray
 
 from mosartwmpy.utilities.timing import timing
 
+
 def initialize_output(self):
     """Initializes the output buffer."""
     
@@ -21,6 +22,7 @@ def initialize_output(self):
                 self.output_buffer = pd.DataFrame(self.state.zeros, columns=[output.get('name')])
             else:
                 self.output_buffer = self.output_buffer.join(pd.DataFrame(self.state.zeros, columns=[output.get('name')]))
+
 
 # @timing
 def update_output(self):
@@ -43,6 +45,7 @@ def update_output(self):
     
     # check if restart file if need
     check_restart(self)
+
 
 def write_output(self):
     """Writes the output buffer and requested grid variables to a netcdf file."""
@@ -136,6 +139,7 @@ def write_output(self):
     frame = frame.rio.write_crs(4326)
     frame.to_netcdf(filename, unlimited_dims=['time'])
 
+
 def check_restart(self):
     """Checks if a restart file is needed based on the current simulation time."""
     
@@ -155,6 +159,7 @@ def check_restart(self):
         is_needed = True
     if is_needed:
         write_restart(self)
+
 
 def write_restart(self):
     """Writes the state to a netcdf file, with the current simulation time in the file name."""

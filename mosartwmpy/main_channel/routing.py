@@ -1,88 +1,121 @@
-import numpy as np
-import numexpr as ne
+import numba as nb
 
-from benedict.dicts import benedict as Benedict
-
-from mosartwmpy.config.parameters import Parameters
-from mosartwmpy.grid.grid import Grid
-from mosartwmpy.state.state import State
 from mosartwmpy.main_channel.kinematic_wave import kinematic_wave_routing
 from mosartwmpy.main_channel.state import update_main_channel_state
 from mosartwmpy.utilities.timing import timing
 
+
 # @timing
-def main_channel_routing(state: State, grid: Grid, parameters: Parameters, config: Benedict, delta_t: float) -> None:
-    """Tracks the storage and flow of water in the main river channels.
-
-    Args:
-        state (State): the current model state; will be mutated
-        grid (Grid): the model grid
-        parameters (Parameters): the model parameters
-        config (Benedict): the model configuration
-        delta_t (float): the timestep for this subcycle (overall timestep / subcycles)
-    """
-    
-    tmp_outflow_downstream = 0.0 * state.zeros
-    local_delta_t = (delta_t / config.get('simulation.routing_iterations') / grid.iterations_main_channel)
-    
-    # step through max iterations, masking out the unnecessary cells each time
-    base_condition = (grid.mosart_mask > 0) & state.euler_mask
-    for _ in np.arange(np.nanmax(grid.iterations_main_channel)):
-        iteration_condition = base_condition & (grid.iterations_main_channel > _)
-    
-        # routing
-        routing_method = config.get('simulation.routing_method', 1)
-        if routing_method == 1:
-            kinematic_wave_routing(state, grid, parameters, local_delta_t, iteration_condition)
-        else:
-            raise Exception(f"Error - Routing method {routing_method} not implemented.")
-        
-        # update storage
-        state.channel_storage_previous_timestep = calculate_channel_storage_previous_timestep(iteration_condition, state.channel_storage, state.channel_storage_previous_timestep)
-        state.channel_storage = calculate_channel_storage(iteration_condition, state.channel_storage, state.channel_delta_storage, local_delta_t)
-        
-        # update channel state
-        update_main_channel_state(state, grid, parameters, iteration_condition)
-        
-        # update outflow tracking
-        tmp_outflow_downstream = calculate_tmp_outflow_downstream(iteration_condition, tmp_outflow_downstream, state.channel_outflow_downstream)
-    
-    # update outflow
-    state.channel_outflow_downstream = calculate_channel_outflow_downstream(base_condition, tmp_outflow_downstream, grid.iterations_main_channel, state.channel_outflow_downstream)
-
-
-calculate_channel_storage_previous_timestep = ne.NumExpr(
-    'where('
-        'iteration_condition,'
-        'channel_storage,'
-        'channel_storage_previous_timestep'
-    ')',
-    (('iteration_condition', np.bool), ('channel_storage', np.float64), ('channel_storage_previous_timestep', np.float64))
+@nb.jit(
+    "void("
+        "int64, float64, int64, int64,"
+        "int64[:], int64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64[:], float64[:], boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64, float64, float64, float64"
+    ")",
+    parallel=True,
+    nopython=True,
+    nogil=True
 )
+def main_channel_routing(
+    n,
+    delta_t,
+    routing_iterations,
+    max_iterations_main_channel,
+    iterations_main_channel,
+    mosart_mask,
+    channel_length,
+    channel_slope,
+    channel_manning,
+    total_drainage_area_single,
+    channel_width,
+    area,
+    drainage_fraction,
+    grid_channel_depth,
+    channel_floodplain_width,
+    euler_mask,
+    channel_inflow_upstream,
+    channel_outflow_sum_upstream_instant,
+    channel_hydraulic_radii,
+    channel_flow_velocity,
+    channel_outflow_downstream,
+    channel_cross_section_area,
+    channel_lateral_flow_hillslope,
+    channel_storage,
+    channel_storage_previous_timestep,
+    hillslope_wetland_runoff,
+    channel_delta_storage,
+    channel_depth,
+    channel_wetness_perimeter,
+    slope_1_def,
+    inverse_sin_atan_slope_1_def,
+    tiny_value,
+    kinematic_wave_parameter,
+):
+    """Tracks the storage and flow of water in the main river channels."""
 
-calculate_channel_storage = ne.NumExpr(
-    'where('
-        'iteration_condition,'
-        'channel_storage + channel_delta_storage * local_delta_t,'
-        'channel_storage'
-    ')',
-    (('iteration_condition', np.bool), ('channel_storage', np.float64), ('channel_delta_storage', np.float64), ('local_delta_t', np.float64))
-)
+    for i in nb.prange(n):
 
-calculate_tmp_outflow_downstream = ne.NumExpr(
-    'where('
-        'iteration_condition,'
-        'tmp_outflow_downstream + channel_outflow_downstream,'
-        'tmp_outflow_downstream'
-    ')',
-    (('iteration_condition', np.bool), ('tmp_outflow_downstream', np.float64), ('channel_outflow_downstream', np.float64))
-)
+        if ~euler_mask[i] or ~(mosart_mask[i] > 0):
+            continue
 
-calculate_channel_outflow_downstream = ne.NumExpr(
-    'where('
-        'base_condition,'
-        'tmp_outflow_downstream / iterations_main_channel,'
-        'channel_outflow_downstream'
-    ')',
-    (('base_condition', np.bool), ('tmp_outflow_downstream', np.float64), ('iterations_main_channel', np.float64), ('channel_outflow_downstream', np.float64))
-)
+        local_delta_t = (delta_t / routing_iterations) / iterations_main_channel[i]
+        outflow = 0.0
+
+        # step through max iterations
+        for _ in nb.prange(max_iterations_main_channel):
+            if ~(iterations_main_channel[i] > _):
+                continue
+
+            # route the water
+            kinematic_wave_routing(
+                i,
+                local_delta_t,
+                channel_inflow_upstream,
+                channel_outflow_sum_upstream_instant,
+                channel_length,
+                channel_hydraulic_radii,
+                channel_flow_velocity,
+                channel_slope,
+                channel_manning,
+                total_drainage_area_single,
+                channel_width,
+                channel_outflow_downstream,
+                channel_cross_section_area,
+                channel_lateral_flow_hillslope,
+                channel_storage,
+                hillslope_wetland_runoff,
+                area,
+                drainage_fraction,
+                channel_delta_storage,
+                tiny_value,
+                kinematic_wave_parameter,
+            )
+
+            # update storage
+            channel_storage_previous_timestep[i] = 1.0 * channel_storage[i]
+            channel_storage[i] = channel_storage[i] + channel_delta_storage[i] * local_delta_t
+
+            # update channel state
+            update_main_channel_state(
+                i,
+                channel_length,
+                grid_channel_depth,
+                channel_width,
+                channel_floodplain_width,
+                channel_storage,
+                channel_cross_section_area,
+                channel_depth,
+                channel_wetness_perimeter,
+                channel_hydraulic_radii,
+                tiny_value,
+                slope_1_def,
+                inverse_sin_atan_slope_1_def
+            )
+
+            # track the outflow
+            outflow = outflow + channel_outflow_downstream[i]
+
+        # update the final outflow
+        channel_outflow_downstream[i] = outflow / iterations_main_channel[i]

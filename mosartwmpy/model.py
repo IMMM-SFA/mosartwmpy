@@ -1,6 +1,7 @@
 import logging
 import sys
 
+import matplotlib.pyplot as plt
 import numexpr as ne
 import numpy as np
 import psutil
@@ -14,7 +15,7 @@ from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
 from typing import Tuple
-from xarray import open_dataset
+from xarray import DataArray, open_dataset
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
@@ -22,7 +23,7 @@ from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
 from mosartwmpy.input_output_variables import IO
-from mosartwmpy.output.output import initialize_output, update_output, write_restart
+from mosartwmpy.output.output import initialize_output, update_output
 from mosartwmpy.reservoirs.reservoirs import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
@@ -63,6 +64,16 @@ class Model(Bmi):
     def __getitem__(self, item):
         return getattr(self, item)
 
+    def plot(self, variable: str):
+        DataArray(
+            self.get_value_ptr(variable).reshape(self.get_grid_shape()),
+            dims=['latitude', 'longitude'],
+            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
+            name=variable.replace('_', ' ').title(),
+            attrs={'units': self.get_var_units(variable)}
+        ).plot(robust=True, levels=16, cmap='winter_r')
+        plt.show()
+
     def initialize(self, config_file_path: str = None, grid: Grid = None, state: State = None) -> None:
         
         t = timer()
@@ -76,7 +87,9 @@ class Model(Bmi):
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
             # setup logging and output directories
             Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
-            handlers = [logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log'))]
+            handlers = []
+            if self.config.get('simulation.log_to_file'):
+                handlers.append(logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log')))
             if self.config.get('simulation.log_to_std_out'):
                 h = logging.StreamHandler(sys.stdout)
                 h.setFormatter(logging.Formatter(""))
@@ -107,8 +120,8 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            logging.debug(f'Cores: {self.cores}.')
             ne.set_num_threads(self.cores)
+            logging.debug(f'Cores: {self.cores}.')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
@@ -126,6 +139,7 @@ class Model(Bmi):
         # load restart file or initialize state
         if state is not None:
             self.state = state
+            self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
         else:
             try:
                 # restart file
@@ -201,7 +215,7 @@ class Model(Bmi):
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
-        logging.debug(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
+        logging.info(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
         try:
             # update the output buffer and write restart file if needed
             update_output(self)
