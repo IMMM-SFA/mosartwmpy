@@ -215,7 +215,7 @@ class Model(Bmi):
         except Exception as e:
             logging.exception('Failed to complete timestep; see below for stacktrace.')
             raise e
-        logging.info(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
+        logging.debug(f'Timestep {step} completed in {pretty_timer(timer() - t)}.')
         try:
             # update the output buffer and write restart file if needed
             update_output(self)

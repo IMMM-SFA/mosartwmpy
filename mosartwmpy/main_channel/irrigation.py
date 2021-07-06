@@ -50,7 +50,7 @@ def main_channel_irrigation(
         flow_volume = 1.0 * channel_storage[i]
 
         # is there enough water to allow full extraction
-        volume_condition = irrigation_extraction_maximum_fraction * flow_volume >= grid_cell_unmet_demand[i]
+        volume_condition = (irrigation_extraction_maximum_fraction * flow_volume) >= grid_cell_unmet_demand[i]
 
         if depth_condition and tiny_condition:
             if volume_condition:
@@ -60,9 +60,9 @@ def main_channel_irrigation(
             else:
                 grid_cell_supply[i] = grid_cell_supply[i] + irrigation_extraction_maximum_fraction * flow_volume
                 grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - irrigation_extraction_maximum_fraction * flow_volume
-                flow_volume = (1 - irrigation_extraction_maximum_fraction) * flow_volume
+                flow_volume = flow_volume - irrigation_extraction_maximum_fraction * flow_volume
 
-            channel_storage[i] = flow_volume
+            channel_storage[i] = 1.0 * flow_volume
             update_main_channel_state(
                 i,
                 channel_length,

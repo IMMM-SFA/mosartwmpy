@@ -76,7 +76,7 @@ def regulation(
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
 )
 def extraction_regulated_flow(
     n,
@@ -141,8 +141,8 @@ def extraction_regulated_flow(
     #    demand to gridcell prorated by the dam fraction of each dam.
     #
 
-    # note that these arrays start at zero index but reservoir IDs start at one index
-    reservoir_demand = np.full(n_reservoir, 0.0)
+    # note that these reservoir arrays start at zero index but reservoir IDs start at one index
+
     reservoir_flow_volume = np.full(n_reservoir, 0.0)
 
     for i in nb.prange(n):
@@ -153,24 +153,28 @@ def extraction_regulated_flow(
         has_reservoir = np.isfinite(reservoir_id[i])
 
         if has_reservoir:
-            reservoir_flow_volume[int(reservoir_id[i] - 1)] = -(reservoir_flow_volume_ratio * delta_t * channel_outflow_downstream[i])
-            channel_outflow_downstream[i] = channel_outflow_downstream[i] + reservoir_flow_volume[int(reservoir_id[i] - 1)] / delta_t
-
-        if grid_cell_unmet_demand[i] > 0:
-            # assign this grid cell's demand to each available reservoir
-            if grid_id[i] in reservoir_to_grid_map:
-                for r in reservoir_to_grid_map[grid_id[i]]:
-                    reservoir_demand[r - 1] = reservoir_demand[r - 1] + grid_cell_unmet_demand[i]
+            reservoir_flow_volume[int(reservoir_id[i]) - 1] = -(reservoir_flow_volume_ratio * delta_t * channel_outflow_downstream[i])
+            channel_outflow_downstream[i] = channel_outflow_downstream[i] + reservoir_flow_volume[int(reservoir_id[i]) - 1] / delta_t
 
     for _ in np.arange(reservoir_supply_iterations):
-        # ratio of available water to total demand on a reservoir
-        demand_fraction = np.where(
-            np.logical_and(reservoir_demand > 0.0, reservoir_flow_volume > 0.0),
-            reservoir_flow_volume / reservoir_demand,
-            0.0
-        )
+        # total potential water demand on a reservoir
+        reservoir_demand = np.full(n_reservoir, 0.0)
+        # ratio of available water to total potential demand on a reservoir
+        demand_fraction = np.full(n_reservoir, 0.0)
+        for i in nb.prange(n):
+            if grid_cell_unmet_demand[i] > 0:
+                # assign this grid cell's demand to each available reservoir
+                if grid_id[i] in reservoir_to_grid_map:
+                    for r in reservoir_to_grid_map[grid_id[i]]:
+                        reservoir_demand[r - 1] = reservoir_demand[r - 1] + grid_cell_unmet_demand[i]
+        for r in nb.prange(n_reservoir):
+            # ratio of available water to total demand on a reservoir
+            if (reservoir_demand[r] > 0.0) and (reservoir_flow_volume[r] > 0.0):
+                demand_fraction[r] = reservoir_flow_volume[r] / reservoir_demand[r]
+            else:
+                demand_fraction[r] = 0.0
 
-        if np.any(demand_fraction >= 1.0):
+        if np.max(demand_fraction) >= 1.0:
             # case 1 - provide all water to grid cell split from all available reservoirs with demand_fraction > 1
             for i in nb.prange(n):
                 if grid_id[i] in reservoir_to_grid_map:
@@ -179,19 +183,17 @@ def extraction_regulated_flow(
                         if demand_fraction[r - 1] >= 1.0:
                             available_reservoirs.append(r - 1)
                     # take equally from each reservoir
-                    take = grid_cell_unmet_demand[i] / len(available_reservoirs)
-                    for r in available_reservoirs:
-                        reservoir_demand[r] = reservoir_demand[r] - take
-                        reservoir_flow_volume[r] = reservoir_flow_volume[r] - take
-                    grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
-                    grid_cell_unmet_demand[i] = 0.0
+                    if len(available_reservoirs) > 0:
+                        for r in available_reservoirs:
+                            reservoir_flow_volume[r] = reservoir_flow_volume[r] - grid_cell_unmet_demand[i] / float(len(available_reservoirs))
+                        grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
+                        grid_cell_unmet_demand[i] = 0.0
 
         else:
             sum_demand_fraction = np.full(n, 0.0)
             for i in nb.prange(n):
                 if grid_id[i] in reservoir_to_grid_map:
-                    available_reservoirs = reservoir_to_grid_map[grid_id[i]]
-                    for r in available_reservoirs:
+                    for r in reservoir_to_grid_map[grid_id[i]]:
                         sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[r - 1]
 
             if np.any(sum_demand_fraction >= 1.0):
@@ -199,9 +201,7 @@ def extraction_regulated_flow(
                 for i in nb.prange(n):
                     if sum_demand_fraction[i] >= 1.0:
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            take = grid_cell_unmet_demand[i] * demand_fraction[r - 1] / sum_demand_fraction[i]
-                            reservoir_demand[r - 1] = reservoir_demand[r - 1] - take
-                            reservoir_flow_volume[r - 1] = reservoir_flow_volume[r - 1] - take
+                            reservoir_flow_volume[r - 1] = reservoir_flow_volume[r - 1] - grid_cell_unmet_demand[i] * demand_fraction[r - 1] / sum_demand_fraction[i]
                         grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
                         grid_cell_unmet_demand[i] = 0.0
 
@@ -211,10 +211,9 @@ def extraction_regulated_flow(
                     if sum_demand_fraction[i] > 0.0:
                         total_take = 0.0
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            take = grid_cell_unmet_demand[i] * demand_fraction[r - 1]
-                            reservoir_demand[r - 1] = reservoir_demand[r - 1] - take
-                            reservoir_flow_volume[r - 1] = reservoir_flow_volume[r - 1] - take
+                            take = min(grid_cell_unmet_demand[i] * demand_fraction[r - 1], grid_cell_unmet_demand[i])
                             total_take = total_take + take
+                            reservoir_flow_volume[r - 1] = reservoir_flow_volume[r - 1] - take
                         grid_cell_supply[i] = grid_cell_supply[i] + total_take
                         grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - total_take
 
@@ -222,7 +221,7 @@ def extraction_regulated_flow(
         has_reservoir = np.isfinite(reservoir_id[i])
         if has_reservoir:
             # add the residual flow volume back to channel
-            channel_outflow_downstream[i] = channel_outflow_downstream[i] - reservoir_flow_volume[int(reservoir_id[i] - 1)] / delta_t
+            channel_outflow_downstream[i] = channel_outflow_downstream[i] - reservoir_flow_volume[int(reservoir_id[i]) - 1] / delta_t
         outflow_after_regulation[i] = -channel_outflow_downstream[i]
         channel_flow[i] = channel_flow[i] - channel_outflow_downstream[i]
         # aggregate deficit

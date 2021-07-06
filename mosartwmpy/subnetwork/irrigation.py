@@ -51,7 +51,7 @@ def subnetwork_irrigation(
                 grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - flow_volume
                 flow_volume = 0.0
 
-            subnetwork_storage[i] = flow_volume
+            subnetwork_storage[i] = 1.0 * flow_volume
             update_subnetwork_state(
                 i,
                 subnetwork_length,
