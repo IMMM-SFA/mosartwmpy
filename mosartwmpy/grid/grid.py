@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -20,7 +19,7 @@ from mosartwmpy.reservoirs.grid import load_reservoirs
 np.seterr(all='ignore')
 
 
-class Grid():
+class Grid:
     """Class to store grid related values that are constant throughout a simulation."""
     
     # initialize all properties
@@ -80,7 +79,6 @@ class Grid():
     reservoir_use_fish_protection: np.ndarray = np.empty(0)
     reservoir_withdrawal: np.ndarray = np.empty(0)
     reservoir_conveyance: np.ndarray = np.empty(0)
-    reservoir_count: np.ndarray = np.empty(0)
     reservoir_to_grid_mapping: pd.DataFrame = pd.DataFrame()
     reservoir_to_grid_map: Dict = Dict.empty(
         key_type=types.int64,
@@ -102,8 +100,6 @@ class Grid():
         # shortcut to get an empty grid instance
         if empty:
             return
-        
-        logging.debug('Loading grid file.')
         
         # open dataset
         grid_dataset = open_dataset(config.get('grid.path'))
@@ -128,7 +124,6 @@ class Grid():
         grid_dataset.close()
         
         # use ID and dnID field to calculate masks, upstream, downstream, and outlet indices, as well as count of upstream cells
-        logging.debug(' - masks, downstream, upstream, and outlet cell indices')
     
         # ocean/land mask
         # 1 == land
@@ -202,7 +197,6 @@ class Grid():
         
         # recalculate area to fill in missing values
         # assumes grid spacing is in degrees and uniform
-        logging.debug(' - area')
         deg2rad = np.pi / 180.0
         self.area = np.where(
             self.local_drainage_area <= 0,
@@ -240,8 +234,6 @@ class Grid():
         except:
             self.land_fraction = np.full(self.id.size, 1.0)
 
-        logging.debug(' - main channel iterations')
-
         # parameter for calculating number of main channel iterations needed
         # phi_r
         phi_main = np.where(
@@ -260,8 +252,6 @@ class Grid():
                 1
             )
         ).astype(np.int64)
-
-        logging.debug(' - subnetwork substeps')
 
         # total main channel length [m]
         # rlenTotal
@@ -350,7 +340,6 @@ class Grid():
         # if water management is enabled, load the reservoir parameters and build the grid cell mapping
         # note that reservoir grid is assumed to be the same as the domain grid
         if config.get('water_management.enabled', False):
-            logging.debug(' - reservoirs')
             load_reservoirs(self, config, parameters)
 
     def __getitem__(self, item):

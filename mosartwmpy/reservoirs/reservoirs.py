@@ -35,7 +35,7 @@ def regulation_release(state, grid, config, parameters, current_time):
     state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values
     
     # TODO what is k
-    k = state.reservoir_storage_operation_year_start / ( parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
+    k = state.reservoir_storage_operation_year_start / (parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
     
     # TODO what is factor
     factor = np.where(
@@ -123,7 +123,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
         (month < state.reservoir_month_start_operations)
     )
     state.reservoir_release = np.where(
-        (state.reservoir_release> grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
+        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
         grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
         state.reservoir_release
     )

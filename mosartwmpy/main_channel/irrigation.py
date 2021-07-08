@@ -1,10 +1,8 @@
 import numba as nb
 
 from mosartwmpy.main_channel.state import update_main_channel_state
-from mosartwmpy.utilities.timing import timing
 
 
-# @timing
 @nb.jit(
     "void("
         "int64, int64[:], float64[:], float64[:], float64[:], float64[:], boolean[:],"
@@ -13,7 +11,8 @@ from mosartwmpy.utilities.timing import timing
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def main_channel_irrigation(
     n,

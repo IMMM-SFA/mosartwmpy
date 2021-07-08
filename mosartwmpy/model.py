@@ -2,7 +2,6 @@ import logging
 import sys
 
 import matplotlib.pyplot as plt
-import numexpr as ne
 import numpy as np
 import psutil
 import regex as re
@@ -120,7 +119,6 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            ne.set_num_threads(self.cores)
             logging.debug(f'Cores: {self.cores}.')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')

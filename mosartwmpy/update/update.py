@@ -15,8 +15,6 @@ from mosartwmpy.reservoirs.regulation import extraction_regulated_flow, regulati
 from mosartwmpy.subnetwork.irrigation import subnetwork_irrigation
 from mosartwmpy.subnetwork.routing import subnetwork_routing
 
-from mosartwmpy.utilities.timing import Timer
-
 
 def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
     """Advance the simulation one timestamp.
@@ -338,7 +336,8 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def _prepare(
     n,
@@ -455,7 +454,8 @@ def _prepare(
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def _subcycle(
     n,
@@ -528,7 +528,8 @@ def _subcycle(
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def _average_over_routing_iterations(
     n,
@@ -555,7 +556,8 @@ def _average_over_routing_iterations(
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def _accumulate_flow_field(
     n,
@@ -594,7 +596,8 @@ def _accumulate_flow_field(
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def _finalize(
     n,

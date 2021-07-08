@@ -11,7 +11,8 @@ from numba.typed import List
         "boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64"
     ")",
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def regulation(
     n,
@@ -77,6 +78,7 @@ def regulation(
     parallel=True,
     nopython=True,
     nogil=True,
+    cache=True,
 )
 def extraction_regulated_flow(
     n,

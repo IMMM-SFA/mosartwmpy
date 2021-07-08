@@ -8,7 +8,8 @@ import numba as nb
         "float64[:], float64[:], float64[:], float64[:], float64, float64"
     ")",
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def kinematic_wave_routing(
     i,

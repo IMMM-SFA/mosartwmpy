@@ -11,7 +11,8 @@ from mosartwmpy.subnetwork.state import update_subnetwork_state
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def subnetwork_irrigation(
     n,

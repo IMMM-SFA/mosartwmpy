@@ -7,7 +7,8 @@ import numba as nb
         "float64[:], float64[:], float64[:], float64[:], float64, float64, float64"
     ")",
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def update_main_channel_state(
     i,

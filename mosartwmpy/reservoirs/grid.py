@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 import pandas as pd
 
@@ -17,8 +16,6 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         config (Benedict): the model configuration
         parameters (Parameters): the model parameters
     """
-
-    logging.debug('Loading reservoir file.')
 
     # reservoir parameter file
     reservoirs = open_dataset(config.get('water_management.reservoirs.path'))
@@ -58,12 +55,6 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     )
     for grid_cell_id, group in self.reservoir_to_grid_mapping.groupby('grid_cell_id'):
         self.reservoir_to_grid_map[grid_cell_id] = group.reservoir_id.values
-
-    # count of the number of reservoirs that can supply each grid cell
-    self.reservoir_count = np.array(pd.DataFrame(self.id).join(
-        self.reservoir_to_grid_mapping.groupby('grid_cell_id').count().rename(columns={'reservoir_id': 'reservoir_count'}),
-        how='left'
-    ).reservoir_count)
 
     # index by grid cell
     self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.set_index('grid_cell_id').sort_index()

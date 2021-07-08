@@ -15,7 +15,8 @@ from mosartwmpy.utilities.timing import timing
     ")",
     parallel=True,
     nopython=True,
-    nogil=True
+    nogil=True,
+    cache=True,
 )
 def subnetwork_routing(
     n,
