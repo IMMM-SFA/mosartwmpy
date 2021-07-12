@@ -58,8 +58,6 @@ class Model(Bmi):
         self.reservoir_streamflow_schedule = None
         self.reservoir_demand_schedule = None
         self.reservoir_prerelease_schedule = None
-        self.git_hash = None
-        self.git_untracked = None
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -106,24 +104,14 @@ class Model(Bmi):
             self.config.to_yaml(filepath=f'{self.config.get("simulation.output_path")}/{self.name}/config.yaml')
             if config_file_path is None or config_file_path == '':
                 logging.info("No configuration file provided; initializing with all default values.")
-            try:
-                self.git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
-                self.git_untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
-                logging.debug(f'Version: {self.git_hash}')
-                if len(self.git_untracked) > 0:
-                    logging.debug(f'Uncommitted changes:')
-                    for u in self.git_untracked:
-                        logging.debug(f'  * {u}')
-            except:
-                pass
             # ensure that end date is after start date
             if self.config.get('simulation.end_date') < self.config.get('simulation.start_date'):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            logging.info(f'Cores: {self.cores}.')
-            logging.info(f'Numba threads: {get_num_threads()}.')
-            logging.info(f'Numba threading layer: {threading_layer()}')
+            logging.debug(f'Cores: {self.cores}.')
+            logging.debug(f'Numba threads: {get_num_threads()}.')
+            logging.debug(f'Numba threading layer: {threading_layer()}')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
