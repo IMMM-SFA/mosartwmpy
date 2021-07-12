@@ -10,6 +10,7 @@ import subprocess
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time, timedelta
+from numba import get_num_threads, threading_layer
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
@@ -119,7 +120,9 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            logging.debug(f'Cores: {self.cores}.')
+            logging.info(f'Cores: {self.cores}.')
+            logging.info(f'Numba threads: {get_num_threads()}.')
+            logging.info(f'Numba threading layer: {threading_layer()}')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
