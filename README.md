@@ -1,6 +1,4 @@
-[![linux](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_linux.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_linux.yml)
-[![osx](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_osx.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_osx.yml)
-[![windows](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_windows.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build_windows.yml)
+[![build](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/mosartwmpy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.03221/status.svg)](https://doi.org/10.21105/joss.03221)
 [![DOI](https://zenodo.org/badge/312114600.svg)](https://zenodo.org/badge/latestdoi/312114600)
