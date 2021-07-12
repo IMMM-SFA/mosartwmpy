@@ -1,3 +1,4 @@
+import re
 from setuptools import setup, find_packages
 
 
@@ -7,9 +8,11 @@ def readme():
         return f.read()
 
 
+version = re.search(r"__version__ = ['\"]([^'\"]*)['\"]", open('mosartwmpy/_version.py').read(), re.M).group(1)
+
 setup(
     name='mosartwmpy',
-    version='0.0.9',
+    version=version,
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
@@ -47,6 +50,7 @@ setup(
             'recommonmark~=0.7.1',
             'setuptools~=57.0.0',
             'sphinx~=4.0.2',
+            'sphinx-panels~=0.6.0',
             'sphinx-rtd-theme~=0.5.2',
             'twine~=3.4.1'
         ]

@@ -32,10 +32,11 @@ release = 'latest'
 # ones.
 extensions = [
     'nbsphinx',
-    'recommonmark',                                                             
-    'sphinx.ext.napoleon',                                                      
-    'sphinx.ext.autodoc',                                                       
-    'sphinx_rtd_theme' 
+    'recommonmark',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.autodoc',
+    'sphinx_panels',
+    'sphinx_rtd_theme'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -58,3 +59,9 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+html_css_files = ['style.css']
+
+panels_delimiters = (r"^\>{3,}$", r"^\^{3,}$", r"^\+{3,}$")
+
+import mosartwmpy
+version = str(mosartwmpy.__version__)

@@ -65,6 +65,7 @@ class Model(Bmi):
         return getattr(self, item)
 
     def plot(self, variable: str):
+        """Display a colormap of a spatial variable at the current timestep."""
         DataArray(
             self.get_value_ptr(variable).reshape(self.get_grid_shape()),
             dims=['latitude', 'longitude'],
@@ -258,10 +259,6 @@ class Model(Bmi):
         logging.getLogger().handlers.clear()
         logging.shutdown()
         return
-
-    def download_data(self, *args, **kwargs) -> None:
-        """Downloads data related to the model."""
-        download_data(*args, **kwargs)
 
     def get_component_name(self) -> str:
         return f'mosartwmpy ({self.git_hash})'
