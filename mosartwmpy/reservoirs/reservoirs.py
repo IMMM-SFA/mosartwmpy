@@ -24,6 +24,7 @@ def reservoir_release(state, grid, config, parameters, current_time):
     
     storage_targets(state, grid, config, parameters, current_time)
 
+
 def regulation_release(state, grid, config, parameters, current_time):
     # compute the expected monthly release based on Biemans (2011)
 
@@ -34,11 +35,11 @@ def regulation_release(state, grid, config, parameters, current_time):
     state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values
     
     # TODO what is k
-    k = state.reservoir_storage_operation_year_start / ( parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
+    k = state.reservoir_storage_operation_year_start / (parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
     
     # TODO what is factor
     factor = np.where(
-        grid.reservoir_runoff_capacity > parameters.reservoir_runoff_capacity_condition,
+        grid.reservoir_runoff_capacity > parameters.reservoir_runoff_capacity_parameter,
         (2.0 / grid.reservoir_runoff_capacity) ** 2.0,
         0
     )
@@ -57,6 +58,7 @@ def regulation_release(state, grid, config, parameters, current_time):
             k * factor * grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
         )
     )
+
 
 def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime) -> None:
     """Define the necessary drop in storage based on the reservoir storage targets at the start of the month.
@@ -121,7 +123,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
         (month < state.reservoir_month_start_operations)
     )
     state.reservoir_release = np.where(
-        (state.reservoir_release> grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
+        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
         grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
         state.reservoir_release
     )

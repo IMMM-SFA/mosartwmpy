@@ -1,10 +1,11 @@
 Python Virtual Environments
 ===========================
 
-Maintaining different versions of Python can be a chore, especially when ``mosartwmpy`` is forcing you to use Python 3.9+ 😈. There are many tools for managing Python environments, and many more will probably be developed after I write this, but at this moment in time my two recommendations are:
+Maintaining different versions of Python can be a chore. Thankfully, there are many tools for managing Python environments; here are a few recommendations:
 
-* `PyCharm <https://www.jetbrains.com/pycharm/>`_ IDE -- this is great for developing code in Python, and can automatically create virtual environments for a codebase by detecting versions and dependencies from the ``setup.py`` or ``setup.cfg``.
-* `pyenv <https://github.com/pyenv/pyenv>`_ CLI -- this is a shell based tool for installing and switching between different versions of Python and dependencies. I will give a brief tutorial of using ``pyenv`` below, but recognize that the instructions may change over time so the ``pyenv`` documentation is the best place to look.
+* `PyCharm <https://www.jetbrains.com/pycharm/>`_ IDE -- great for developing code in Python, and can automatically create virtual environments for a codebase by detecting versions and dependencies from the ``setup.py`` or ``setup.cfg``.
+* `Conda <https://docs.conda.io>`_ package manager -- a Python package manager focused on scientific computing that can also manage virtual environments.
+* `pyenv <https://github.com/pyenv/pyenv>`_ CLI -- a shell based tool for installing and switching between different versions of Python and dependencies. I will give a brief tutorial of using ``pyenv`` below, but recognize that the instructions may change over time so the ``pyenv`` documentation is the best place to look.
 
 To create a Python 3.9 virtual environment, try the following steps:
 

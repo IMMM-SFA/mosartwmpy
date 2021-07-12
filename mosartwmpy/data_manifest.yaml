@@ -12,7 +12,7 @@ sample_input:
 
 validation:
   description: Result datasets that can be used for validating the model; includes results with and without WM; covers 1981-1982.
-  url: https://zenodo.org/record/4539693/files/mosartwmpy_validation.zip?download=1
+  url: https://zenodo.org/record/5083443/files/mosartwmpy_validation.zip?download=1
   destination: ./validation
 
 # TODO add other weather files, demand files, etc as they become ready

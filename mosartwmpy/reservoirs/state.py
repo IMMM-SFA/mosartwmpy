@@ -5,7 +5,6 @@ from benedict.dicts import benedict as Benedict
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
 
-# TODO in fortran mosart there is a StorCalibFlag that affects how storage targets are calculated -- code so far is written assuming that it == 0
 
 def initialize_reservoir_state(self, grid: Grid, config: Benedict, parameters: Parameters) -> None:
     """Initializes the reservoir state.

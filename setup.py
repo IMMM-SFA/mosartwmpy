@@ -1,3 +1,4 @@
+import re
 from setuptools import setup, find_packages
 
 
@@ -7,9 +8,11 @@ def readme():
         return f.read()
 
 
+version = re.search(r"__version__ = ['\"]([^'\"]*)['\"]", open('mosartwmpy/_version.py').read(), re.M).group(1)
+
 setup(
     name='mosartwmpy',
-    version='0.0.8',
+    version=version,
     packages=find_packages(),
     url='https://github.com/IMMM-SFA/mosartwmpy',
     license='BSD2-Simplified',
@@ -22,33 +25,34 @@ setup(
     include_package_data=True,
     install_requires=[
         'bmipy==2.0',
-        'dask[complete]==2021.5.1',
-        'ipython==7.24.1',
+        'dask[complete]==2021.6.2',
+        'h5netcdf==0.11.0',
         'matplotlib==3.4.2',
-        'nc-time-axis==1.2.0',
-        'netCDF4==1.5.6',
-        'numexpr==2.7.3',
-        'numpy==1.20.3',
-        'pandas==1.2.4',
-        'pathvalidate==2.3.0',
+        'nc-time-axis==1.3.1',
+        'netCDF4==1.5.7',
+        'numba==0.53.1',
+        'numpy==1.21.0',
+        'pandas==1.3.0',
+        'pathvalidate==2.4.1',
         'psutil==5.8.0',
         'pyarrow==4.0.1',
         'python-benedict==0.24.0',
-        'regex==2021.4.4',
+        'regex==2021.7.6',
         'requests==2.25.1',
-        'rioxarray==0.4.2',
-        'tqdm==4.60.0',
+        'rioxarray==0.5.0',
+        'tqdm==4.61.2',
         'xarray==0.18.2'
     ],
     extras_require={
         'dev': [
-            'build==0.4.0',
-            'nbsphinx==0.8.6',
-            'recommonmark==0.7.1',
-            'setuptools==54.1.2',
-            'sphinx==3.5.2',
-            'sphinx-rtd-theme==0.5.1',
-            'twine==3.4.1'
+            'build~=0.5.1',
+            'nbsphinx~=0.8.6',
+            'recommonmark~=0.7.1',
+            'setuptools~=57.0.0',
+            'sphinx~=4.0.2',
+            'sphinx-panels~=0.6.0',
+            'sphinx-rtd-theme~=0.5.2',
+            'twine~=3.4.1'
         ]
     }
 )

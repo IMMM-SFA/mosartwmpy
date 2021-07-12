@@ -1,11 +1,13 @@
-import logging
 import numpy as np
 import pandas as pd
 
+from numba.core import types
+from numba.typed import Dict
 from xarray import concat, open_dataset, Dataset
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
+
 
 def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     """Loads the reservoir information from file onto the grid.
@@ -14,8 +16,6 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         config (Benedict): the model configuration
         parameters (Parameters): the model parameters
     """
-
-    logging.debug('Loading reservoir file.')
 
     # reservoir parameter file
     reservoirs = open_dataset(config.get('water_management.reservoirs.path'))
@@ -48,14 +48,16 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # set to integer
     self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.astype(int)
 
-    # count of the number of reservoirs that can supply each grid cell
-    self.reservoir_count = np.array(pd.DataFrame(self.id).join(
-        self.reservoir_to_grid_mapping.groupby('grid_cell_id').count().rename(columns={'reservoir_id': 'reservoir_count'}),
-        how='left'
-    ).reservoir_count)
+    # create a numba typed dict with key = <grid cell id> and value = <list of reservoir_ids that feed the cell>
+    self.reservoir_to_grid_map = Dict.empty(
+        key_type=types.int64,
+        value_type=types.int64[:],
+    )
+    for grid_cell_id, group in self.reservoir_to_grid_mapping.groupby('grid_cell_id'):
+        self.reservoir_to_grid_map[grid_cell_id] = group.reservoir_id.values
 
     # index by grid cell
-    self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.set_index('grid_cell_id')
+    self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.set_index('grid_cell_id').sort_index()
 
     # prepare the month based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(self, config, parameters, reservoirs)

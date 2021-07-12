@@ -94,7 +94,7 @@ class IO:
             variable_type=FLOAT,
             variable_item_size=FLOAT64,
             variable_class=STATE,
-            units='m3 s-1'
+            units='m3'
         ),
         Variable(
             standard_name='deficit_water_amount',
@@ -102,6 +102,6 @@ class IO:
             variable_type=FLOAT,
             variable_item_size=FLOAT64,
             variable_class=STATE,
-            units='m3 s-1'
+            units='m3'
         ),
     ]

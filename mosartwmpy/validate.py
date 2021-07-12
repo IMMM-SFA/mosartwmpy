@@ -1,15 +1,17 @@
+import pdb
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 from pathlib import Path
-from xarray import open_mfdataset
+from xarray import open_dataset, open_mfdataset
 
 # TODO accept command line path input as alternative
 # TODO accept command line year input
 # TODO allow easily toggling between scenarios for variables of interest (no-wm, wm, heat, etc)
 
 years = [1981, 1982]
-baseline_data_path = Path('validation/mosartwmpy_validation_wm_1981_1982.nc')
+baseline_data_path = str(Path('validation/mosartwmpy_validation_wm_1981_1982.nc'))
 variables_of_interest = ['STORAGE_LIQ', 'RIVER_DISCHARGE_OVER_LAND_LIQ', 'WRM_STORAGE', 'WRM_SUPPLY']
 physical_dimensions = ['lat', 'lon']
 temporal_dimension = 'time'
@@ -33,7 +35,7 @@ try:
     data = data.sel({temporal_dimension: slice(f"{years[0]}", f"{years[-1]}")})
     timeslice = slice(data[temporal_dimension].values[0], data[temporal_dimension].values[len(data[temporal_dimension].values) - 1])
     baseline_data = open_mfdataset(baseline_data_path)
-    baseline_data = baseline_data.sel({ temporal_dimension: timeslice })
+    baseline_data = baseline_data.sel({temporal_dimension: timeslice})
 except:
     print(f"Either your data or the baseline data does not appear to include years {years}.")
     print("Please double check and try again or update this code to look for a different year.")

@@ -1,8 +1,5 @@
-import logging
 import numpy as np
 import pandas as pd
-from datetime import datetime, time
-from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
 
@@ -10,7 +7,8 @@ from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.reservoirs.state import initialize_reservoir_state
 
-class State():
+
+class State:
 
     def __init__(self, grid: Grid = None, config: Benedict = None, parameters: Parameters = None, grid_size: int = None, empty: bool = False):
         """Initialize the model state.
@@ -204,8 +202,7 @@ class State():
         # a column of always all zeros, to use as a utility
         self.zeros: np.ndarray = np.empty(0)
 
-
-        ## Reservoir related state variables
+        # Reservoir related state variables
 
         # reservoir streamflow schedule
         self.reservoir_streamflow: np.ndarray = np.empty(0)
@@ -237,7 +234,6 @@ class State():
             return
         
         # initialize all the state variables
-        logging.debug('Initializing state variables.')
         for key in [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]:
             setattr(self, key, np.zeros(grid_size))
         
@@ -252,7 +248,6 @@ class State():
         )
     
         if config.get('water_management.enabled', False):
-            logging.debug(' - reservoirs')
             initialize_reservoir_state(self, grid, config, parameters)
 
     def __getitem__(self, item):

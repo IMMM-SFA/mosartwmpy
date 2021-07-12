@@ -1,7 +1,7 @@
 import logging
 import sys
 
-import numexpr as ne
+import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import regex as re
@@ -10,11 +10,12 @@ import subprocess
 from benedict import benedict
 from bmipy import Bmi
 from datetime import datetime, time, timedelta
+from numba import get_num_threads, threading_layer
 from pathlib import Path
 from pathvalidate import sanitize_filename
 from timeit import default_timer as timer
 from typing import Tuple
-from xarray import open_dataset
+from xarray import DataArray, open_dataset
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
@@ -22,7 +23,7 @@ from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
 from mosartwmpy.input_output_variables import IO
-from mosartwmpy.output.output import initialize_output, update_output, write_restart
+from mosartwmpy.output.output import initialize_output, update_output
 from mosartwmpy.reservoirs.reservoirs import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
@@ -57,11 +58,20 @@ class Model(Bmi):
         self.reservoir_streamflow_schedule = None
         self.reservoir_demand_schedule = None
         self.reservoir_prerelease_schedule = None
-        self.git_hash = None
-        self.git_untracked = None
 
     def __getitem__(self, item):
         return getattr(self, item)
+
+    def plot(self, variable: str):
+        """Display a colormap of a spatial variable at the current timestep."""
+        DataArray(
+            self.get_value_ptr(variable).reshape(self.get_grid_shape()),
+            dims=['latitude', 'longitude'],
+            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
+            name=variable.replace('_', ' ').title(),
+            attrs={'units': self.get_var_units(variable)}
+        ).plot(robust=True, levels=16, cmap='winter_r')
+        plt.show()
 
     def initialize(self, config_file_path: str = None, grid: Grid = None, state: State = None) -> None:
         
@@ -76,7 +86,9 @@ class Model(Bmi):
             self.name = sanitize_filename(self.config.get('simulation.name')).replace(" ", "_")
             # setup logging and output directories
             Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
-            handlers = [logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log'))]
+            handlers = []
+            if self.config.get('simulation.log_to_file'):
+                handlers.append(logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log')))
             if self.config.get('simulation.log_to_std_out'):
                 h = logging.StreamHandler(sys.stdout)
                 h.setFormatter(logging.Formatter(""))
@@ -92,23 +104,14 @@ class Model(Bmi):
             self.config.to_yaml(filepath=f'{self.config.get("simulation.output_path")}/{self.name}/config.yaml')
             if config_file_path is None or config_file_path == '':
                 logging.info("No configuration file provided; initializing with all default values.")
-            try:
-                self.git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode('utf-8')
-                self.git_untracked = subprocess.check_output(['git', 'diff', '--name-only']).strip().decode('utf-8').split('\n')
-                logging.debug(f'Version: {self.git_hash}')
-                if len(self.git_untracked) > 0:
-                    logging.debug(f'Uncommitted changes:')
-                    for u in self.git_untracked:
-                        logging.debug(f'  * {u}')
-            except:
-                pass
             # ensure that end date is after start date
             if self.config.get('simulation.end_date') < self.config.get('simulation.start_date'):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
             logging.debug(f'Cores: {self.cores}.')
-            ne.set_num_threads(self.cores)
+            logging.debug(f'Numba threads: {get_num_threads()}.')
+            logging.debug(f'Numba threading layer: {threading_layer()}')
         except Exception as e:
             logging.exception('Failed to configure model; see below for stacktrace.')
             raise e
@@ -126,6 +129,7 @@ class Model(Bmi):
         # load restart file or initialize state
         if state is not None:
             self.state = state
+            self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
         else:
             try:
                 # restart file
@@ -243,10 +247,6 @@ class Model(Bmi):
         logging.getLogger().handlers.clear()
         logging.shutdown()
         return
-
-    def download_data(self, *args, **kwargs) -> None:
-        """Downloads data related to the model."""
-        download_data(*args, **kwargs)
 
     def get_component_name(self) -> str:
         return f'mosartwmpy ({self.git_hash})'
