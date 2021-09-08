@@ -259,7 +259,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
         if config.get('water_management.enabled', False):
             extraction_regulated_flow(
                 n,
-                int(np.nanmax(grid.reservoir_id) - 1),
+                (~np.isnan(grid.reservoir_id)).sum(),
                 subcycle_delta_t,
                 grid.id,
                 grid.reservoir_id,

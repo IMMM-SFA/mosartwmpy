@@ -55,9 +55,6 @@ class Model(Bmi):
         self.output_n = 0
         self.cores = 1
         self.client = None
-        self.reservoir_streamflow_schedule = None
-        self.reservoir_demand_schedule = None
-        self.reservoir_prerelease_schedule = None
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -195,9 +192,8 @@ class Model(Bmi):
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
                 # get streamflow for this time period
-                month = self.current_time.month
-                streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
-                self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
+                self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({
+                    'month': self.current_time.month}).values
             # perform simulation for one timestep
             update(self.state, self.grid, self.parameters, self.config)
             # advance timestep
@@ -223,7 +219,10 @@ class Model(Bmi):
             self.state.hillslope_subsurface_runoff = self.state.hillslope_subsurface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
             self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
 
-    def update_until(self, time: float) -> None:
+    def update_until(self, time: float = None) -> None:
+        # if time is None, set time to end time
+        if time is None:
+            time = self.get_end_time()
         # make sure that requested end time is after now
         if time < self.current_time.timestamp():
             logging.error('`time` is prior to current model time. Please choose a new `time` and try again.')

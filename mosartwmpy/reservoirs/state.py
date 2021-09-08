@@ -36,17 +36,13 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
     # Note from fortran mosart:
     # multiple hydrograph - 1 peak, 2 peaks, multiple small peaks
 
-    # TODO this all depends on the schedules being monthly :(
-
-    streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
-
     # find the peak flow and peak flow month for each reservoir
     peak = np.max(grid.reservoir_streamflow_schedule.values, axis=0)
-    month_start_operations = grid.reservoir_streamflow_schedule.idxmax(dim=streamflow_time_name).values
+    month_start_operations = grid.reservoir_streamflow_schedule.idxmax(dim='month').values
 
     # correct the month start for reservoirs where average flow is greater than a small value and magnitude of peak flow difference from average is greater than smaller value
     # TODO a little hard to follow the logic here but it seem to be related to number of peaks/troughs
-    flow_avg = grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values
+    flow_avg = grid.reservoir_streamflow_schedule.mean(dim='month').values
     condition = flow_avg > parameters.reservoir_minimum_flow_condition
     number_of_sign_changes = 0 * flow_avg
     count = 1 + number_of_sign_changes
@@ -62,9 +58,9 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
         1
     )
     current_sign = 1 * sign
-    for t in grid.reservoir_streamflow_schedule[streamflow_time_name].values:
+    for t in grid.reservoir_streamflow_schedule['month'].values:
         # if not an xarray object with coords, the sel doesn't work, so that why the strange definition here
-        i = grid.reservoir_streamflow_schedule.idxmax(dim=streamflow_time_name)
+        i = grid.reservoir_streamflow_schedule.idxmax(dim='month')
         i = i.where(
             i + t > 12,
             i + t
@@ -73,7 +69,7 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
             i + t - 12
         )
         flow = grid.reservoir_streamflow_schedule.sel({
-            streamflow_time_name: i.fillna(1)
+            'month': i.fillna(1)
         })
         flow = np.where(np.isfinite(i), flow, np.nan)
         current_sign = np.where(
@@ -128,7 +124,7 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
     for j in np.arange(8):
         t = j+1
         # if not an xarray object with coords, the sel doesn't work, so that why the strange definitions here
-        month = grid.reservoir_streamflow_schedule.idxmax(dim=streamflow_time_name)
+        month = grid.reservoir_streamflow_schedule.idxmax(dim='month')
         month = month.where(
             month_start_operations - t < 1,
             month_start_operations - t
@@ -151,15 +147,15 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
             month_start_operations - t - 1 + 12
         )
         flow = grid.reservoir_streamflow_schedule.sel({
-            streamflow_time_name: month.fillna(1)
+            'month': month.fillna(1)
         })
         flow = np.where(np.isfinite(month), flow, np.nan)
         flow_1 = grid.reservoir_streamflow_schedule.sel({
-            streamflow_time_name: month_1.fillna(1)
+            'month': month_1.fillna(1)
         })
         flow_1 = np.where(np.isfinite(month_1), flow_1, np.nan)
         flow_2 = grid.reservoir_streamflow_schedule.sel({
-            streamflow_time_name: month_2.fillna(1)
+            'month': month_2.fillna(1)
         })
         flow_2 = np.where(np.isfinite(month_2), flow_2, np.nan)
         end_condition = (flow >= flow_avg) & (flow_2 <= flow_avg) & (match == 0)

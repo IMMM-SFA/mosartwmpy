@@ -27,15 +27,13 @@ def reservoir_release(state, grid, config, parameters, current_time):
 
 def regulation_release(state, grid, config, parameters, current_time):
     # compute the expected monthly release based on Biemans (2011)
-
-    month = current_time.month
-    streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
     
     # initialize to the average flow
-    state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values
+    state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim='month').values
     
     # TODO what is k
-    k = state.reservoir_storage_operation_year_start / (parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
+    k = state.reservoir_storage_operation_year_start / (
+            parameters.reservoir_regulation_release_parameter * grid.reservoir_storage_capacity)
     
     # TODO what is factor
     factor = np.where(
@@ -49,13 +47,17 @@ def regulation_release(state, grid, config, parameters, current_time):
         (grid.reservoir_use_electricity > 0) | (grid.reservoir_use_irrigation > 0),
         np.where(
             grid.reservoir_runoff_capacity <= 2.0,
-            k * grid.reservoir_prerelease_schedule.sel({streamflow_time_name: month}).values,
-            k * factor * grid.reservoir_prerelease_schedule.sel({streamflow_time_name: month}).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
+            k * grid.reservoir_prerelease_schedule.sel({'month': current_time.month}).values,
+            k * factor * grid.reservoir_prerelease_schedule.sel({
+                'month': current_time.month}).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
+                    'month': current_time.month}).values
         ),
         np.where(
             grid.reservoir_runoff_capacity <= 2.0,
-            k * grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
-            k * factor * grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
+            k * grid.reservoir_streamflow_schedule.mean(dim='month').values,
+            k * factor * grid.reservoir_streamflow_schedule.mean(
+                dim='month').values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
+                    'month': current_time.month}).values
         )
     )
 
@@ -73,32 +75,29 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
 
     # TODO the logic here is really hard to follow... can it be simplified or made more readable?
 
-    month = current_time.month
-    streamflow_time_name = config.get('water_management.reservoirs.streamflow_time_resolution')
-
     # if flood control active and has a flood control start
     flood_control_condition = (grid.reservoir_use_flood_control > 0) & (state.reservoir_month_flood_control_start > 0)
     # modify release in order to maintain a certain storage level
     month_condition = state.reservoir_month_flood_control_start <= state.reservoir_month_flood_control_end
     total_condition = flood_control_condition & (
         (month_condition &
-        (month >= state.reservoir_month_flood_control_start) &
-        (month < state.reservoir_month_flood_control_end)) |
+        (current_time.month >= state.reservoir_month_flood_control_start) &
+        (current_time.month < state.reservoir_month_flood_control_end)) |
         (np.logical_not(month_condition) &
-        (month >= state.reservoir_month_flood_control_start) |
-        (month < state.reservoir_month_flood_control_end))
+        (current_time.month >= state.reservoir_month_flood_control_start) |
+        (current_time.month < state.reservoir_month_flood_control_end))
     )
     drop = 0 * state.reservoir_month_flood_control_start
     n_month = 0 * drop
-    for m in np.arange(1,13):
+    for m in np.arange(1, 13):
         m_and_condition = (m >= state.reservoir_month_flood_control_start) & (m < state.reservoir_month_flood_control_end)
         m_or_condition = (m >= state.reservoir_month_flood_control_start) | (m < state.reservoir_month_flood_control_end)
         drop = np.where(
             (month_condition & m_and_condition) | (np.logical_not(month_condition) & m_or_condition),
             np.where(
-                grid.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values >= grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
+                grid.reservoir_streamflow_schedule.sel({'month': m}).values >= grid.reservoir_streamflow_schedule.mean(dim='month').values,
                 drop + 0,
-                drop + np.abs(grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values - grid.reservoir_streamflow_schedule.sel({streamflow_time_name: m}).values)
+                drop + np.abs(grid.reservoir_streamflow_schedule.mean(dim='month').values - grid.reservoir_streamflow_schedule.sel({'month': m}).values)
             ),
             drop
         )
@@ -115,15 +114,15 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
     # now need to make sure it will fill up but issue with spilling in certain hydro-climate conditions
     month_condition = state.reservoir_month_flood_control_end <= state.reservoir_month_start_operations
     first_condition = flood_control_condition & month_condition & (
-        (month >= state.reservoir_month_flood_control_end) &
-        (month < state.reservoir_month_start_operations)
+        (current_time.month >= state.reservoir_month_flood_control_end) &
+        (current_time.month < state.reservoir_month_start_operations)
     )
     second_condition = flood_control_condition & np.logical_not(month_condition) & (
-        (month >= state.reservoir_month_flood_control_end) |
-        (month < state.reservoir_month_start_operations)
+        (current_time.month >= state.reservoir_month_flood_control_end) |
+        (current_time.month < state.reservoir_month_start_operations)
     )
     state.reservoir_release = np.where(
-        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values) & (first_condition | second_condition),
-        grid.reservoir_streamflow_schedule.mean(dim=streamflow_time_name).values,
+        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim='month').values) & (first_condition | second_condition),
+        grid.reservoir_streamflow_schedule.mean(dim='month').values,
         state.reservoir_release
     )

@@ -60,6 +60,10 @@ simulation:
           name: channel_inflow
           long_name: Mosart main channel inflow to grid cell
           units: m3/s
+        - variable: channel_outflow_downstream
+          name: channel_outflow
+          long_name: Mosart main channel outflow from grid cell
+          units: m3/s
         - variable: reservoir_storage
           name: WRM_STORAGE
           long_name: Mosart storage in reservoir
@@ -213,58 +217,74 @@ water_management:
         total_demand_enabled: false
     # Reservoirs
     reservoirs:
-        # path to the reservoir parameter file; can be absolute or relative to the source code root
-        path: ./input/reservoirs/US_reservoir_8th_NLDAS3_updated_20200421.nc
-        # longitude field name
-        longitude: lon
-        # latitude field name
-        latitude: lat
-        # streamflow field name [m3/s]
-        streamflow: Qmon
-        # streamflow time resolution - only 'month' supported so far
-        streamflow_time_resolution: month
-        # demand field name [m3/s]
-        demand: demand
-        # demand time resolution - only 'month' supported so far
-        demand_time_resolution: month
-        # grid id to reservoir id mapping field
-        grid_to_reservoir: gridID_from_Dam
-        # grid_to_reservoior reservoir id dimension
-        grid_to_reservoir_reservoir_dimension: Dams
-        # variable field names
-        variables:
-            # reservoir id field name - note that this is not an official id, just the identifier used elsewhere in the input
-            reservoir_id: DamInd_2d
-            # runoff capacity field name [m3 ??]
-            reservoir_runoff_capacity: RUNOFF_CAP
-            # height field name [m ??]
-            reservoir_height: dam_hgt
-            # length field name [m ??]
-            reservoir_length: dam_len
-            # surface area field name [km2]
-            reservoir_surface_area: area_skm
-            # storage capacity field name [km3]
-            reservoir_storage_capacity: cap_mcm
-            # depth field name [m]
-            reservoir_depth: depth_m
-            # use irrigation field name
-            reservoir_use_irrigation: use_irri
-            # use electricity field name
-            reservoir_use_electricity: use_elec
-            # use supply field name
-            reservoir_use_supply: use_supp
-            # use flood control field name
-            reservoir_use_flood_control: use_fcon
-            # use recreation field name
-            reservoir_use_recreation: use_recr
-            # use navigation field name
-            reservoir_use_navigation: use_navi
-            # use fish protection field name
-            reservoir_use_fish_protection: use_fish
-            # withdrawal field name
-            reservoir_withdrawal: withdraw
-            # conveyance field name
-            reservoir_conveyance: conveyance
+        # physical and use type parameters of the reservoirs, typically from GRanD
+        parameters:
+            # path to the reservoir parameter file; can be absolute or relative to the source code root
+            path: ./input/reservoirs/grand_reservoir_parameters.nc
+            # grid cell index field
+            grid_cell_index: GRID_CELL_INDEX
+            # variable field names
+            variables:
+                # reservoir id field name - typically the GRanD ID
+                reservoir_id: GRAND_ID
+                # height field name [m]
+                reservoir_height: DAM_HGT_M
+                # length field name [m]
+                reservoir_length: DAM_LEN_M
+                # surface area field name [km2]
+                reservoir_surface_area: AREA_SKM
+                # storage capacity field name [million m3]
+                reservoir_storage_capacity: CAP_MCM
+                # depth field name [m]
+                reservoir_depth: DEPTH_M
+                # use irrigation field name
+                reservoir_use_irrigation: USE_IRRI
+                # use electricity field name
+                reservoir_use_electricity: USE_ELEC
+                # use supply field name
+                reservoir_use_supply: USE_SUPP
+                # use flood control field name
+                reservoir_use_flood_control: USE_FCON
+                # use recreation field name
+                reservoir_use_recreation: USE_RECR
+                # use navigation field name
+                reservoir_use_navigation: USE_NAVI
+                # use fish protection field name
+                reservoir_use_fish_protection: USE_FISH
+        # database of grid cell indices that can extract from each reservoir
+        dependencies:
+            # path to the database dependency file; can be absolute or relative to the source code root
+            path: ./input/reservoirs/grand_dependency_database.parquet
+            # variable field names
+            variables:
+                # flattened index of dependent grid cell
+                dependent_cell_index: DEPENDENT_CELL_INDEX
+                # ID of the reservoir
+                dependent_reservoir_id: GRAND_ID
+        # database of monthly mean streamflow for each reservoir
+        streamflow:
+            # path to the flow file; can be absolute or relative to the source code root
+            path: ./input/reservoirs/grand_average_monthly_flow.parquet
+            # variable field names
+            variables:
+                # ID of the reservoir
+                streamflow_reservoir_id: GRAND_ID
+                # month index
+                streamflow_month_index: MONTH_INDEX
+                # mean streamflow for month
+                streamflow: MEAN_FLOW
+      # database of monthly mean demand for each reservoir
+        demand:
+          # path to the demand file; can be absolute or relative to the source code root
+          path: ./input/reservoirs/grand_average_monthly_demand.parquet
+          # variable field names
+          variables:
+            # ID of the reservoir
+            demand_reservoir_id: GRAND_ID
+            # month index
+            demand_month_index: MONTH_INDEX
+            # mean streamflow for month
+            demand: MEAN_DEMAND
 
 ###
 ### Inundation

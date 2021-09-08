@@ -77,8 +77,6 @@ class Grid:
     reservoir_use_recreation: np.ndarray = np.empty(0)
     reservoir_use_navigation: np.ndarray = np.empty(0)
     reservoir_use_fish_protection: np.ndarray = np.empty(0)
-    reservoir_withdrawal: np.ndarray = np.empty(0)
-    reservoir_conveyance: np.ndarray = np.empty(0)
     reservoir_to_grid_mapping: pd.DataFrame = pd.DataFrame()
     reservoir_to_grid_map: Dict = Dict.empty(
         key_type=types.int64,

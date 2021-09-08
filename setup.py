@@ -23,8 +23,14 @@ setup(
     long_description_content_type="text/markdown",
     python_requires='>=3.7.*, <4',
     include_package_data=True,
+    entrypoints={
+        'console_scripts': [
+            'create_grand_parameters = mosartwmpy.utilities.create_grand_parameters',
+        ]
+    },
     install_requires=[
         'bmipy==2.0',
+        'click==8.0.1',
         'dask[complete]==2021.6.2',
         'h5netcdf==0.11.0',
         'matplotlib==3.4.2',
