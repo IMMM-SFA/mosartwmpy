@@ -26,7 +26,7 @@ def regulation(
     channel_outflow_downstream,
     reservoir_release,
     reservoir_potential_evaporation,
-    reservoir_streamflow,
+    reservoir_mean_inflow,
     reservoir_storage,
     reservoir_runoff_capacity_parameter,
 ):
@@ -36,38 +36,38 @@ def regulation(
 
         if euler_mask[i] and (mosart_mask[i] > 0) and np.isfinite(reservoir_id[i]):
 
-            flow_volume = -channel_outflow_downstream[i] * delta_t
+            inflow_volume = -channel_outflow_downstream[i] * delta_t
 
-            flow_reservoir = reservoir_release[i] * delta_t
+            outflow_volume = reservoir_release[i] * delta_t
 
             evaporation = 1e6 * reservoir_potential_evaporation[i] * delta_t * reservoir_surface_area[i]
 
-            minimum_flow = reservoir_runoff_capacity_parameter * reservoir_streamflow[i] * delta_t
+            minimum_flow = reservoir_runoff_capacity_parameter * reservoir_mean_inflow[i] * delta_t
             minimum_storage = reservoir_runoff_capacity_parameter * reservoir_storage_capacity[i]
             maximum_storage = reservoir_storage_capacity[i]
 
-            condition_max = (flow_volume + reservoir_storage[i] - flow_reservoir - evaporation) >= maximum_storage
-            condition_min = (flow_volume + reservoir_storage[i] - flow_reservoir - evaporation) < minimum_storage
-            condition_min_one = flow_reservoir <= (flow_volume - evaporation)
-            condition_min_two = (flow_volume - evaporation) >= minimum_flow
+            has_excess_storage = (inflow_volume + reservoir_storage[i] - outflow_volume - evaporation) >= maximum_storage
+            has_insufficient_storage = (inflow_volume + reservoir_storage[i] - outflow_volume - evaporation) < minimum_storage
+            has_less_outflow_than_inflow = outflow_volume <= (inflow_volume - evaporation)
+            has_sufficient_inflow = (inflow_volume - evaporation) >= minimum_flow
 
-            if condition_max:
-                flow_reservoir = flow_volume + reservoir_storage[i] - maximum_storage - evaporation
+            if has_excess_storage:
+                outflow_volume = inflow_volume + reservoir_storage[i] - maximum_storage - evaporation
                 reservoir_storage[i] = maximum_storage
             else:
-                if condition_min:
-                    if condition_min_one:
-                        reservoir_storage[i] = reservoir_storage[i] + flow_volume - flow_reservoir - evaporation
+                if has_insufficient_storage:
+                    if has_less_outflow_than_inflow:
+                        reservoir_storage[i] = reservoir_storage[i] + inflow_volume - outflow_volume - evaporation
                     else:
-                        if condition_min_two:
-                            flow_reservoir = flow_volume - evaporation
+                        if has_sufficient_inflow:
+                            outflow_volume = inflow_volume - evaporation
                         else:
-                            flow_reservoir = flow_volume
-                            reservoir_storage[i] = max(0, reservoir_storage[i] - flow_reservoir + flow_volume - evaporation)
+                            outflow_volume = inflow_volume
+                            reservoir_storage[i] = max(0, reservoir_storage[i] - outflow_volume + inflow_volume - evaporation)
                 else:
-                    reservoir_storage[i] = reservoir_storage[i] + flow_volume - flow_reservoir - evaporation
+                    reservoir_storage[i] = reservoir_storage[i] + inflow_volume - outflow_volume - evaporation
 
-            channel_outflow_downstream[i] = -flow_reservoir / delta_t
+            channel_outflow_downstream[i] = -outflow_volume / delta_t
 
 
 @nb.jit(

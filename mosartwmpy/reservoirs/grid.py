@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from numba.core import types
 from numba.typed import Dict
@@ -38,27 +39,27 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     self.reservoir_storage_capacity = self.reservoir_storage_capacity * 1.0e6
 
     # reservoir dependency database file
-    self.reservoir_to_grid_mapping = pd.read_parquet(
+    self.reservoir_dependency_database = pd.read_parquet(
         config.get('water_management.reservoirs.dependencies.path')
     ).rename(columns={
         config.get('water_management.reservoirs.dependencies.variables.dependent_reservoir_id'): 'reservoir_id',
         config.get('water_management.reservoirs.dependencies.variables.dependent_cell_index'): 'grid_cell_id'
     })
     # drop nan grid ids
-    self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping[self.reservoir_to_grid_mapping.grid_cell_id.notna()]
+    self.reservoir_dependency_database = self.reservoir_dependency_database[self.reservoir_dependency_database.grid_cell_id.notna()]
     # set to integer
-    self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.astype(int)
+    self.reservoir_dependency_database = self.reservoir_dependency_database.astype(int)
 
     # create a numba typed dict with key = <grid cell id> and value = <list of reservoir_ids that feed the cell>
-    self.reservoir_to_grid_map = Dict.empty(
+    self.grid_index_to_reservoirs_map = Dict.empty(
         key_type=types.int64,
         value_type=types.int64[:],
     )
-    for grid_cell_id, group in self.reservoir_to_grid_mapping.groupby('grid_cell_id'):
-        self.reservoir_to_grid_map[grid_cell_id] = group.reservoir_id.values
+    for grid_cell_id, group in self.reservoir_dependency_database.groupby('grid_cell_id'):
+        self.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
 
     # index by grid cell
-    self.reservoir_to_grid_mapping = self.reservoir_to_grid_mapping.set_index('grid_cell_id').sort_index()
+    self.reservoir_dependency_database = self.reservoir_dependency_database.set_index('grid_cell_id').sort_index()
 
     # prepare the month based reservoir schedules mapped to the domain
     prepare_reservoir_schedule(self, config)
@@ -66,6 +67,13 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # calculate reservoir Biemans & Hanasaki Runoff/Capacity
     self.reservoir_runoff_capacity = self.reservoir_streamflow_schedule.mean(
         dim='month') * 365 * 24 * 60 * 60 / self.reservoir_storage_capacity
+
+    # calculate the long term mean flow across the reservoirs
+    self.reservoir_computed_meanflow_cumecs = self.reservoir_streamflow_schedule.weighted(xr.DataArray(
+        data=np.array([31.0, 28.0, 31.0, 30.0, 31.0, 30.0, 31.0, 30.0, 31.0, 31.0, 30.0, 31.0]),
+        dims=['month'],
+        coords=dict(month=np.arange(1, 13, 1))
+    )).mean(dim='month').values
 
 
 def prepare_reservoir_schedule(self, config: Benedict) -> None:
@@ -76,9 +84,9 @@ def prepare_reservoir_schedule(self, config: Benedict) -> None:
     """
 
     # streamflow file
-    streamflow = pd.read_parquet(config.get('water_management.reservoirs.streamflow.path'))
+    streamflow = pd.read_parquet(config.get('water_management.reservoirs.streamflow.path')).astype(np.float64)
     # demand file
-    demand = pd.read_parquet(config.get('water_management.reservoirs.demand.path'))
+    demand = pd.read_parquet(config.get('water_management.reservoirs.demand.path')).astype(np.float64)
 
     flow_schedule = []
     demand_schedule = []

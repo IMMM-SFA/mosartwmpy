@@ -24,7 +24,7 @@ from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
 from mosartwmpy.input_output_variables import IO
 from mosartwmpy.output.output import initialize_output, update_output
-from mosartwmpy.reservoirs.reservoirs import reservoir_release
+from mosartwmpy.reservoirs.release import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
 from mosartwmpy.utilities.download_data import download_data
@@ -180,22 +180,27 @@ class Model(Bmi):
                 self.state.hillslope_wetland_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_wetland_runoff
             # read demand
             if self.config.get('water_management.enabled', False):
-                if self.config.get('water_management.demand.read_from_file', False):
-                    # only read new demand and compute new release if it's the very start of simulation or new time period
-                    if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                # only read new demand if it's the very start of simulation or new month
+                if self.current_time == datetime.combine(
+                    self.config.get('simulation.start_date'), time.min
+                ) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
                         load_demand(self.state, self.config, self.current_time)
-                        # release water from reservoirs
-                        reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
+                # only compute new release if it's the very start of simulation or new month
+                # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
+                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
+                    (self.config.get('water_management.reservoirs.enable_istarf') and self.current_time ==
+                     datetime(self.current_time.year, self.current_time.month, self.current_time.day, 0, 0, 0)) or \
+                        self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    # release water from reservoirs
+                    reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
-                # get streamflow for this time period
-                self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({
-                    'month': self.current_time.month}).values
             # perform simulation for one timestep
-            update(self.state, self.grid, self.parameters, self.config)
+            update(self.state, self.grid, self.parameters, self.config, self.current_time)
             # advance timestep
             self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))
         except Exception as e:

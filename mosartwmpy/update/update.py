@@ -1,8 +1,10 @@
 import numba as nb
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from benedict.dicts import benedict as Benedict
+from datetime import datetime
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
@@ -16,7 +18,7 @@ from mosartwmpy.subnetwork.irrigation import subnetwork_irrigation
 from mosartwmpy.subnetwork.routing import subnetwork_routing
 
 
-def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -> None:
+def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, current_time: datetime) -> None:
     """Advance the simulation one timestamp.
 
     Args:
@@ -228,7 +230,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
                     state.channel_outflow_downstream,
                     state.reservoir_release,
                     state.reservoir_potential_evaporation,
-                    state.reservoir_streamflow,
+                    grid.reservoir_streamflow_schedule.sel({'month': current_time.month}).values,
                     state.reservoir_storage,
                     parameters.reservoir_runoff_capacity_parameter,
                 )
@@ -263,7 +265,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict) -
                 subcycle_delta_t,
                 grid.id,
                 grid.reservoir_id,
-                grid.reservoir_to_grid_map,
+                grid.grid_index_to_reservoirs_map,
                 state.channel_outflow_downstream,
                 state.outflow_before_regulation,
                 state.outflow_after_regulation,

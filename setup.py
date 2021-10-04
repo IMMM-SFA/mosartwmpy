@@ -32,6 +32,7 @@ setup(
         'bmipy==2.0',
         'click==8.0.1',
         'dask[complete]==2021.6.2',
+        'epiweeks==2.1.2',
         'h5netcdf==0.11.0',
         'matplotlib==3.4.2',
         'nc-time-axis==1.3.1',

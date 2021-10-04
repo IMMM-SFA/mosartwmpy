@@ -183,14 +183,14 @@ def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Bened
         # note: in fortran mosart there's a further condition concerning hydropower, but it doesn't seem to be used
 
     # if flood control is active, enforce the flood control targets
-    flood_control_condition = (grid.reservoir_use_flood_control > 0) & (month_flood_control_start == 0)
+    flood_control_condition = np.logical_and(grid.reservoir_use_flood_control, month_flood_control_start == 0)
     month = np.where(
         month_flood_control_end - 2 < 0,
         month_flood_control_end - 2 + 12,
         month_flood_control_end - 2
     )
     month_flood_control_start = np.where(
-        condition & flood_control_condition,
+        np.logical_and(condition, flood_control_condition),
         month,
         month_flood_control_start
     )

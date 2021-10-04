@@ -65,7 +65,7 @@ for i in range(len(variables_of_interest)):
     nmae[v].plot(ax=axis)
     axis.set_ylabel(None)
     axis.set_xlabel(None)
-    axis.set_ylim([0, 10])
+    axis.set_ylim([0, 100])
     axis.set_title(v)
     axis = axes[i, 1]
     baseline_sums[v].plot(ax=axis)

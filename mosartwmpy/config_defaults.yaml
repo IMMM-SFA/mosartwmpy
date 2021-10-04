@@ -217,6 +217,8 @@ water_management:
         total_demand_enabled: false
     # Reservoirs
     reservoirs:
+        # use improved reservoir schedule module (ISTARF)
+        enable_istarf: true
         # physical and use type parameters of the reservoirs, typically from GRanD
         parameters:
             # path to the reservoir parameter file; can be absolute or relative to the source code root
@@ -227,6 +229,8 @@ water_management:
             variables:
                 # reservoir id field name - typically the GRanD ID
                 reservoir_id: GRAND_ID
+                # reservoir grid cell index field name
+                reservoir_grid_index: GRID_CELL_INDEX
                 # height field name [m]
                 reservoir_height: DAM_HGT_M
                 # length field name [m]
@@ -251,6 +255,28 @@ water_management:
                 reservoir_use_navigation: USE_NAVI
                 # use fish protection field name
                 reservoir_use_fish_protection: USE_FISH
+                # ISTARF (improved reservoir schedule) parameters
+                reservoir_grand_meanflow_cumecs: grand_meanflow_cumecs
+                reservoir_observed_meanflow_cumecs: observed_meanflow_cumecs
+                reservoir_upper_alpha: upper_alpha
+                reservoir_upper_beta: upper_beta
+                reservoir_upper_max: upper_max
+                reservoir_upper_min: upper_min
+                reservoir_upper_mu: upper_mu
+                reservoir_lower_alpha: lower_alpha
+                reservoir_lower_beta: lower_beta
+                reservoir_lower_max: lower_max
+                reservoir_lower_min: lower_min
+                reservoir_lower_mu: lower_mu
+                reservoir_release_alpha_one: release_alpha_one
+                reservoir_release_alpha_two: release_alpha_two
+                reservoir_release_beta_one: release_beta_one
+                reservoir_release_beta_two: release_beta_two
+                reservoir_release_c: release_c
+                reservoir_release_max: release_max
+                reservoir_release_min: release_min
+                reservoir_release_p_one: release_p_one
+                reservoir_release_p_two: release_p_two
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
