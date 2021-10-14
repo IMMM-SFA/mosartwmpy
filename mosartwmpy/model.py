@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import regex as re
-import subprocess
 
 from benedict import benedict
 from bmipy import Bmi
+from click import progressbar
 from datetime import datetime, time, timedelta
 from numba import get_num_threads, threading_layer
 from pathlib import Path
@@ -70,7 +70,7 @@ class Model(Bmi):
         ).plot(robust=True, levels=16, cmap='winter_r')
         plt.show()
 
-    def initialize(self, config_file_path: str = None, grid: Grid = None, state: State = None) -> None:
+    def initialize(self, config_file_path: str = './config.yaml', grid: Grid = None, state: State = None) -> None:
         
         t = timer()
 
@@ -235,13 +235,17 @@ class Model(Bmi):
         # perform timesteps until time
         logging.info(f'Beginning simulation for {datetime.fromtimestamp(self.get_current_time()).date().isoformat()} through {datetime.fromtimestamp(time).date().isoformat()}...')
         t = timer()
-        while self.get_current_time() < time:
-            # if it's a new month, log a message
-            current_datetime = datetime.fromtimestamp(self.get_current_time())
-            if current_datetime.day == 1 and current_datetime.hour == 0:
-                logging.info(f'Current model time is {current_datetime.isoformat(" ")}...')
-            # advance one timestep
-            self.update()
+        with progressbar(
+            label='Running mosartwmpy',
+            length=int((time - self.current_time.timestamp()) // self.config.get('simulation.timestep')),
+            item_show_func=lambda t: t,
+        ) as progress:
+            while self.get_current_time() < time:
+                # update progress bar
+                current_datetime = datetime.fromtimestamp(self.get_current_time())
+                progress.update(1, current_datetime.isoformat(" "))
+                # advance one timestep
+                self.update()
         logging.info(f'Simulation completed in {pretty_timer(timer() - t)}.')
 
     def finalize(self) -> None:

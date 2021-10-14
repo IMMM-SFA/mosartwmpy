@@ -1,5 +1,4 @@
 import click
-
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -132,54 +131,56 @@ import matplotlib.pyplot as plt
     help="""The path to which the average monthly flow should be written."""
 )
 def create_grand_parameters(
-    grid_path,
-    grand_path,
-    elevation_path,
-    istarf_path,
-    demand_path,
-    flow_path,
-    reservoir_output_path,
-    dependency_output_path,
-    average_monthly_demand_output_path,
-    average_monthly_flow_output_path,
-    upscale_elevation=False,
-    grid_longitude_key='lon',
-    grid_latitude_key='lat',
-    grid_downstream_key='dnID',
-    istarf_grand_id_key='GRanD_ID',
-    demand_key='totalDemand',
-    demand_time_key='time',
-    flow_key='channel_inflow',
-    flow_time_key='time',
-    elevation_key='hydroshed_average_elevation',
-    elevation_upscale_cells=225,
-    dependency_radius_meters=200000,
-    dam_move_threshold=0.75,
-    istarf_key_map=dict(
-        GRanD_MEANFLOW_CUMECS='grand_meanflow_cumecs',
-        Obs_MEANFLOW_CUMECS='observed_meanflow_cumecs',
-        fit='fit',
-        match='match',
-        NORhi_alpha='upper_alpha',
-        NORhi_beta='upper_beta',
-        NORhi_max='upper_max',
-        NORhi_min='upper_min',
-        NORhi_mu='upper_mu',
-        NORlo_alpha='lower_alpha',
-        NORlo_beta='lower_beta',
-        NORlo_max='lower_max',
-        NORlo_min='lower_min',
-        NORlo_mu='lower_mu',
-        Release_alpha1='release_alpha_one',
-        Release_alpha2='release_alpha_two',
-        Release_beta1='release_beta_one',
-        Release_beta2='release_beta_two',
-        Release_c='release_c',
-        Release_max='release_max',
-        Release_min='release_min',
-        Release_p1='release_p_one',
-        Release_p2='release_p_two',
-    ),
+        grid_path,
+        grand_path,
+        elevation_path,
+        istarf_path,
+        demand_path,
+        flow_path,
+        reservoir_output_path,
+        dependency_output_path,
+        average_monthly_demand_output_path,
+        average_monthly_flow_output_path,
+        upscale_elevation=False,
+        grid_longitude_key='lon',
+        grid_latitude_key='lat',
+        grid_downstream_key='dnID',
+        istarf_grand_id_key='GRanD_ID',
+        istarf_observed_meanflow_key='Obs_MEANFLOW_CUMECS',
+        demand_key='totalDemand',
+        demand_time_key='time',
+        flow_key='channel_inflow',
+        flow_time_key='time',
+        grand_drainage_area_key='CATCH_SKM',
+        grid_drainage_area_key='areaTotal',
+        elevation_key='hydroshed_average_elevation',
+        elevation_upscale_cells=225,
+        dependency_radius_meters=200000,
+        istarf_key_map=dict(
+            GRanD_MEANFLOW_CUMECS='grand_meanflow_cumecs',
+            Obs_MEANFLOW_CUMECS='observed_meanflow_cumecs',
+            fit='fit',
+            match='match',
+            NORhi_alpha='upper_alpha',
+            NORhi_beta='upper_beta',
+            NORhi_max='upper_max',
+            NORhi_min='upper_min',
+            NORhi_mu='upper_mu',
+            NORlo_alpha='lower_alpha',
+            NORlo_beta='lower_beta',
+            NORlo_max='lower_max',
+            NORlo_min='lower_min',
+            NORlo_mu='lower_mu',
+            Release_alpha1='release_alpha_one',
+            Release_alpha2='release_alpha_two',
+            Release_beta1='release_beta_one',
+            Release_beta2='release_beta_two',
+            Release_c='release_c',
+            Release_max='release_max',
+            Release_min='release_min',
+            Release_p1='release_p_one',
+            Release_p2='release_p_two',
+        ),
 ):
     """Create a reservoir parameter file based on an input grid file, an input GRanD dams file, and an input
        ISTARF parameter file."""
@@ -201,31 +202,25 @@ def create_grand_parameters(
     grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(longitude, latitude))
     grid['GRID_CELL_INDEX'] = grid.index
     grid['DOWNSTREAM_INDEX'] = domain[grid_downstream_key].values.flatten().astype(int) - 1
+    grid['DRAINAGE_AREA'] = domain[grid_drainage_area_key].values.flatten() / 1000000
 
     # create a dam geometry point column
     grand['DAM_POINT'] = grand.apply(lambda dam: Point(dam.LONG_DD, dam.LAT_DD), axis=1)
     grand['RESERVOIR_CENTROID'] = grand.to_crs(epsg=3857).centroid.to_crs(epsg=4326)
     grand['REPRESENTATIVE_POINT'] = grand.to_crs(epsg=3857).representative_point().to_crs(epsg=4326)
 
-    # calculate grid cell size in meters (because of reprojection)
-    x_spacing = abs(domain[grid_longitude_key][0] - domain[grid_longitude_key][1])
-    y_spacing = abs(domain[grid_latitude_key][0] - domain[grid_latitude_key][1])
     domain.close()
 
     # remove grand dams that do not appear in the ISTARF database
-    grand = grand[grand.GRAND_ID.isin(istarf[istarf_grand_id_key])].set_geometry('DAM_POINT').copy().reset_index()
+    grand = grand[grand.GRAND_ID.isin(istarf[istarf_grand_id_key])].set_geometry(
+        'DAM_POINT').copy().reset_index(drop=True)
     click.echo(f'GRAND dams appearing in ISTARF data: {len(grand)}')
 
     # project the grid to web mercator
     grid = grid.set_crs(epsg=4326).to_crs(epsg=3857)
 
-    # create the kdtree to search nearest neighbors, in a reasonable reference frame
+    # create the kdtree to search nearest neighbors
     kdtree = KDTree(np.array(list(grid.geometry.apply(lambda p: (p.x, p.y)))))
-
-    # find nearest domain index for each GRanD dam
-    grand['GRID_CELL_INDEX'] = grand.set_crs(epsg=4326).to_crs(epsg=3857).geometry.apply(
-        lambda p: kdtree.query((p.x, p.y), k=1)[1]
-    )
 
     if upscale_elevation:
         # create the kdtree to search nearest elevations, in a reasonable reference frame
@@ -260,25 +255,161 @@ def create_grand_parameters(
             outlet_index[i] = i
     grid['OUTLET_INDEX'] = outlet_index
 
-    # for dams appearing in the same grid cell, check if the reservoir centroid would place the dam elsewhere
-    grouped = grand.set_geometry('RESERVOIR_CENTROID')\
-        .set_crs(epsg=4326).to_crs(epsg=3857).groupby('GRID_CELL_INDEX', as_index=False)
-    for _, group in grouped:
-        for i, row in enumerate(group.itertuples()):
-            if len(group) > 1:
-                # only allow a move if dam coordinate is close to cell border
-                cell_centroid = grid.iloc[[row.GRID_CELL_INDEX]].to_crs(epsg=4326).geometry.values[0]
-                if ((abs(cell_centroid.x - row.DAM_POINT.x) / (x_spacing / 2)) > dam_move_threshold) or \
-                        ((abs(cell_centroid.y - row.DAM_POINT.y) / (y_spacing / 2)) > dam_move_threshold):
-                    centroid_nearest_index = kdtree.query(
-                        (row.RESERVOIR_CENTROID.x, row.RESERVOIR_CENTROID.y), k=1)[1]
-                    if centroid_nearest_index != row.GRID_CELL_INDEX:
-                        grand.at[row.Index, 'GRID_CELL_INDEX'] = centroid_nearest_index
-    # finally, remove remaining duplicate dams, preferring largest capacity, then largest drainage area, then latest id
-    filtered = grand.sort_values(['CAP_MCM', 'AREA_SKM', 'GRAND_ID'], ascending=False).groupby(
-        'GRID_CELL_INDEX', as_index=False, group_keys=False).first()
+    # find nearest domain index for each GRanD dam
+    grand['GRID_CELL_INDEX'] = grand.set_crs(epsg=4326).to_crs(epsg=3857).geometry.apply(
+        lambda p: kdtree.query((p.x, p.y), k=1)[1]
+    )
+    grand['ORIGINAL_GRID_CELL_INDEX'] = grand.GRID_CELL_INDEX.values.copy()
 
-    click.echo(f'GRAND dams remaining after deduplication: {len(filtered.index)}')
+    # calculate meanflow using output from a non regulated simulation
+    # TODO subtract demand from flow ??
+    flow = xr.open_mfdataset(f"{flow_path}/*.nc")[[flow_key]].load()
+    mean_monthly_flow = flow[flow_key].groupby(f'{flow_time_key}.month').mean()
+    meanflow = flow[flow_key].mean(dim=flow_time_key).values.flatten()
+    flow.close()
+
+    info = dict(
+        has_observed_meanflow=[],
+        observed_meanflow_high_error=[],
+        observed_meanflow_moves=[],
+        drainage_high_error=[],
+        drainage_moves=[],
+    )
+
+    def move_dam(dam, error_threshold=1.0, improvement_threshold=0.5):
+        # if ISTARF has observed mean flow for this reservoir, see how well it matches this grid cell
+        # otherwise compare drainage area
+        # if error is high, and moving dam would reduce error significantly, then move it
+        # don't allow moves to 0 meanflow cells
+        # try to force a move if meanflow is already zero
+        istarf_observed_meanflow = istarf[istarf_observed_meanflow_key][
+            istarf[istarf_grand_id_key] == dam.GRAND_ID].values[0]
+        has_no_meanflow = (meanflow[dam.GRID_CELL_INDEX] == 0)
+        if np.isfinite(istarf_observed_meanflow):
+            info['has_observed_meanflow'].append(dam.GRAND_ID)
+            error = abs(istarf_observed_meanflow - meanflow[dam.GRID_CELL_INDEX]) / istarf_observed_meanflow
+            if (error >= error_threshold) or has_no_meanflow:
+                info['observed_meanflow_high_error'].append(dam.GRAND_ID)
+                _, nearest_cells = kdtree.query((dam.DAM_POINT.x, dam.DAM_POINT.y), k=9)
+                nearest_cells = nearest_cells[meanflow[nearest_cells] > 0]
+                if len(nearest_cells) > 0:
+                    _, flow_match = KDTree(meanflow[nearest_cells][:, None]).query(istarf_observed_meanflow, k=1)
+                    if nearest_cells[flow_match] != dam.GRID_CELL_INDEX:
+                        new_error = abs(istarf_observed_meanflow - meanflow[
+                            nearest_cells[flow_match]]) / istarf_observed_meanflow
+                        if (new_error / error) <= improvement_threshold:
+                            info['observed_meanflow_moves'].append(dam.GRAND_ID)
+                            return nearest_cells[flow_match]
+        else:
+            grand_drainage_area = getattr(dam, grand_drainage_area_key)
+            error = abs(grand_drainage_area - grid.iloc[dam.GRID_CELL_INDEX].DRAINAGE_AREA) / grand_drainage_area
+            if (error >= error_threshold) or has_no_meanflow:
+                info['drainage_high_error'].append(dam.GRAND_ID)
+                _, nearest_cells = kdtree.query((dam.DAM_POINT.x, dam.DAM_POINT.y), k=9)
+                nearest_cells = nearest_cells[meanflow[nearest_cells] > 0]
+                if len(nearest_cells) > 0:
+                    _, drainage_area_match = KDTree(grid.iloc[
+                        nearest_cells].DRAINAGE_AREA.values.flatten()[:, None]).query(grand_drainage_area, k=1)
+                    if nearest_cells[drainage_area_match] != dam.GRID_CELL_INDEX:
+                        new_error = abs(grand_drainage_area - grid.iloc[
+                            nearest_cells[drainage_area_match]].DRAINAGE_AREA) / grand_drainage_area
+                        if (new_error / error) <= improvement_threshold:
+                            info['drainage_moves'].append(dam.GRAND_ID)
+                            return nearest_cells[drainage_area_match]
+        return dam.GRID_CELL_INDEX
+
+    grand['GRID_CELL_INDEX'] = grand.set_crs(epsg=4326).to_crs(epsg=3857).apply(lambda dam: move_dam(dam), axis=1)
+
+    click.echo(f'GRanD dams with observed flow: {len(info["has_observed_meanflow"])}')
+    click.echo(f'GRanD dams with high placement error of observed flow: {len(info["observed_meanflow_high_error"])}')
+    click.echo(f' - GRanD dams moved based on observed flow: '
+               f'{len(info["observed_meanflow_moves"])} - {info["observed_meanflow_moves"]}')
+    click.echo(f'GRanD dams with high placement error of drainage area: {len(info["drainage_high_error"])}')
+    click.echo(f' - GRanD dams moved based on drainage area: {len(info["drainage_moves"])} - {info["drainage_moves"]}')
+
+    info['has_observed_meanflow'] = []
+    info['observed_meanflow_high_error'] = []
+    info['observed_meanflow_moves'] = []
+    info['drainage_high_error'] = []
+    info['drainage_moves'] = []
+
+    # for dams appearing in the same grid cell, try moving again with lower thresholds
+    for _, group in grand.set_crs(epsg=4326).to_crs(epsg=3857).reset_index().groupby('GRID_CELL_INDEX', as_index=False):
+        if len(group) > 1:
+            for k in np.arange(len(group)):
+                move_to = move_dam(group.iloc[k], 0.5, 1.0)
+                if move_to != group.iloc[k].GRID_CELL_INDEX:
+                    grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = move_to
+
+    click.echo(f'Overlapping GRanD dams with observed flow: {len(info["has_observed_meanflow"])}')
+    click.echo(f'Overlapping GRanD dams with high placement error of observed flow: '
+               f'{len(info["observed_meanflow_high_error"])}')
+    click.echo(f' - GRanD dams moved based on observed flow: '
+               f'{len(info["observed_meanflow_moves"])} - {info["observed_meanflow_moves"]}')
+    click.echo(f'Overlapping GRanD dams with high plaecment error of drainage area: {len(info["drainage_high_error"])}')
+    click.echo(f' - GRanD dams moved based on drainage area: {len(info["drainage_moves"])} - {info["drainage_moves"]}')
+
+    # for dams still appearing in the same grid cell,
+    # move overlaps up or downstream based on drainage area,
+    # but still only allow moves to cells that have > 0 meanflow
+    # iterate thrice
+    moved_upstream = []
+    moved_downstream = []
+    for _ in np.arange(3):
+        grand = grand.sort_values(['CAP_MCM', 'AREA_SKM', 'GRAND_ID'], ascending=False).reset_index(drop=True)
+        for _, group in grand.reset_index().groupby('GRID_CELL_INDEX', as_index=False):
+            if len(group) > 1:
+                for k in np.arange(len(group))[1:]:
+                    if getattr(group.iloc[k], grand_drainage_area_key) > getattr(group.iloc[0], grand_drainage_area_key):
+                        # move downstream
+                        moved_downstream.append(group.iloc[k].GRAND_ID)
+                        grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = grid.iloc[
+                            group.iloc[k].GRID_CELL_INDEX].DOWNSTREAM_INDEX
+                    else:
+                        # move upstream
+                        # there can be multiple upstream cells, so move to the best flow or drainage area match
+                        upstream_cells = grid[grid.DOWNSTREAM_INDEX == group.iloc[k].GRID_CELL_INDEX]
+                        istarf_observed_meanflow = istarf[istarf_observed_meanflow_key][
+                            istarf[istarf_grand_id_key] == group.iloc[k].GRAND_ID].values[0]
+                        upstream_meanflow = meanflow[upstream_cells.GRID_CELL_INDEX.values]
+                        if np.isfinite(istarf_observed_meanflow):
+                            match = -1
+                            min_error = np.Inf
+                            for i, f in enumerate(upstream_meanflow):
+                                if f == 0:
+                                    continue
+                                e = abs(f - istarf_observed_meanflow)
+                                if e < min_error:
+                                    match = upstream_cells.iloc[[i]].index[0]
+                                    min_error = e
+                            if match > -1:
+                                moved_upstream.append(group.iloc[k].GRAND_ID)
+                                grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = match
+                        else:
+                            grand_drainage_area = getattr(group.iloc[k], grand_drainage_area_key)
+                            upstream_drainage_area = upstream_cells.DRAINAGE_AREA.values
+                            match = -1
+                            min_error = np.Inf
+                            for i, d in enumerate(upstream_drainage_area):
+                                if upstream_meanflow[i] == 0:
+                                    continue
+                                e = abs(d - grand_drainage_area)
+                                if e < min_error:
+                                    match = upstream_cells.iloc[[i]].index[0]
+                                    min_error = e
+                            if match > -1:
+                                moved_upstream.append(group.iloc[k].GRAND_ID)
+                                grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = match
+
+    click.echo(f'Overlapping GRanD dams moved upstream: {len(moved_upstream)} - {moved_upstream}')
+    click.echo(f'Overlapping GRanD dams moved downstream: {len(moved_downstream)} - {moved_downstream}')
+
+    # finally, remove remaining duplicate dams, preferring largest capacity, then largest drainage area, then latest id
+    filtered = grand.groupby('GRID_CELL_INDEX', as_index=False, group_keys=False).first()
+    dropped = grand.groupby('GRID_CELL_INDEX', as_index=False, group_keys=False).nth(np.arange(20).tolist()[1:])
+
+    click.echo(f'GRanD dams dropped due to overlaps: {len(dropped.index)} - {dropped.GRAND_ID.values.tolist()}')
+    click.echo(f'GRanD dams remaining after removing overlaps: {len(filtered.index)}')
 
     # find the grid cells dependent on each dam
     dependent_cell_indices = []
@@ -300,7 +431,7 @@ def create_grand_parameters(
         # restrict to cells below dam elev and with same outlet
         dependent_cells = grid.iloc[cell_indices]
         dependent_cells = dependent_cells[dependent_cells['ELEVATION'] >= 0]
-        dependent_cells = dependent_cells[dependent_cells['ELEVATION'] < dam_cell['ELEVATION']]
+        dependent_cells = dependent_cells[dependent_cells['ELEVATION'] <= dam_cell['ELEVATION']]
         dependent_cells = dependent_cells[dependent_cells['OUTLET_INDEX'] == dam_cell['OUTLET_INDEX']]
         dependent_cells = dependent_cells.index.values
         dependent_cell_indices.append(dependent_cells[~np.isnan(dependent_cells)].astype(int))
@@ -309,7 +440,8 @@ def create_grand_parameters(
     filtered.index = filtered.GRAND_ID.values
     filtered = filtered.sort_index()
 
-    dependency_database = filtered[['GRAND_ID', 'DEPENDENT_CELL_INDICES']].explode(column='DEPENDENT_CELL_INDICES').rename(
+    dependency_database = filtered[['GRAND_ID', 'DEPENDENT_CELL_INDICES']].explode(
+        column='DEPENDENT_CELL_INDICES').rename(
         columns={'DEPENDENT_CELL_INDICES': 'DEPENDENT_CELL_INDEX'}).dropna().sort_values('GRAND_ID').reset_index(
         drop=True)
 
@@ -339,10 +471,6 @@ def create_grand_parameters(
     demand.to_parquet(average_monthly_demand_output_path)
 
     # find the monthly average flow at dam locations
-    # TODO subtract sum of upstream demand across each reservoir ??
-    flow = xr.open_mfdataset(f"{flow_path}/*.nc")[[flow_key]].load()
-    mean_monthly_flow = flow[flow_key].groupby(f'{flow_time_key}.month').mean().compute()
-    flow.close()
     columns = mean_monthly_flow.shape[-1]
     flow_rows = []
     for i in np.arange(filtered.index.size):
@@ -353,8 +481,14 @@ def create_grand_parameters(
                 'MONTH_INDEX': m,
                 'MEAN_FLOW': mean_flow,
             })
-    # write to file
     flow = pd.DataFrame(flow_rows).sort_values(['GRAND_ID', 'MONTH_INDEX'])
+
+    # log dams with no annual average meanflow
+    no_flow = flow.groupby('GRAND_ID').mean()
+    no_flow = no_flow[no_flow.MEAN_FLOW == 0].index.tolist()
+    click.echo(f'GRanD dams with no mean inflow: {len(no_flow)} - {no_flow}')
+
+    # write to file
     flow.to_parquet(average_monthly_flow_output_path)
 
     # cast boolean string fields to boolean
@@ -383,47 +517,8 @@ def create_grand_parameters(
     filtered[
         ['GRAND_ID', 'GRID_CELL_INDEX', 'RES_NAME', 'DAM_NAME', 'RIVER', 'YEAR', 'DAM_HGT_M', 'DAM_LEN_M', 'AREA_SKM',
          'CAP_MCM', 'DEPTH_M', 'CATCH_SKM', 'USE_IRRI', 'USE_ELEC', 'USE_SUPP', 'USE_FCON', 'USE_RECR', 'USE_NAVI',
-         'USE_FISH', 'USE_PCON', 'USE_OTHR', 'MAIN_USE', 'LONG_DD',
+         'USE_FISH', 'USE_PCON', 'USE_OTHR', 'MAIN_USE', 'ORIGINAL_GRID_CELL_INDEX', 'LONG_DD',
          'LAT_DD'] + list(istarf_key_map.values())].to_xarray().to_netcdf(reservoir_output_path)
 
     # write dependency database to file
     dependency_database.to_parquet(dependency_output_path)
-
-    return filtered, grand, grid, flow, demand
-
-
-def compare_reservoir_placement(
-    grid,
-    old_parameter_path,
-    new_parameters,
-    istarf_path,
-    grand_id,
-):
-    old_parameter = xr.open_dataset(old_parameter_path).DamID_Spatial.to_dataframe().reset_index()
-    istarf = pd.read_csv(istarf_path)
-    kdtree = KDTree(np.array(list(grid.geometry.apply(lambda p: (p.x, p.y)))))
-    dam = new_parameters[new_parameters.GRAND_ID == grand_id].set_crs(epsg=4326).to_crs(epsg=3857)
-    new_grid_index = kdtree.query((dam.geometry.values[0].x, dam.geometry.values[0].y), k=1)[1]
-    old_dam_id = istarf[istarf.GRanD_ID == grand_id].DamID_Spatial.values[0]
-    old_grid_index = old_parameter[old_parameter.DamID_Spatial == old_dam_id].index.values[0]
-    nearby_cell_indices = kdtree.query((dam.geometry.values[0].x, dam.geometry.values[0].y), k=25)[1]
-    cells = []
-    offset = 0.125 / 2
-    for i in nearby_cell_indices:
-        centroid = grid[grid.GRID_CELL_INDEX == i].to_crs(epsg=4326).geometry.values[0]
-        cells.append(Polygon([(centroid.x - offset, centroid.y - offset), (centroid.x - offset, centroid.y + offset),
-                              (centroid.x + offset, centroid.y + offset), (centroid.x + offset, centroid.y - offset)]))
-    cells = gpd.GeoDataFrame(data=grid.iloc[nearby_cell_indices], geometry=cells)
-    fig, ax = plt.subplots(figsize=(20, 20))
-    dam.set_geometry('geometry').to_crs(epsg=3857).plot(ax=ax, color='blue', alpha=0.125)
-    dam.set_geometry('geometry').to_crs(epsg=3857).boundary.plot(ax=ax, color='blue')
-    dam.set_geometry('DAM_POINT').to_crs(epsg=3857).plot(color='blue', ax=ax, marker='*')
-    dam.set_geometry('RESERVOIR_CENTROID').set_crs(epsg=4326, allow_override=True)\
-        .to_crs(epsg=3857).plot(color='purple', ax=ax, marker='d')
-    dam.set_geometry('REPRESENTATIVE_POINT').set_crs(epsg=4326, allow_override=True)\
-        .to_crs(epsg=3857).plot(color='purple', ax=ax, marker='D')
-    grid[grid.GRID_CELL_INDEX == new_grid_index].plot(color='green', ax=ax, marker='o')
-    grid[grid.GRID_CELL_INDEX == old_grid_index].plot(color='red', ax=ax, marker='x')
-    cells.set_crs(epsg=4326).to_crs(epsg=3857).boundary.plot(ax=ax, color='black')
-    ctx.add_basemap(ax, source=ctx.providers.CartoDB.Voyager)
-    plt.show()

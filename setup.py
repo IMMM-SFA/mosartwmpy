@@ -23,14 +23,15 @@ setup(
     long_description_content_type="text/markdown",
     python_requires='>=3.7.*, <4',
     include_package_data=True,
-    entrypoints={
+    entry_points={
         'console_scripts': [
-            'create_grand_parameters = mosartwmpy.utilities.create_grand_parameters',
+            'create_grand_parameters = mosartwmpy.utilities.create_grand_parameters:create_grand_parameters',
         ]
     },
     install_requires=[
         'bmipy==2.0',
         'click==8.0.1',
+        'contextily==1.1.0',
         'dask[complete]==2021.6.2',
         'epiweeks==2.1.2',
         'h5netcdf==0.11.0',

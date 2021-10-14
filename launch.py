@@ -1,9 +1,5 @@
 if __name__ == '__main__':
 
-    import matplotlib.pyplot as plt
-    import pandas as pd
-    import numpy as np
-
     from mosartwmpy import Model
 
     # launch simulation
