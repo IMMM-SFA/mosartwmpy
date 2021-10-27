@@ -1,21 +1,21 @@
 import logging
 import sys
-
-import matplotlib.pyplot as plt
-import numpy as np
-import psutil
 import regex as re
 
 from benedict import benedict
 from bmipy import Bmi
 from click import progressbar
 from datetime import datetime, time, timedelta
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 from numba import get_num_threads, threading_layer
+import numpy as np
 from pathlib import Path
 from pathvalidate import sanitize_filename
+import psutil
 from timeit import default_timer as timer
 from typing import Tuple
-from xarray import DataArray, open_dataset
+import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
@@ -27,7 +27,6 @@ from mosartwmpy.output.output import initialize_output, update_output
 from mosartwmpy.reservoirs.release import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
-from mosartwmpy.utilities.download_data import download_data
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 from mosartwmpy.utilities.inherit_docs import inherit_docs
 
@@ -58,17 +57,6 @@ class Model(Bmi):
 
     def __getitem__(self, item):
         return getattr(self, item)
-
-    def plot(self, variable: str):
-        """Display a colormap of a spatial variable at the current timestep."""
-        DataArray(
-            self.get_value_ptr(variable).reshape(self.get_grid_shape()),
-            dims=['latitude', 'longitude'],
-            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
-            name=variable.replace('_', ' ').title(),
-            attrs={'units': self.get_var_units(variable)}
-        ).plot(robust=True, levels=16, cmap='winter_r')
-        plt.show()
 
     def initialize(self, config_file_path: str = './config.yaml', grid: Grid = None, state: State = None) -> None:
         
@@ -141,7 +129,7 @@ class Model(Bmi):
                     else:
                         logging.warning('Unable to parse date from restart file name, falling back to configured start date.')
                         self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
-                    x = open_dataset(path)
+                    x = xr.open_dataset(path)
                     self.state = State.from_dataframe(x.to_dataframe())
                     x.close()
                 else:
@@ -255,6 +243,29 @@ class Model(Bmi):
         logging.getLogger().handlers.clear()
         logging.shutdown()
         return
+
+    def plot_variable(
+            self,
+            variable: str,
+            log_scale: bool = False,
+    ):
+        """Display a colormap of a spatial variable at the current timestep."""
+        data = self.get_value_ptr(variable).reshape(self.get_grid_shape())
+        if log_scale:
+            data = np.where(data > 0, data, np.nan)
+        xr.DataArray(
+            data,
+            dims=['latitude', 'longitude'],
+            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
+            name=variable.replace('_', ' ').title(),
+            attrs={'units': f'{"Log " if log_scale else ""}{self.get_var_units(variable)}'}
+        ).plot(
+            robust=True,
+            levels=None if log_scale else 16,
+            cmap='winter_r',
+            norm=colors.LogNorm() if log_scale else None,
+        )
+        plt.show()
 
     def get_component_name(self) -> str:
         return f'mosartwmpy ({self.git_hash})'

@@ -2,11 +2,9 @@ import click
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Point
 import xarray as xr
 from scipy.spatial import KDTree
-import contextily as ctx
-import matplotlib.pyplot as plt
 
 
 @click.command()

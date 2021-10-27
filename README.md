@@ -49,7 +49,15 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >     read_from_file: true
 >     path: ./input/demand/demand_1981_05.nc
 >   reservoirs:
->     path: ./input/reservoirs/reservoirs.nc
+>     enable_istarf: true
+>     parameters:
+>       path: ./input/reservoirs/reservoirs.nc
+>     dependencies:
+>       path: ./input/reservoirs/dependency_database.parquet
+>     streamflow:
+>       path: ./input/reservoirs/mean_monthly_reservoir_flow.parquet
+>     demand:
+>       path: ./input/reservoirs/mean_monthly_reservoir_demand.parquet
 > ```
 
 `mosartwmpy` implements the [Basic Model Interface](https://csdms.colorado.edu/wiki/BMI) defined by the CSDMS, so driving it should be familiar to those accustomed to the BMI. To launch the simulation, open a python shell and run the following:
@@ -58,7 +66,7 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 from mosartwmpy import Model
 
 # path to the configuration yaml file
-config_file = "config.yaml"
+config_file = 'config.yaml'
 
 # initialize the model
 mosart_wm = Model()
@@ -71,143 +79,16 @@ mosart_wm.update()
 mosart_wm.update_until(mosart_wm.get_end_time())
 ```
 
-Alternatively, one can update the settings via code in the driving script using dot notation:
-
-```python
-from mosartwmpy import Model
-from datetime import datetime
-
-mosart_wm = Model()
-mosart_wm.initialize()
-
-mosart_wm.config['simulation.name'] = 'Tutorial'
-mosart_wm.config['simulation.start_date'] = datetime(1981, 5, 24)
-mosart_wm.config['simulation.end_date'] = datetime(1985, 5, 26)
-# etc...
-```
-
-One can use the usual python plotting libraries to visualize data. Model state and output are stored as one-dimensional numpy ndarrays, so they must be reshaped to visualize two-dimensionally:
-
-```python
-import xarray as xr
-import matplotlib.pyplot as plt
-from mosartwmpy import Model
-
-mosart_wm = Model()
-mosart_wm.initialize('./config.yaml')
-
-mosart_wm.update_until(mosart_wm.get_end_time())
-
-surface_water = mosart_wm.get_value_ptr('surface_water_amount')
-
-# create an xarray from the data, which has some convenience wrappers for matplotlib methods
-data_array = xr.DataArray(
-    surface_water.reshape(mosart_wm.get_grid_shape()),
-    dims=['latitude', 'longitude'],
-    coords={'latitude': mosart_wm.get_grid_x(), 'longitude': mosart_wm.get_grid_y()},
-    name='Surface Water Amount',
-    attrs={'units': mosart_wm.get_var_units('surface_water_amount')}
-)
-
-# plot as a pcolormesh
-data_array.plot(robust=True, levels=32, cmap='winter_r')
-
-plt.show()
-
-```
-
-## model coupling
-
-A common use case for `mosartwmpy` is to run coupled with output from the Community Land Model (CLM). To see an example of how to drive `mosartwmpy` with runoff from a coupled model, check out the [Jupyter notebook tutorial](https://github.com/IMMM-SFA/mosartwmpy/blob/main/notebooks/tutorial.ipynb)!
-
 ## model input
 
-Several input files in NetCDF format are required to successfully run a simulation, which are not shipped with this repository due to their large size. The grid files, reservoir files, and a small range of runoff and demand input files can be obtained using the download utility by running `python -m mosartwmpy.download` and choosing option 1 for "sample_input". Currently, all input files are assumed to be at the same resolution (for the sample files this is 1/8 degree over the CONUS). Below is a summary of the various input files:
-
-<table>
-<thead>
-<tr>
-<th>
-    Name
-</th>
-<th>
-    Description
-</th>
-<th>
-    Configuration Path
-</th>
-<th>
-    Notes
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-    Grid
-</td>
-<td>
-    Spatial constants dimensioned by latitude and longitude relating to the physical properties of the river channels
-</td>
-<td>
-    <code>grid.path</code>
-</td>
-<td/>
-</tr>
-<tr>
-<td>
-    Land Fraction
-</td>
-<td>
-    Fraction of grid cell that is land (as opposed to i.e. ocean water) dimensioned by latitude and longitude
-</td>
-<td>
-    <code>grid.land.path</code>
-</td>
-<td>
-    As a TODO item, this variable should be merged into the grid file (historically it was separate for the coupled land model)
-</td>
-</tr>
-<tr>
-<td>
-    Reservoirs
-</td>
-<td>
-    Locations of reservoirs (possibly aggregated) and their physical and political properties
-</td>
-<td>
-    <code>water_management.reservoirs.path</code>
-</td>
-<td/>
-</tr>
-<tr>
-<td>
-    Runoff
-</td>
-<td>
-    Surface runoff, subsurface runoff, and wetland runoff per grid cell averaged per unit of time; used to drive the river routing
-</td>
-<td>
-    <code>runoff.path</code>
-</td>
-<td/>
-</tr>
-<tr>
-<td>
-    Demand
-</td>
-<td>
-    Water demand of grid cells averaged per unit of time; currently assumed to be monthly
-</td>
-<td>
-    <code>water_management.reservoirs.demand</code>
-</td>
-<td>
-    There are plans to support other time scales, such as epiweeks
-</td>
-</tr>
-</tbody>
-</table>
+Input for `mosartwmpy` consists of many files defining the characteristics of the discrete grid, the river network, surface and subsurface runoff, water demand, and dams/reservoirs.
+Currently, the gridded data is expected to be provided at the same spatial resolution.
+Runoff input can be provided at any time resolution; each timestep will select the runoff at the closest time in the past.
+Currently, demand input is read monthly but will also pad to the closest time in the past.
+Efforts are under way for more robust demand handling.
+Dams/reservoirs require four different input files: the physical characteristics, the average monthly flow expected during the simulation period, the average monthly demand expected during the simulation period, and a database mapping each GRanD ID to grid cell IDs allowed to extract water from it.
+These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
+The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: `python -m mosartwmpy.download`.
 
 ## model output
 
@@ -226,6 +107,80 @@ mosart_wm.get_output_var_names()
 # get the flattened numpy.ndarray of values for an output variable
 supply = mosart_wm.get_value_ptr('supply_water_amount')
 ```
+
+## visualization
+
+`Model` instances can plot the current value of certain input and output variables (those available from `Model.get_output_var_name` and `Model.get_input_var_names`):
+
+```python
+from mosartwmpy import Model
+config_file = 'config.yaml'
+mosart_wm = Model()
+mosart_wm.initialize(config_file)
+for _ in range(8):
+    mosart_wm.update()
+
+mosart_wm.plot_variable('outgoing_water_volume_transport_along_river_channel', log_scale=True)
+```
+![River transport](docs/_static/river_transport.png)
+
+Using provided utility functions, the output of a simulation can be plotted as well.
+
+Plot the storage, inflow, and outflow of a particular GRanD dam:
+```python
+from mosartwmpy import Model
+from mosartwmpy.plotting.plot import plot_reservoir
+config_file = 'config.yaml'
+mosart_wm = Model()
+mosart_wm.initialize(config_file)
+mosart_wm.update_until()
+
+plot_reservoir(
+    model=mosart_wm,
+    grand_id=310,
+    start='1981-05-01',
+    end='1981-05-31',
+)
+```
+![Grand Coulee](docs/_static/grand_coulee_1981_05.png)
+
+Plot a particular output variable (as defined in `config.yaml`) over time:
+```python
+from mosartwmpy import Model
+from mosartwmpy.plotting.plot import plot_reservoir
+config_file = 'config.yaml'
+mosart_wm = Model()
+mosart_wm.initialize(config_file)
+mosart_wm.update_until()
+
+plot_variable(
+    model=mosart_wm,
+    variable='RIVER_DISCHARGE_OVER_LAND_LIQ',
+    start='1981-05-01',
+    end='1981-05-31',
+    log_scale=True,
+    cmap='winter_r',
+)
+```
+![River network no tiles](docs/_static/river_without_tiles_1981_05.png)
+
+If `cartopy`, `scipy`, and `geoviews` are installed, tiles can be displayed along with the plot:
+```python
+plot_variable(
+    model=mosart_wm,
+    variable='RIVER_DISCHARGE_OVER_LAND_LIQ',
+    start='1981-05-01',
+    end='1981-05-31',
+    log_scale=True,
+    cmap='winter_r',
+    tiles='StamenWatercolor'
+)
+```
+![River network with tiles](docs/_static/river_with_tiles_1981_05.png)
+
+## model coupling
+
+A common use case for `mosartwmpy` is to run coupled with output from the Community Land Model (CLM). To see an example of how to drive `mosartwmpy` with runoff from a coupled model, check out the [Jupyter notebook tutorial](https://github.com/IMMM-SFA/mosartwmpy/blob/main/notebooks/tutorial.ipynb)!
 
 ## testing and validation
 

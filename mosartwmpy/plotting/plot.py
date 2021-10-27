@@ -4,10 +4,77 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from shapely.errors import ShapelyDeprecationWarning
 from shapely.geometry import Polygon, Point
 import xarray as xr
+import hvplot.xarray # noqa
+from hvplot import show
+import warnings
 
 from mosartwmpy import Model
+
+warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
+
+
+def plot_variable(
+    model: Model,
+    variable: str,
+    start: str = None,
+    end: str = None,
+    log_scale: bool = False,
+    cmap: str = 'autumn_r',
+    tiles: str = 'StamenWatercolor',
+    width: int = 1040,
+    height: int = 720,
+    alpha: float = 0.75,
+    no_tiles: bool = False,
+):
+    variable_config = next((o for o in model.config.get('simulation.output') if
+                            o.get('name', '').casefold() == variable.casefold()), None)
+    if not variable_config:
+        variable_config = next((o for o in model.config.get('simulation.output') if
+                                o.get('variable', '').casefold() == variable.casefold()), None)
+    if not variable_config:
+        variable_config = next((o for o in model.config.get('simulation.output') if
+                                o.get('long_name', '').casefold() == variable.casefold()), None)
+    if not variable_config:
+        raise NameError(f'Variable {variable} not found in model configuration.')
+
+    has_cartopy = False
+    if not no_tiles:
+        try:
+            import cartopy
+            import scipy
+            import geoviews
+            has_cartopy = True
+        except ModuleNotFoundError:
+            # Error handling
+            pass
+
+    results = xr.open_mfdataset(
+        f"{model.config.get('simulation.output_path')}/{model.name}/*.nc")[[variable_config.get('name')]].sel(
+            time=slice(start, end)).load()
+
+    vmin = (1 if log_scale else 0)
+    vmax = results[variable_config.get('name')].max().values[()]
+
+    plot = results.where(results > vmin)[variable_config.get('name')].hvplot.quadmesh(
+        'lon',
+        'lat',
+        variable_config.get('name'),
+        coastline=has_cartopy,
+        geo=has_cartopy,
+        tiles=tiles if has_cartopy else False,
+        width=width,
+        height=height,
+        cmap=cmap,
+        alpha=alpha,
+        clim=(vmin, vmax),
+        cnorm='log' if log_scale else 'linear',
+        title=f"{variable_config.get('long_name')} ({variable_config.get('units')})",
+    )
+
+    show(plot)
 
 
 def plot_reservoir(
@@ -15,6 +82,8 @@ def plot_reservoir(
     grand_id: int,
     grand_file_path: str = None,
     istarf_data_path: str = None,
+    start: str = None,
+    end: str = None,
 ):
 
     spacing = model.get_grid_spacing()
@@ -109,6 +178,10 @@ def plot_reservoir(
     df['storage'] = results[storage_variable].isel(lat=ilat, lon=ilon).values.flatten() / 1e6
     df['inflow'] = results[inflow_variable].isel(lat=ilat, lon=ilon).values.flatten() * 24 * 60 * 60 / 1e6
     df['outflow'] = results[outflow_variable].isel(lat=ilat, lon=ilon).values.flatten() * -1 * 24 * 60 * 60 / 1e6
+    if start is not None:
+        df = df[df.index >= start]
+    if end is not None:
+        df = df[df.index <= end]
     results.close()
 
     params = xr.open_dataset(model.config.get('water_management.reservoirs.parameters.path')).to_dataframe()
@@ -195,6 +268,20 @@ def plot_reservoir(
             sharex=True,
             alpha=1,
         )
+        istarf['outflow'] = istarf['i'] - istarf['s'].diff()
+        istarf[['outflow']].rename(columns={'outflow': 'observed'}).plot(
+            ax=ax_outflow,
+            xlabel='date',
+            ylabel='MCM',
+            kind='line',
+            title=f'{dam.DAM_NAME.iloc[0]} ({grand_id}) - Storage',
+            color='#D22B2B',
+            linestyle='dotted',
+            linewidth=1,
+            sharex=True,
+            alpha=1,
+        )
+
 
     df[['storage']].plot(
         ax=ax_storage,
