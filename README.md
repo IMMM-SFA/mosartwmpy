@@ -123,7 +123,7 @@ for _ in range(8):
 
 mosart_wm.plot_variable('outgoing_water_volume_transport_along_river_channel', log_scale=True)
 ```
-![River transport](docs/_static/river_transport.png)
+![River transport](https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_transport.png)
 
 Using provided utility functions, the output of a simulation can be plotted as well.
 
@@ -143,7 +143,7 @@ plot_reservoir(
     end='1981-05-31',
 )
 ```
-![Grand Coulee](docs/_static/grand_coulee_1981_05.png)
+![Grand Coulee](https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/grand_coulee_1981_05.png)
 
 Plot a particular output variable (as defined in `config.yaml`) over time:
 ```python
@@ -163,7 +163,7 @@ plot_variable(
     cmap='winter_r',
 )
 ```
-![River network no tiles](docs/_static/river_without_tiles_1981_05.png)
+![River network no tiles](https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_without_tiles_1981_05.png)
 
 If `cartopy`, `scipy`, and `geoviews` are installed, tiles can be displayed along with the plot:
 ```python
@@ -177,7 +177,7 @@ plot_variable(
     tiles='StamenWatercolor'
 )
 ```
-![River network with tiles](docs/_static/river_with_tiles_1981_05.png)
+![River network with tiles](https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_with_tiles_1981_05.png)
 
 ## model coupling
 
