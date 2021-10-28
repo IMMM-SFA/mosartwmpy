@@ -204,8 +204,6 @@ class State:
 
         # Reservoir related state variables
 
-        # reservoir streamflow schedule
-        self.reservoir_streamflow: np.ndarray = np.empty(0)
         # StorMthStOp
         self.reservoir_storage_operation_year_start: np.ndarray = np.empty(0)
         # storage [m3]

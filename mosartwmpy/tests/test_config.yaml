@@ -7,4 +7,11 @@ water_management:
   demand:
     path: ./mosartwmpy/tests/demand_1981_01_01.nc
   reservoirs:
-    path: ./mosartwmpy/tests/reservoirs.nc
+    parameters:
+      path: ./mosartwmpy/tests/reservoirs.nc
+    dependencies:
+      path: ./mosartwmpy/tests/dependency_database.parquet
+    streamflow:
+      path: ./mosartwmpy/tests/mean_flow.parquet
+    demand:
+      path: ./mosartwmpy/tests/mean_demand.parquet

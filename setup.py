@@ -23,36 +23,46 @@ setup(
     long_description_content_type="text/markdown",
     python_requires='>=3.7.*, <4',
     include_package_data=True,
+    entry_points={
+        'console_scripts': [
+            'create_grand_parameters = mosartwmpy.utilities.create_grand_parameters:create_grand_parameters',
+        ]
+    },
     install_requires=[
         'bmipy==2.0',
-        'dask[complete]==2021.6.2',
+        'click==8.0.1',
+        'contextily==1.2.0',
+        'dask[complete]==2021.10.0',
+        'epiweeks==2.1.3',
+        'geopandas==0.10.2',
         'h5netcdf==0.11.0',
-        'matplotlib==3.4.2',
-        'nc-time-axis==1.3.1',
+        'hvplot==0.7.3',
+        'matplotlib==3.4.3',
+        'nc-time-axis==1.4.0',
         'netCDF4==1.5.7',
-        'numba==0.53.1',
-        'numpy==1.21.0',
-        'pandas==1.3.0',
-        'pathvalidate==2.4.1',
+        'numba==0.54.1',
+        'numpy==1.20.3',
+        'pandas==1.3.4',
+        'pathvalidate==2.5.0',
         'psutil==5.8.0',
-        'pyarrow==4.0.1',
-        'python-benedict==0.24.0',
-        'regex==2021.7.6',
-        'requests==2.25.1',
-        'rioxarray==0.5.0',
-        'tqdm==4.61.2',
-        'xarray==0.18.2'
+        'pyarrow==6.0.0',
+        'python-benedict==0.24.3',
+        'regex==2021.10.23',
+        'requests==2.26.0',
+        'rioxarray==0.8.0',
+        'tqdm==4.62.3',
+        'xarray==0.19.0'
     ],
     extras_require={
         'dev': [
-            'build~=0.5.1',
-            'nbsphinx~=0.8.6',
+            'build~=0.7.0',
+            'nbsphinx~=0.8.7',
             'recommonmark~=0.7.1',
-            'setuptools~=57.0.0',
-            'sphinx~=4.0.2',
+            'setuptools~=58.3.0',
+            'sphinx~=4.2.0',
             'sphinx-panels~=0.6.0',
-            'sphinx-rtd-theme~=0.5.2',
-            'twine~=3.4.1'
+            'sphinx-rtd-theme~=1.0.0',
+            'twine~=3.4.2'
         ]
     }
 )

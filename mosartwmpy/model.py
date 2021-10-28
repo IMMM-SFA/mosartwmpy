@@ -1,21 +1,21 @@
 import logging
 import sys
-
-import matplotlib.pyplot as plt
-import numpy as np
-import psutil
 import regex as re
-import subprocess
 
 from benedict import benedict
 from bmipy import Bmi
+from click import progressbar
 from datetime import datetime, time, timedelta
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 from numba import get_num_threads, threading_layer
+import numpy as np
 from pathlib import Path
 from pathvalidate import sanitize_filename
+import psutil
 from timeit import default_timer as timer
 from typing import Tuple
-from xarray import DataArray, open_dataset
+import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
@@ -24,10 +24,9 @@ from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
 from mosartwmpy.input_output_variables import IO
 from mosartwmpy.output.output import initialize_output, update_output
-from mosartwmpy.reservoirs.reservoirs import reservoir_release
+from mosartwmpy.reservoirs.release import reservoir_release
 from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
-from mosartwmpy.utilities.download_data import download_data
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 from mosartwmpy.utilities.inherit_docs import inherit_docs
 
@@ -55,25 +54,11 @@ class Model(Bmi):
         self.output_n = 0
         self.cores = 1
         self.client = None
-        self.reservoir_streamflow_schedule = None
-        self.reservoir_demand_schedule = None
-        self.reservoir_prerelease_schedule = None
 
     def __getitem__(self, item):
         return getattr(self, item)
 
-    def plot(self, variable: str):
-        """Display a colormap of a spatial variable at the current timestep."""
-        DataArray(
-            self.get_value_ptr(variable).reshape(self.get_grid_shape()),
-            dims=['latitude', 'longitude'],
-            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
-            name=variable.replace('_', ' ').title(),
-            attrs={'units': self.get_var_units(variable)}
-        ).plot(robust=True, levels=16, cmap='winter_r')
-        plt.show()
-
-    def initialize(self, config_file_path: str = None, grid: Grid = None, state: State = None) -> None:
+    def initialize(self, config_file_path: str = './config.yaml', grid: Grid = None, state: State = None) -> None:
         
         t = timer()
 
@@ -144,7 +129,7 @@ class Model(Bmi):
                     else:
                         logging.warning('Unable to parse date from restart file name, falling back to configured start date.')
                         self.current_time = datetime.combine(self.config.get('simulation.start_date'), time.min)
-                    x = open_dataset(path)
+                    x = xr.open_dataset(path)
                     self.state = State.from_dataframe(x.to_dataframe())
                     x.close()
                 else:
@@ -183,23 +168,27 @@ class Model(Bmi):
                 self.state.hillslope_wetland_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_wetland_runoff
             # read demand
             if self.config.get('water_management.enabled', False):
-                if self.config.get('water_management.demand.read_from_file', False):
-                    # only read new demand and compute new release if it's the very start of simulation or new time period
-                    if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                # only read new demand if it's the very start of simulation or new month
+                if self.current_time == datetime.combine(
+                    self.config.get('simulation.start_date'), time.min
+                ) or self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
                         load_demand(self.state, self.config, self.current_time)
-                        # release water from reservoirs
-                        reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
+                # only compute new release if it's the very start of simulation or new month
+                # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
+                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
+                    (self.config.get('water_management.reservoirs.enable_istarf') and self.current_time ==
+                     datetime(self.current_time.year, self.current_time.month, self.current_time.day, 0, 0, 0)) or \
+                        self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
+                    # release water from reservoirs
+                    reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
-                # get streamflow for this time period
-                month = self.current_time.month
-                streamflow_time_name = self.config.get('water_management.reservoirs.streamflow_time_resolution')
-                self.state.reservoir_streamflow[:] = self.grid.reservoir_streamflow_schedule.sel({streamflow_time_name: month}).values
             # perform simulation for one timestep
-            update(self.state, self.grid, self.parameters, self.config)
+            update(self.state, self.grid, self.parameters, self.config, self.current_time)
             # advance timestep
             self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))
         except Exception as e:
@@ -223,7 +212,10 @@ class Model(Bmi):
             self.state.hillslope_subsurface_runoff = self.state.hillslope_subsurface_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
             self.state.hillslope_wetland_runoff = self.state.hillslope_wetland_runoff * 1000.0 / self.grid.land_fraction / self.grid.area
 
-    def update_until(self, time: float) -> None:
+    def update_until(self, time: float = None) -> None:
+        # if time is None, set time to end time
+        if time is None:
+            time = self.get_end_time()
         # make sure that requested end time is after now
         if time < self.current_time.timestamp():
             logging.error('`time` is prior to current model time. Please choose a new `time` and try again.')
@@ -231,13 +223,17 @@ class Model(Bmi):
         # perform timesteps until time
         logging.info(f'Beginning simulation for {datetime.fromtimestamp(self.get_current_time()).date().isoformat()} through {datetime.fromtimestamp(time).date().isoformat()}...')
         t = timer()
-        while self.get_current_time() < time:
-            # if it's a new month, log a message
-            current_datetime = datetime.fromtimestamp(self.get_current_time())
-            if current_datetime.day == 1 and current_datetime.hour == 0:
-                logging.info(f'Current model time is {current_datetime.isoformat(" ")}...')
-            # advance one timestep
-            self.update()
+        with progressbar(
+            label='Running mosartwmpy',
+            length=int((time - self.current_time.timestamp()) // self.config.get('simulation.timestep')),
+            item_show_func=lambda t: t,
+        ) as progress:
+            while self.get_current_time() < time:
+                # update progress bar
+                current_datetime = datetime.fromtimestamp(self.get_current_time())
+                progress.update(1, current_datetime.isoformat(" "))
+                # advance one timestep
+                self.update()
         logging.info(f'Simulation completed in {pretty_timer(timer() - t)}.')
 
     def finalize(self) -> None:
@@ -247,6 +243,29 @@ class Model(Bmi):
         logging.getLogger().handlers.clear()
         logging.shutdown()
         return
+
+    def plot_variable(
+            self,
+            variable: str,
+            log_scale: bool = False,
+    ):
+        """Display a colormap of a spatial variable at the current timestep."""
+        data = self.get_value_ptr(variable).reshape(self.get_grid_shape())
+        if log_scale:
+            data = np.where(data > 0, data, np.nan)
+        xr.DataArray(
+            data,
+            dims=['latitude', 'longitude'],
+            coords={'latitude': self.get_grid_x(), 'longitude': self.get_grid_y()},
+            name=variable.replace('_', ' ').title(),
+            attrs={'units': f'{"Log " if log_scale else ""}{self.get_var_units(variable)}'}
+        ).plot(
+            robust=True,
+            levels=None if log_scale else 16,
+            cmap='winter_r',
+            norm=colors.LogNorm() if log_scale else None,
+        )
+        plt.show()
 
     def get_component_name(self) -> str:
         return f'mosartwmpy ({self.git_hash})'

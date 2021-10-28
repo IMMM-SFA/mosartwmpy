@@ -64,6 +64,7 @@ class Grid:
     
     # Reservoir related properties
     reservoir_id: np.ndarray = np.empty(0)
+    reservoir_grid_index: np.ndarray = np.empty(0)
     reservoir_runoff_capacity: np.ndarray = np.empty(0)
     reservoir_height: np.ndarray = np.empty(0)
     reservoir_length: np.ndarray = np.empty(0)
@@ -77,10 +78,30 @@ class Grid:
     reservoir_use_recreation: np.ndarray = np.empty(0)
     reservoir_use_navigation: np.ndarray = np.empty(0)
     reservoir_use_fish_protection: np.ndarray = np.empty(0)
-    reservoir_withdrawal: np.ndarray = np.empty(0)
-    reservoir_conveyance: np.ndarray = np.empty(0)
-    reservoir_to_grid_mapping: pd.DataFrame = pd.DataFrame()
-    reservoir_to_grid_map: Dict = Dict.empty(
+    reservoir_grand_meanflow_cumecs: np.ndarray = np.empty(0)
+    reservoir_observed_meanflow_cumecs: np.ndarray = np.empty(0)
+    reservoir_computed_meanflow_cumecs = np.empty(0)
+    reservoir_upper_alpha: np.ndarray = np.empty(0)
+    reservoir_upper_beta: np.ndarray = np.empty(0)
+    reservoir_upper_max: np.ndarray = np.empty(0)
+    reservoir_upper_min: np.ndarray = np.empty(0)
+    reservoir_upper_mu: np.ndarray = np.empty(0)
+    reservoir_lower_alpha: np.ndarray = np.empty(0)
+    reservoir_lower_beta: np.ndarray = np.empty(0)
+    reservoir_lower_max: np.ndarray = np.empty(0)
+    reservoir_lower_min: np.ndarray = np.empty(0)
+    reservoir_lower_mu: np.ndarray = np.empty(0)
+    reservoir_release_alpha_one: np.ndarray = np.empty(0)
+    reservoir_release_alpha_two: np.ndarray = np.empty(0)
+    reservoir_release_beta_one: np.ndarray = np.empty(0)
+    reservoir_release_beta_two: np.ndarray = np.empty(0)
+    reservoir_release_c: np.ndarray = np.empty(0)
+    reservoir_release_max: np.ndarray = np.empty(0)
+    reservoir_release_min: np.ndarray = np.empty(0)
+    reservoir_release_p_one: np.ndarray = np.empty(0)
+    reservoir_release_p_two: np.ndarray = np.empty(0)
+    reservoir_dependency_database: pd.DataFrame = pd.DataFrame()
+    grid_index_to_reservoirs_map: Dict = Dict.empty(
         key_type=types.int64,
         value_type=types.int64[:],
     )
@@ -451,8 +472,8 @@ class Grid:
                         ds.close()
 
         # recreate the numba grid to reservoir map
-        if grid.reservoir_to_grid_mapping.size > 0:
-            for grid_cell_id, group in grid.reservoir_to_grid_mapping.reset_index().groupby('grid_cell_id'):
-                grid.reservoir_to_grid_map[grid_cell_id] = group.reservoir_id.values
+        if grid.reservoir_dependency_database.size > 0:
+            for grid_cell_id, group in grid.reservoir_dependency_database.reset_index().groupby('grid_cell_id'):
+                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
         
         return grid

@@ -1,5 +1,4 @@
 import numpy as np
-from pathlib import Path
 import unittest
 
 import pkg_resources
