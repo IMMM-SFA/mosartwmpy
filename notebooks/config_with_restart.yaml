@@ -19,4 +19,11 @@ water_management:
     read_from_file: true
     path: ./input/demand/demand_1981_05.nc
   reservoirs:
-    path: ./input/reservoirs/reservoirs.nc
+    parameters:
+      path: ./input/reservoirs/reservoirs.nc
+    dependencies:
+      path: ./input/reservoirs/dependency_database.parquet
+    streamflow:
+      path: ./input/reservoirs/mean_monthly_reservoir_flow.parquet
+    demand:
+      path: ./input/reservoirs/mean_monthly_reservoir_demand.parquet

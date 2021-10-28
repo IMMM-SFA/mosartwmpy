@@ -7,12 +7,12 @@ This utility method generates the four dam/reservoir related input files expecte
 * `grand_dependency_database.parquet` - mapping between GRanD ID and grid cell IDs allowed to extract water
 
 Several datasets are required to perform this operation:
-* GRanD reservoir shapefiles, i.e. [GRanD_v1_3](https://todo)
+* GRanD reservoir shapefiles, i.e. [GRanD_v1_3](http://globaldamwatch.org/grand/)
 * Output data from a previous `mosartwmpy` simulation, with water management disabled, covering the desired simulation time period
 * Monthly demand input that will be used for the simulation
 * The `mosartwmpy` grid (river network) file
-* Elevation data covering the `mosartwmpy` domain in parquet format (this data can be upscaled within the utility method if necessary)
-* ISTARF dataset with the data-driven reservoir coefficients, i.e. [ISTARF v1.0](https://todo)
+* Elevation data covering the `mosartwmpy` domain in parquet format (this data can be upscaled within the utility method if necessary); for instance from [HYDROSHEDS](https://www.hydrosheds.org/downloads) void-filled elevation
+* ISTARF dataset with the data-driven reservoir coefficients, i.e. [ISTARF v0.0.1](https://zenodo.org/record/4602277)
 
 Note that the reservoir parameters and dependency database provided in the tutorial are reasonably robust for a 1/8 degree grid --
 for most use cases it would be sufficient to simply update the mean flow and demand files as appropriate to your simulation.
