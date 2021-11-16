@@ -47,15 +47,18 @@ setup(
         'psutil==5.8.0',
         'pyarrow==6.0.0',
         'python-benedict==0.24.3',
+        'pyparsing==2.4.7',
         'regex==2021.10.23',
         'requests==2.26.0',
         'rioxarray==0.8.0',
+        'scipy==1.7.2',
         'tqdm==4.62.3',
         'xarray==0.19.0'
     ],
     extras_require={
         'dev': [
             'build~=0.7.0',
+            'gdal~=3.3.3'
             'nbsphinx~=0.8.7',
             'recommonmark~=0.7.1',
             'setuptools~=58.3.0',
