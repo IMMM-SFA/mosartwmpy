@@ -4,14 +4,12 @@ import geopandas as gpd
 from matplotlib import pyplot
 import matplotlib as plt
 import pandas as pd
-# import pyarrow as pa
-# import pyarrow.parquet as pq
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pycrs
 import rasterio
 from rasterio.mask import mask
-# from rasterio.warp import reproject, Resampling
 from shapely.geometry import box
-import sys
 import xarray as xr
 
 @click.command()
@@ -62,22 +60,13 @@ def bil_to_parquet(
 ):
     """Convert a bil file into a parquet file."""
 
-    # read grid domain file
     domain = xr.open_dataset(grid_path)
-    longitude, latitude = np.meshgrid(domain[grid_longitude_key], domain[grid_latitude_key])
-    grid_resolution = latitude[1][0] - latitude[0][0]
-    longitude = longitude.flatten()
-    latitude = latitude.flatten()
+    grid_resolution = domain[grid_latitude_key][1] - domain[grid_latitude_key][0]
     ID = domain['ID'].to_numpy().flatten()
     
-    # import bil elevation file and trim to domain
+    # Import bil elevation file and trim to domain.
     bil = rasterio.open(bil_elevation_path)
     bil = cropToDomain(bil, domain, grid_longitude_key, grid_latitude_key, grid_resolution,  bil_elevation_path[:-4] + '_cropped.bil')
-
-    data = bil.read()[0]  # this would be the raw elevation data with no lat/lon info
-    bounds = bil.bounds  # this is the bounding box, coordinates
-    res = bil.res  # this is the resolution
-    shape = bil.shape  # this is the array size
 
     # Resample data to same resolution as grid.
     scale_factor = bil.res[0]/grid_resolution
@@ -89,27 +78,10 @@ def bil_to_parquet(
                             ),
                             resampling=rasterio.enums.Resampling.average
     )
-    # scale image transform
-    downsampled_transform = bil.transform * bil.transform.scale(
-        (bil.width / avg_downsampled_bil.shape[-1]),
-        (bil.height / avg_downsampled_bil.shape[-2])
-    )
 
-    min_downsampled_bil = bil.read(
-                            out_shape=(
-                                bil.count,
-                                int(bil.height * scale_factor),
-                                int(bil.width * scale_factor)
-                            ),
-                            resampling=rasterio.enums.Resampling.min
-    )
-
-    # pyplot.imshow(bil.read(1))
-    # pyplot.show()
-
-    # TODO: return as a parquet file
-
-
+    # Write as parquet file.
+    table = pa.Table.from_pandas(pd.DataFrame(avg_downsampled_bil.flatten(), ID))
+    pq.write_table(table, parquet_elevation_path)
 
 
 def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolution, cropped_output_path):
@@ -118,8 +90,6 @@ def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolu
 
     if bbox == bil.bounds:
         return bil
-    # elif rasterio.coords.disjoint_bounds(bbox, bil.bounds):
-    #     sys.exit("Land areas do not overlap.")
 
     geo = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs=bil.crs)
     coords = getFeatures(geo)
