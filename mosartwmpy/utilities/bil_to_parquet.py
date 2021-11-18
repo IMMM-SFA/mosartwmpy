@@ -1,13 +1,14 @@
 import click
 import numpy as np
 import geopandas as gpd
+import json
 from matplotlib import pyplot
 import matplotlib as plt
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pycrs
 import rasterio
+from rasterio.io import MemoryFile
 from rasterio.mask import mask
 from shapely.geometry import box
 import xarray as xr
@@ -54,7 +55,6 @@ def bil_to_parquet(
         grid_path,
         bil_elevation_path,
         parquet_elevation_path,
-        upscale_elevation=False,
         grid_longitude_key='lon',
         grid_latitude_key='lat',
 ):
@@ -80,8 +80,9 @@ def bil_to_parquet(
     )
 
     # Write as parquet file.
-    table = pa.Table.from_pandas(pd.DataFrame(avg_downsampled_bil.flatten(), ID))
-    pq.write_table(table, parquet_elevation_path)
+    df = pd.DataFrame(avg_downsampled_bil.flatten(), ID)
+    df.columns = df.columns.astype(str)
+    df.to_parquet(parquet_elevation_path)
 
 
 def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolution, cropped_output_path):
@@ -92,23 +93,20 @@ def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolu
         return bil
 
     geo = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs=bil.crs)
-    coords = getFeatures(geo)
+    coords = [json.loads(geo.to_json())['features'][0]['geometry']]
     out_img, out_transform = mask(dataset=bil, shapes=coords, crop=True)
     out_meta = bil.meta.copy()
-    epsg_code = int(bil.crs.data['init'][5:])
     out_meta.update({"driver": "GTiff",
                      "height": out_img.shape[1],
                      "width": out_img.shape[2],
                      "transform": out_transform,
-                     "crs": pycrs.parse.from_epsg_code(epsg_code).to_proj4()})
-    with rasterio.open(cropped_output_path, "w", **out_meta) as dest:
-        dest.write(out_img)
+                     "crs": bil.crs})
     
-    return rasterio.open(cropped_output_path)
+    with MemoryFile() as memfile:
+        with memfile.open(**out_meta) as dataset: # Open as DatasetWriter
+            dataset.write(out_img)
+            del out_img
+        return memfile.open()
 
-def getFeatures(gdf):
-    """Function to parse features from GeoDataFrame in such a manner that rasterio wants them"""
-    import json
-    return [json.loads(gdf.to_json())['features'][0]['geometry']]
-
-bil_to_parquet()
+if __name__ == '__main__':
+    bil_to_parquet()
