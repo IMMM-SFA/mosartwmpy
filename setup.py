@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'create_grand_parameters = mosartwmpy.utilities.create_grand_parameters:create_grand_parameters',
+            'bil_to_parquet = mosartwmpy.utilities.bil_to_parquet:bil_to_parquet',
         ]
     },
     install_requires=[
