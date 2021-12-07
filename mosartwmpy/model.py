@@ -8,7 +8,7 @@ from click import progressbar
 from datetime import datetime, time, timedelta
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from numba import get_num_threads, threading_layer
+from numba import get_num_threads, threading_layer, config as numba_config
 import numpy as np
 from pathlib import Path
 from pathvalidate import sanitize_filename
@@ -94,6 +94,7 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
+            numba_config.THREADING_LAYER = 'workqueue'
             logging.debug(f'Cores: {self.cores}.')
             logging.debug(f'Numba threads: {get_num_threads()}.')
             logging.debug(f'Numba threading layer: {threading_layer()}')
