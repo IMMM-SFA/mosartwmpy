@@ -1,5 +1,4 @@
 import click
-from fiona.crs import from_epsg
 import geopandas as gpd
 import json
 import pandas as pd
@@ -62,7 +61,7 @@ def bil_to_parquet(
 
     domain = xr.open_dataset(grid_path)
     grid_resolution = domain[grid_latitude_key][1] - domain[grid_latitude_key][0]
-    ID = domain['ID'].to_numpy().flatten()
+    ID = domain['ID'].values.flatten()
 
     merged_bil = None
     for bil in bil_elevation_path:
@@ -72,17 +71,17 @@ def bil_to_parquet(
 
         bil = rasterio.open(bil)
         merged_bil, transform = merge([bil, merged_bil])
-        merged_bil = returnInMemory(merged_bil, bil.crs, transform)
+        merged_bil = return_in_memory(merged_bil, bil.crs, transform)
 
-    merged_bil = avgResample(merged_bil, grid_resolution)
-    merged_bil = cropToDomain(merged_bil, domain, grid_longitude_key, grid_latitude_key, grid_resolution)
+    merged_bil = avg_resample(merged_bil, grid_resolution)
+    merged_bil = crop_to_domain(merged_bil, domain, grid_longitude_key, grid_latitude_key, grid_resolution)
 
     # Write as parquet file.
     df = pd.DataFrame(merged_bil.read(1).flatten())
     df.columns = df.columns.astype(str)
     df.to_parquet(parquet_elevation_path)
 
-def avgResample(bil, grid_resolution):
+def avg_resample(bil, grid_resolution):
     scale_factor = bil.res[0] / grid_resolution
 
     avg_sampled_bil = bil.read(
@@ -97,9 +96,9 @@ def avgResample(bil, grid_resolution):
         (bil.width / avg_sampled_bil.shape[-1]),
         (bil.height / avg_sampled_bil.shape[-2])
     )
-    return returnInMemory(avg_sampled_bil, bil.crs, transform)
+    return return_in_memory(avg_sampled_bil, bil.crs, transform)
 
-def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolution):
+def crop_to_domain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolution):
     xmin, ymin, xmax, ymax = domain[grid_latitude_key].min().min().item(0), domain[grid_longitude_key].min().min().item(0), domain[grid_latitude_key].max().max().item(0), domain[grid_longitude_key].max().max().item(0)
     bbox = box(xmin, ymin, xmax + grid_resolution, ymax + grid_resolution)
     if bbox == bil.bounds:
@@ -109,9 +108,9 @@ def cropToDomain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolu
     coords = [json.loads(geo.to_json())['features'][0]['geometry']]
     cropped, transform = mask(dataset=bil, shapes=coords, crop=True, nodata=-999)
 
-    return returnInMemory(cropped, bil.crs, transform)
+    return return_in_memory(cropped, bil.crs, transform)
 
-def returnInMemory(array, crs, transform):
+def return_in_memory(array, crs, transform):
     memfile = MemoryFile()
     dataset = memfile.open(driver='GTiff', height=array.shape[-2], width=array.shape[-1], count=1, crs=crs, transform=transform, dtype=array.dtype)
     dataset.write(array)
