@@ -1,6 +1,6 @@
 from affine import Affine
 from dataclasses import dataclass
-from bil_to_parquet import avg_resample, crop_to_domain, return_in_memory
+from mosartwmpy.utilities.bil_to_parquet import avg_resample, crop_to_domain, return_in_memory
 import numpy as np
 from rasterio.crs import CRS
 from shapely.geometry import box

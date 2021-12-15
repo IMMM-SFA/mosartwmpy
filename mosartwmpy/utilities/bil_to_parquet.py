@@ -12,7 +12,7 @@ import xarray as xr
 @click.command()
 @click.option(
     '--grid-path',
-    default='../../input/domains/mosart.nc',
+    default='input/domains/mosart.nc',
     type=click.Path(
         file_okay=True,
         dir_okay=False,
@@ -24,9 +24,7 @@ import xarray as xr
 )
 @click.option(
     '--bil-elevation-path',
-    default=['../../input/elevation/na_dem_30s_bil/na_dem_30s.bil', '../../input/elevation/ca_dem_30s_bil/ca_dem_30s.bil'],
-    # default=['../../input/elevation/ca_dem_30s_bil/ca_dem_30s.bil'],
-    # default=['../../input/elevation/na_dem_30s_bil/na_dem_30s.bil'],
+    default=['input/elevation/na_dem_30s_bil/na_dem_30s.bil', 'input/elevation/ca_dem_30s_bil/ca_dem_30s.bil'],
     multiple=True,
     type=click.Path(
         file_okay=True,
@@ -39,7 +37,7 @@ import xarray as xr
 )
 @click.option(
     '--parquet-elevation-path',
-    default='../../input/elevation/na_dem_30s.parquet',
+    default='input/elevation/na_dem_30s.parquet',
     type=click.Path(
         file_okay=True,
         dir_okay=False,
