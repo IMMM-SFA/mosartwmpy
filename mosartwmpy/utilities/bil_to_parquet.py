@@ -63,6 +63,7 @@ def bil_to_parquet(
     grid_resolution = domain[grid_latitude_key][1] - domain[grid_latitude_key][0]
     ID = domain['ID'].values.flatten()
 
+    # Combine all input bil files.
     merged_bil = None
     for bil in bil_elevation_path:
         if merged_bil is None:
@@ -76,7 +77,6 @@ def bil_to_parquet(
     merged_bil = avg_resample(merged_bil, grid_resolution)
     merged_bil = crop_to_domain(merged_bil, domain, grid_longitude_key, grid_latitude_key, grid_resolution)
 
-    # Write as parquet file.
     df = pd.DataFrame(merged_bil.read(1).flatten())
     df.columns = df.columns.astype(str)
     df.to_parquet(parquet_elevation_path)
@@ -101,8 +101,6 @@ def avg_resample(bil, grid_resolution):
 def crop_to_domain(bil, domain, grid_latitude_key, grid_longitude_key, grid_resolution):
     xmin, ymin, xmax, ymax = domain[grid_latitude_key].min().min().item(0), domain[grid_longitude_key].min().min().item(0), domain[grid_latitude_key].max().max().item(0), domain[grid_longitude_key].max().max().item(0)
     bbox = box(xmin, ymin, xmax + grid_resolution, ymax + grid_resolution)
-    if bbox == bil.bounds:
-        return bil
 
     geo = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs=bil.crs)
     coords = [json.loads(geo.to_json())['features'][0]['geometry']]
