@@ -2,16 +2,16 @@ import numpy as np
 import unittest
 
 from datetime import date
-from epiweeks import Week
 
 from mosartwmpy.reservoirs.istarf import compute_istarf_release
+from mosartwmpy.utilities.epiweek import get_epiweek_from_datetime
 
 
 class IstarfTest(unittest.TestCase):
 
     def test_is_correct(self):
 
-        epiweek = np.minimum(float(Week.fromdate(date(1994, 10, 1)).week), 52.0)
+        epiweek = np.minimum(float(get_epiweek_from_datetime(date(1994, 10, 1))), 52.0)
         reservoir_id = np.array([0.0])
         upper_min = np.array([-np.Inf])
         upper_max = np.array([np.Inf])

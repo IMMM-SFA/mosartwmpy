@@ -1,5 +1,4 @@
 import contextily as ctx
-from epiweeks import Week
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +11,7 @@ from hvplot import show
 import warnings
 
 from mosartwmpy import Model
+from mosartwmpy.utilities.epiweek import get_epiweek_from_datetime
 
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
@@ -186,7 +186,7 @@ def plot_reservoir(
 
     params = xr.open_dataset(model.config.get('water_management.reservoirs.parameters.path')).to_dataframe()
     dam = params[params[model.config.get('water_management.reservoirs.parameters.variables.reservoir_id')] == grand_id]
-    weeks = df.index.to_series().apply(lambda time: Week.fromdate(pd.to_datetime(time)).week)
+    weeks = df.index.to_series().apply(lambda time: get_epiweek_from_datetime(pd.to_datetime(time)))
     weeks[weeks > 52] = 52
 
     meanflow = pd.read_parquet(model.config.get('water_management.reservoirs.streamflow.path'))
