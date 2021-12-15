@@ -148,7 +148,7 @@ plot_reservoir(
 Plot a particular output variable (as defined in `config.yaml`) over time:
 ```python
 from mosartwmpy import Model
-from mosartwmpy.plotting.plot import plot_reservoir
+from mosartwmpy.plotting.plot import plot_variable
 config_file = 'config.yaml'
 mosart_wm = Model()
 mosart_wm.initialize(config_file)

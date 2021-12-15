@@ -34,7 +34,6 @@ setup(
         'click==8.0.1',
         'contextily==1.2.0',
         'dask[complete]==2021.10.0',
-        'epiweeks==2.1.3',
         'geopandas==0.10.2',
         'h5netcdf==0.11.0',
         'hvplot==0.7.3',

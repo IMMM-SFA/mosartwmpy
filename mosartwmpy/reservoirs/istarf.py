@@ -2,19 +2,19 @@ import numba as nb
 import numpy as np
 
 from datetime import datetime
-from epiweeks import Week
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.state.state import State
 from mosartwmpy.grid.grid import Grid
+from mosartwmpy.utilities.epiweek import get_epiweek_from_datetime
 
 
 def istarf_release(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime):
     # estimate reservoir release using ISTARF which is based on harmonic functions
 
     # restrict epiweek to [1, 52]
-    epiweek = np.minimum(float(Week.fromdate(current_time).week), 52.0)
+    epiweek = np.minimum(float(get_epiweek_from_datetime(current_time)), 52.0)
 
     daily_release = np.zeros(len(grid.reservoir_id))
 
