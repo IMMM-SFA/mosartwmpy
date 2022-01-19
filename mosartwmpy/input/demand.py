@@ -5,6 +5,7 @@ from datetime import datetime
 from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
+from mosartwmpy.abm import abm as ABM
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
@@ -19,15 +20,21 @@ def load_demand(state: State, config: Benedict, current_time: datetime) -> None:
         current_time (datetime): the current time of the simulation
     """
 
-    # demand path can have placeholders for year and month and day, so check for those and replace if needed
     path = config.get('water_management.demand.path')
+    abm = config.get_bool('water_management.demand.abm')
+    if abm:
+        # ABM can currently only calculate demand starting from the first month
+        ABM.calc_demand(config, str(current_time.year), "1", './legacy_reservoir_file.nc')
+        path = config.get('simulation.output_path') + '/demand/demand_' + current_time.strftime('%Y') + '_' + current_time.strftime('%m') + '.nc'
+
+    # demand path can have placeholders for year and month and day, so check for those and replace if needed
     path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
     path = re.sub('\{m[^}]*}', current_time.strftime('%m'), path)
     path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
 
     demand = open_dataset(path)
 
-    # if the demand file has a time axis, use it; otherwise assume data is just 2d
+    # if the demand file has a time axis, use it; otherwise assume data is just 2D
     if config.get('water_management.demand.time', None) in demand:
         state.grid_cell_demand_rate = np.array(demand[config.get('water_management.demand.demand')].sel({config.get('water_management.demand.time'): current_time}, method='pad')).flatten()
     else:
