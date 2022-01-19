@@ -176,7 +176,7 @@ class Model(Bmi):
                     if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
-                        load_demand(self.state, self.config, self.current_time)
+                        load_demand(self.name, self.state, self.config, self.current_time)
                 # only compute new release if it's the very start of simulation or new month
                 # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
                 if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \

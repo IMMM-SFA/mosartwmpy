@@ -195,8 +195,9 @@ water_management:
     enabled: true
     # Demand
     demand:
-        # enable/disable Agent Based Model (ABM) calculation of demand
-        abm: false
+        # farmer Agent Based Model (ABM) calculation of demand
+        farmer_based_agent_model:
+          enabled: false
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true

@@ -5,13 +5,13 @@ from datetime import datetime
 from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
-from mosartwmpy.abm import abm as ABM
+from mosartwmpy.abm import farmer_abm as farmer_abm
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
 
 # @timing
-def load_demand(state: State, config: Benedict, current_time: datetime) -> None:
+def load_demand(name, state: State, config: Benedict, current_time: datetime) -> None:
     """Loads water demand from file into the state for each grid cell.
 
     Args:
@@ -21,11 +21,11 @@ def load_demand(state: State, config: Benedict, current_time: datetime) -> None:
     """
 
     path = config.get('water_management.demand.path')
-    abm = config.get_bool('water_management.demand.abm')
-    if abm:
-        # ABM can currently only calculate demand starting from the first month
-        ABM.calc_demand(config, str(current_time.year), "1", './legacy_reservoir_file.nc')
-        path = config.get('simulation.output_path') + '/demand/demand_' + current_time.strftime('%Y') + '_' + current_time.strftime('%m') + '.nc'
+    farmer_abm_flag = config.get_bool('water_management.demand.farmer_based_agent_model.enabled')
+    if farmer_abm_flag:
+        # ABM can only calculate demand starting from the first month, which is why "1" is hardcoded
+        farmer_abm.calc_demand(name, config, str(current_time.year), "1", './legacy_reservoir_file.nc')
+        path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}_{current_time.strftime('%m')}.nc"
 
     # demand path can have placeholders for year and month and day, so check for those and replace if needed
     path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
