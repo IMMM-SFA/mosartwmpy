@@ -11,19 +11,20 @@ from mosartwmpy.utilities.timing import timing
 
 
 # @timing
-def load_demand(name, state: State, config: Benedict, current_time: datetime) -> None:
+def load_demand(name: str, state: State, config: Benedict, current_time: datetime) -> None:
     """Loads water demand from file into the state for each grid cell.
 
     Args:
+        name (str): name of the simulation
         state (State): the current model state; will be mutated
         config (Benedict): the model configuration
         current_time (datetime): the current time of the simulation
     """
 
     path = config.get('water_management.demand.path')
-    farmer_abm_flag = config.get_bool('water_management.demand.farmer_based_agent_model.enabled')
+    farmer_abm_flag = config.get_bool('water_management.demand.farmer_abm.enabled')
     if farmer_abm_flag:
-        # ABM can only calculate demand starting from the first month, which is why "1" is hardcoded
+        # ABM can only calculate demand starting from the first month, thus "1" is hardcoded
         farmer_abm.calc_demand(name, config, str(current_time.year), "1", './legacy_reservoir_file.nc')
         path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}_{current_time.strftime('%m')}.nc"
 
@@ -31,6 +32,8 @@ def load_demand(name, state: State, config: Benedict, current_time: datetime) ->
     path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
     path = re.sub('\{m[^}]*}', current_time.strftime('%m'), path)
     path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
+
+    print("path: ", path)
 
     demand = open_dataset(path)
 

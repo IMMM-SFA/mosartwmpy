@@ -21,12 +21,12 @@ import pyutilib.subprocess.GlobalData
 ipopt_path = 'ipopt'
 # code_path = os.environ.get('CIMEROOT', './') + '/../components/mosart/src/abm'
 # code_path = os.environ.get('CIMEROOT', './')
-code_path = 'mosartwmpy/abm/'
+# code_path = 'mosartwmpy/abm/'
 
-output_path = os.getcwd()
+# output_path = os.getcwd()
 # output_path = config.get('simulation.output_path') + '/demand'
 
-case_name = output_path.split('/')[-2]
+# case_name = output_path.split('/')[-2]
 
 # mu defines the agents "memory decay rate" - higher mu values indicate higher decay (e.g., 1 indicates that agent only remembers previous year)
 mu = 0.2
@@ -39,24 +39,29 @@ logging.info('Successfully loaded all Python modules')
 # sys.stdout = open(output_path+'/python_stdout.log', 'w')
 # sys.stderr = open(output_path+'/python_stderr.log', 'w')
 
-logging.info('code_path: ' + code_path)
-logging.info('output_path: ' + output_path)
+# logging.info('code_path: ' + code_path)
+# logging.info('output_path: ' + output_path)
 logging.info('mu: ' + str(mu))
 
 def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
+    code_path = config.get('water_management.demand.farmer_abm.path')
+
+    logging.info('code path is: ' + code_path)
+
     pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
     year_int = int(year)
     months = ['01','02','03','04','05','06','07','08','09','10','11','12']
-    output_path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{year}_{month}.nc"
+    output_dir = f"{config.get('simulation.output_path')}/demand/"
+    output_path = f"{output_dir}{name}_farmer_abm_demand_{year}_{month}.nc"
 
-    # check that we haven't already performed this ABM calculation
+    # Check that we haven't already performed the farmer ABM calculation
     existing_demand_files = 0
     for i in months:
-        fname = output_path + '/demand_' + str(year_int) + '_' + i + '.nc' 
+        fname = f"{output_dir}{name}_farmer_abm_demand_{year}_{i}.nc"
         if exists(fname):
             existing_demand_files += 1
     if existing_demand_files == 12:
-        logging.info('Already performed these ABM calculations. Files are in ' + output_path)
+        logging.info('Already performed the farmer ABM calculations for ' + year + '. Files are in ' + output_dir)
         return
 
     logging.info('sys version: ' + str(sys.version_info))
@@ -69,7 +74,7 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
         if int(month) == 1:
             logging.info('Entering month ' + month + ' calculations.')
 
-            with open(code_path + 'nldas_ids.p', 'rb') as fp:
+            with open(code_path + '/nldas_ids.p', 'rb') as fp:
                 nldas_ids = pickle.load(fp)
 
             nldas = pd.read_csv(code_path + '/nldas.txt')
@@ -100,7 +105,8 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 for m in months:
                     #dataset_name = 'jim_abm_integration.mosart.h0.' + str(year-1) + '-' + m + '.nc'
                     logging.info('Trying to load WM output for month, year: ' + month + ' ' + year)
-                    dataset_name = case_name +'.mosart.h0.' + str(year_int - 1) + '-' + m + '.nc'
+                    # dataset_name = case_name +'.mosart.h0.' + str(year_int - 1) + '-' + m + '.nc'
+                    dataset_name = name +'.mosart.h0.' + str(year_int - 1) + '-' + m + '.nc'
                     logging.info('Successfully load WM output for month, year: ' + month + ' ' + year)
                     ds = xr.open_dataset(output_path+'/'+dataset_name)
                     df = ds.to_dataframe()
@@ -273,7 +279,8 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
 
             # JY export results to csv
             results_pd = results_pd[['nldas','crop','calc_area']]
-            results_pd.to_csv(output_path+'/abm_results_'+ str(year_int))
+            # results_pd.to_csv(output_path+'/abm_results_'+ str(year_int))
+            results_pd.to_csv(output_dir+'/abm_results_'+ str(year_int))
 
             # read a sample water demand input file
             file = code_path + '/RCP8.5_GCAM_water_demand_1980_01_copy.nc'
@@ -314,16 +321,16 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
             logging.info('Outputting demand files to: ' + path)
 
             for month in months:
-                str_year = str(year_int)
+                # str_year = str(year_int)
                 # new_fname = output_path+'/RCP8.5_GCAM_water_demand_'+ str_year + '_' + month + '.nc' # define ABM demand input directory
-                new_fname = path + '/demand_' + str_year + '_' + month + '.nc' # define ABM demand input directory
+                # new_fname = path + '/demand_' + str_year + '_' + month + '.nc' # define ABM demand input directory
+                new_fname = f"{output_dir}{name}_farmer_abm_demand_{year}_{month}.nc"
                 shutil.copyfile(file, new_fname)
                 demand_ABM = df_nc.totalDemand.values.reshape(len(lat),len(lon),order='C')
                 with netCDF4.Dataset(new_fname,'a') as nc:
                     nc['totalDemand'][:] = np.ma.masked_array(demand_ABM,mask=nc['totalDemand'][:].mask)
 
             logging.info('I have successfully written out new demand files for month ' + month + ', year ' + year + '.')
-
         else:
             logging.info('Cannot start on month ' + month + ', need to start on month 1.')
             pass
