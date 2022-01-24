@@ -54,13 +54,13 @@ simulation:
           units: m3
         - variable: runoff_land
           name: RIVER_DISCHARGE_OVER_LAND_LIQ
-          long_name: Mosart river basin flow
+          long_name: Mosart river basin flow (same as channel_outflow)
           units: m3/s
         - variable: channel_inflow_upstream
           name: channel_inflow
           long_name: Mosart main channel inflow to grid cell
           units: m3/s
-        - variable: channel_outflow_downstream
+        - variable: runoff_land
           name: channel_outflow
           long_name: Mosart main channel outflow from grid cell
           units: m3/s
