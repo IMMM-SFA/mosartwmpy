@@ -18,61 +18,37 @@ import sys
 import pyutilib.subprocess.GlobalData
 
 
-ipopt_path = 'ipopt'
-# code_path = os.environ.get('CIMEROOT', './') + '/../components/mosart/src/abm'
-# code_path = os.environ.get('CIMEROOT', './')
-# code_path = 'mosartwmpy/abm/'
+class FarmerABM:
 
-# output_path = os.getcwd()
-# output_path = config.get('simulation.output_path') + '/demand'
+    def __init__(self, config: Benedict):
+        self.config = config 
+        self.mu = config.get('water_management.demand.farmer_abm.mu', 0.2)
+        self.processed_years = []
 
-# case_name = output_path.split('/')[-2]
 
-# mu defines the agents "memory decay rate" - higher mu values indicate higher decay (e.g., 1 indicates that agent only remembers previous year)
-mu = 0.2
+    def calc_demand(self, name, year):
+        month = '1'
+        reservoir_file_path =  './legacy_reservoir_file.nc'
+        code_path = self.config.get('water_management.demand.farmer_abm.path')
 
-# logging.basicConfig(filename=(output_path+'/app.log'),level=logging.INFO)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+        logging.info('code path is: ' + code_path)
 
-logging.info('Successfully loaded all Python modules')
+        pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
+        output_dir = f"{self.config.get('simulation.output_path')}/demand/"
+        output_path = f"{output_dir}{name}_farmer_abm_demand_{year}_{month}.nc"
+        months = ['01','02','03','04','05','06','07','08','09','10','11','12']
 
-# sys.stdout = open(output_path+'/python_stdout.log', 'w')
-# sys.stderr = open(output_path+'/python_stderr.log', 'w')
+        # Check that we haven't already performed the farmer ABM calculation
+        if year in self.processed_years:
+            logging.debug('Already performed the farmer ABM calculations for ' + year + '. Files are in ' + output_dir)
+            return
 
-# logging.info('code_path: ' + code_path)
-# logging.info('output_path: ' + output_path)
-logging.info('mu: ' + str(mu))
-
-def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
-    code_path = config.get('water_management.demand.farmer_abm.path')
-
-    logging.info('code path is: ' + code_path)
-
-    pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
-    year_int = int(year)
-    months = ['01','02','03','04','05','06','07','08','09','10','11','12']
-    output_dir = f"{config.get('simulation.output_path')}/demand/"
-    output_path = f"{output_dir}{name}_farmer_abm_demand_{year}_{month}.nc"
-
-    # Check that we haven't already performed the farmer ABM calculation
-    existing_demand_files = 0
-    for i in months:
-        fname = f"{output_dir}{name}_farmer_abm_demand_{year}_{i}.nc"
-        if exists(fname):
-            existing_demand_files += 1
-    if existing_demand_files == 12:
-        logging.info('Already performed the farmer ABM calculations for ' + year + '. Files are in ' + output_dir)
-        return
-
-    logging.info('sys version: ' + str(sys.version_info))
-    logging.info('pandas version: ' + pd.__version__)
-    try:
-        logging.info('Trying to run ABM calc for month, year: ' + month + ' ' + year)
-        logging.info('Using reservoir parameter file: ' + reservoir_file_path)
-
-        # TODO can currently only start with month 1, need to be able to start from any month
-        if int(month) == 1:
-            logging.info('Entering month ' + month + ' calculations.')
+        logging.info('sys version: ' + str(sys.version_info))
+        logging.info('pandas version: ' + pd.__version__)
+        try:
+            logging.info(f'Trying to run ABM calc for month {month} year {year}')
+            logging.info('Using reservoir parameter file: ' + reservoir_file_path)
+            logging.info(f'Entering month {month} calculations.')
 
             with open(code_path + '/nldas_ids.p', 'rb') as fp:
                 nldas_ids = pickle.load(fp)
@@ -90,12 +66,12 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
 
 
             ## Read in Water Availability Files from MOSART-PMP
-            if year_int<1950:  # If year is before 1950 (warm-up period), use the external baseline water demand files
+            if year<1950:  # If year is before 1950 (warm-up period), use the external baseline water demand files
                 water_constraints_by_farm = pd.read_csv(code_path+'/hist_avail_bias_correction_20201102.csv') # Use baseline water demand data for warmup period
                 water_constraints_by_farm = water_constraints_by_farm[['NLDAS_ID','sw_irrigation_vol']].reset_index()
                 water_constraints_by_farm = water_constraints_by_farm['sw_irrigation_vol'].to_dict()
-            # elif year_int==1950:  # For first year of ABM, use baseline water demand data
-            elif year_int>=1950:  # For first year of ABM, use baseline water demand data
+            # elif year==1950:  # For first year of ABM, use baseline water demand data
+            elif year>=1950:  # For first year of ABM, use baseline water demand data
                 water_constraints_by_farm = pd.read_csv(code_path+'/hist_avail_bias_correction_20201102.csv')
                 water_constraints_by_farm = water_constraints_by_farm[['NLDAS_ID','sw_irrigation_vol']].reset_index()
                 water_constraints_by_farm = water_constraints_by_farm['sw_irrigation_vol'].to_dict()
@@ -105,8 +81,8 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 for m in months:
                     #dataset_name = 'jim_abm_integration.mosart.h0.' + str(year-1) + '-' + m + '.nc'
                     logging.info('Trying to load WM output for month, year: ' + month + ' ' + year)
-                    # dataset_name = case_name +'.mosart.h0.' + str(year_int - 1) + '-' + m + '.nc'
-                    dataset_name = name +'.mosart.h0.' + str(year_int - 1) + '-' + m + '.nc'
+                    # dataset_name = case_name +'.mosart.h0.' + str(year - 1) + '-' + m + '.nc'
+                    dataset_name = name +'.mosart.h0.' + str(year - 1) + '-' + m + '.nc'
                     logging.info('Successfully load WM output for month, year: ' + month + ' ' + year)
                     ds = xr.open_dataset(output_path+'/'+dataset_name)
                     df = ds.to_dataframe()
@@ -116,7 +92,7 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                     logging.info('Successfully merged df for month, year: ' + month + ' ' + year)
                     df_select = df_merge[['NLDAS_ID', 'WRM_DEMAND0', 'WRM_SUPPLY', 'WRM_DEFICIT','WRM_STORAGE','GINDEX','RIVER_DISCHARGE_OVER_LAND_LIQ']]
                     logging.info('Successfully subsetted df for month, year: ' + month + ' ' + year)
-                    df_select['year'] = year_int
+                    df_select['year'] = year
                     df_select['month'] = int(m)
                     if first:
                         df_all = df_select
@@ -129,11 +105,11 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 # df_pivot = pd.pivot_table(df_all, index=['NLDAS_ID','GINDEX'], values=['WRM_SUPPLY','WRM_STORAGE','RIVER_DISCHARGE_OVER_LAND_LIQ'],
                 #                           aggfunc=np.mean)  # units will be average monthly (m3/s)
                 df_pivot = pd.pivot_table(df_all, index=['NLDAS_ID','GINDEX'], values=['WRM_SUPPLY','WRM_STORAGE','RIVER_DISCHARGE_OVER_LAND_LIQ'],
-                                                          aggfunc=np.mean)  # units will be average monthly (m3/s)
+                                                        aggfunc=np.mean)  # units will be average monthly (m3/s)
                 df_pivot = df_pivot.reset_index()
                 df_pivot = df_pivot[df_pivot['NLDAS_ID'].isin(nldas_ids)].reset_index()
                 df_pivot.fillna(0)
-                logging.info('Successfully pivoted df for month, year: ' + month + ' ' + year)
+                logging.info(f'Successfully pivoted df for month {month} year {year}')
 
                 # calculate dependent storage
                 ds = xr.open_dataset(reservoir_file_path)
@@ -170,9 +146,9 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 abm_supply_avail = pd.merge(abm_supply_avail, hist_avail_bias[['NLDAS_ID','sw_avail_bias_corr','WRM_SUPPLY_acreft_OG','WRM_SUPPLY_acreft_prev','RIVER_DISCHARGE_OVER_LAND_LIQ_OG','STORAGE_SUM_OG']], on=['NLDAS_ID'])
                 abm_supply_avail['demand_factor'] = abm_supply_avail['STORAGE_SUM'] / abm_supply_avail['STORAGE_SUM_OG']
                 abm_supply_avail['demand_factor'] = np.where(abm_supply_avail['STORAGE_SUM_OG'] > 0, abm_supply_avail['STORAGE_SUM'] / abm_supply_avail['STORAGE_SUM_OG'],
-                                                             np.where(abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ_OG'] >= 0.1,
-                                                                      abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ'] / abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ_OG'],
-                                                                      1))
+                                                            np.where(abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ_OG'] >= 0.1,
+                                                                    abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ'] / abm_supply_avail['RIVER_DISCHARGE_OVER_LAND_LIQ_OG'],
+                                                                    1))
 
                 abm_supply_avail['WRM_SUPPLY_acreft_newinfo'] = abm_supply_avail['demand_factor'] * abm_supply_avail['WRM_SUPPLY_acreft_OG']
 
@@ -182,9 +158,9 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 abm_supply_avail[['NLDAS_ID','WRM_SUPPLY_acreft_OG','WRM_SUPPLY_acreft_prev','sw_avail_bias_corr','demand_factor','RIVER_DISCHARGE_OVER_LAND_LIQ_OG']].to_csv(code_path+'/hist_avail_bias_correction_live.csv')
                 abm_supply_avail['WRM_SUPPLY_acreft_bias_corr'] = abm_supply_avail['WRM_SUPPLY_acreft_updated'] + abm_supply_avail['sw_avail_bias_corr']
                 water_constraints_by_farm = abm_supply_avail['WRM_SUPPLY_acreft_bias_corr'].to_dict()
-                logging.info('Successfully converted units df for month ' + month + ', year ' + year + '.')
+                logging.info(f'Successfully converted units df for month : {month} {year}')
 
-            logging.info('I have successfully loaded water availability files for month ' + month + ', year ' + year + '.')
+            logging.info(f'I have successfully loaded water availability files for month {month} year {year}.')
 
             ## Read in PMP calibration files
             data_file=pd.ExcelFile(code_path+"/MOSART_WM_PMP_inputs_20201028.xlsx")
@@ -192,7 +168,7 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
             water_nirs=data_profit["nir_corrected"]
             nirs=dict(water_nirs)
 
-            logging.info('I have successfully loaded PMP calibration files for month ' + month + ', year ' + year + '.')
+            logging.info(f'I have successfully loaded PMP calibration files for month {month} year {year}.')
 
             ## C.1. Preparing model indices and constraints:
             ids = range(538350) # total number of crop and nldas ID combinations
@@ -223,7 +199,7 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
 
             x_start_values=dict(enumerate([0.0]*3))
 
-            logging.info('I have loaded constructed model indices,constraints for month ' + month + ', year ' + year + '.')
+            logging.info(f'I have loaded constructed model indices, constraints for month {month} year {year}.')
 
             ## C.2. 2st stage: Quadratic model included in JWP model simulations
             ## C.2.a. Constructing model inputs:
@@ -255,17 +231,18 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 return sum(fwm_s.xs[i]*fwm_s.nirs[i] for i in fwm_s.crop_ids_by_farm_and_constraint[ff]) <= fwm_s.water_constraints[ff]
             fwm_s.c2 = Constraint(fwm_s.farm_ids, rule=water_constraint)
 
-            logging.info('I have successfully constructed pyomo model for month ' + month + ', year ' + year + '.')
+            logging.info(f'I have successfully constructed pyomo model for month {month} year {year}.')
 
             ## C.2.c Creating and running the solver:
             try:
-                opt = SolverFactory("ipopt", executable=ipopt_path, solver_io='nl')
+                # opt = SolverFactory("ipopt", executable=ipopt_path, solver_io='nl')
+                opt = SolverFactory("ipopt", solver_io='nl')
                 results = opt.solve(fwm_s, keepfiles=False, tee=True)
                 print(results.solver.termination_condition)
             except:
-                logging.info('Pyomo model solve has failed for month ' + month + ', year ' + year + '.')
+                logging.info(f'Pyomo model solve has failed for month {month} year {year}.')
 
-            logging.info('I have successfully solved pyomo model for month ' + month + ', year ' + year + '.')
+            logging.info(f'I have successfully solved pyomo model for month  {month} year {year}.')
 
             ## D.1. Storing main model outputs:
             result_xs = dict(fwm_s.xs.get_values())
@@ -279,8 +256,8 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
 
             # JY export results to csv
             results_pd = results_pd[['nldas','crop','calc_area']]
-            # results_pd.to_csv(output_path+'/abm_results_'+ str(year_int))
-            results_pd.to_csv(output_dir+'/abm_results_'+ str(year_int))
+            # results_pd.to_csv(output_path+'/abm_results_'+ str(year))
+            results_pd.to_csv(output_dir+'/abm_results_'+ str(year))
 
             # read a sample water demand input file
             file = code_path + '/RCP8.5_GCAM_water_demand_1980_01_copy.nc'
@@ -317,11 +294,11 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
             df_nc.loc[results_pivot.index,'totalDemand'] = results_pivot.calc_water_demand.values
 
             # set output dir
-            path = config.get('simulation.output_path') + '/demand'
+            path = self.config.get('simulation.output_path') + '/demand'
             logging.info('Outputting demand files to: ' + path)
 
             for month in months:
-                # str_year = str(year_int)
+                # str_year = str(year)
                 # new_fname = output_path+'/RCP8.5_GCAM_water_demand_'+ str_year + '_' + month + '.nc' # define ABM demand input directory
                 # new_fname = path + '/demand_' + str_year + '_' + month + '.nc' # define ABM demand input directory
                 new_fname = f"{output_dir}{name}_farmer_abm_demand_{year}_{month}.nc"
@@ -330,11 +307,9 @@ def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
                 with netCDF4.Dataset(new_fname,'a') as nc:
                     nc['totalDemand'][:] = np.ma.masked_array(demand_ABM,mask=nc['totalDemand'][:].mask)
 
-            logging.info('I have successfully written out new demand files for month ' + month + ', year ' + year + '.')
-        else:
-            logging.info('Cannot start on month ' + month + ', need to start on month 1.')
-            pass
-    except Exception as e:
-        logging.exception(str(e))
-    
-    logging.info('Done running.\n')
+            logging.info(f'I have successfully written out new demand files for month {month} year {year}.')
+            self.processed_years.append(year)
+        except Exception as e:
+            logging.exception(str(e))
+        
+        logging.info('Done running.\n')

@@ -198,7 +198,8 @@ water_management:
         # farmer Agent Based Model (ABM) calculation of demand
         farmer_abm:
           enabled: false
-          path: ./mosartwmpy/abm
+          path: ./mosartwmpy/farmer_abm
+          mu: 0.2
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true

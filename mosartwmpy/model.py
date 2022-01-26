@@ -19,6 +19,7 @@ import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
@@ -45,6 +46,7 @@ class Model(Bmi):
     def __init__(self):
         self.name: str = None
         self.config = benedict()
+        self.farmerABM = None
         self.grid = None
         self.restart = None
         self.current_time: datetime = None
@@ -141,6 +143,9 @@ class Model(Bmi):
             except Exception as e:
                 logging.exception('Failed to initialize model; see below for stacktrace.')
                 raise e
+
+        if self.config.get('water_management.demand.farmer_abm.enabled', False):
+            self.farmerABM = FarmerABM(self.config)
         
         # setup output file averaging
         try:
@@ -176,7 +181,7 @@ class Model(Bmi):
                     if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
-                        load_demand(self.name, self.state, self.config, self.current_time)
+                        load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM)
                 # only compute new release if it's the very start of simulation or new month
                 # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
                 if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
