@@ -170,14 +170,14 @@ def plot_reservoir(
     inflow_variable = next((o for o in model.config.get('simulation.output') if
                             o.get('variable', '') == 'channel_inflow_upstream'), {}).get('name', None)
     outflow_variable = next((o for o in model.config.get('simulation.output') if
-                             o.get('variable', '') == 'channel_outflow_downstream'), {}).get('name', None)
+                             o.get('variable', '') == 'runoff_land'), {}).get('name', None)
     results = xr.open_mfdataset(f"{model.config.get('simulation.output_path')}/{model.name}/*.nc")[
         [storage_variable, inflow_variable, outflow_variable]]
 
     df = pd.DataFrame(index=results.time)
     df['storage'] = results[storage_variable].isel(lat=ilat, lon=ilon).values.flatten() / 1e6
     df['inflow'] = results[inflow_variable].isel(lat=ilat, lon=ilon).values.flatten() * 24 * 60 * 60 / 1e6
-    df['outflow'] = results[outflow_variable].isel(lat=ilat, lon=ilon).values.flatten() * -1 * 24 * 60 * 60 / 1e6
+    df['outflow'] = results[outflow_variable].isel(lat=ilat, lon=ilon).values.flatten() * 24 * 60 * 60 / 1e6
     if start is not None:
         df = df[df.index >= start]
     if end is not None:

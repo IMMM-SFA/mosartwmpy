@@ -48,7 +48,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # drop nan grid ids
     self.reservoir_dependency_database = self.reservoir_dependency_database[self.reservoir_dependency_database.grid_cell_id.notna()]
     # set to integer
-    self.reservoir_dependency_database = self.reservoir_dependency_database.astype(int)
+    self.reservoir_dependency_database = self.reservoir_dependency_database.astype(np.int64)
 
     # create a numba typed dict with key = <grid cell id> and value = <list of reservoir_ids that feed the cell>
     self.grid_index_to_reservoirs_map = Dict.empty(
