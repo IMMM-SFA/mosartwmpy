@@ -362,7 +362,7 @@ class Model(Bmi):
     def get_grid_size(self, grid: int = 0) -> int:
         return self.grid.cell_count
 
-    def get_grid_shape(self, grid: int = 0, shape: np.ndarray = np.empty(2, dtype=int)) -> np.ndarray:
+    def get_grid_shape(self, grid: int = 0, shape: np.ndarray = np.empty(2, dtype=np.int64)) -> np.ndarray:
         shape[0] = self.grid.unique_latitudes.size
         shape[1] = self.grid.unique_longitudes.size
         return shape

@@ -159,7 +159,7 @@ class Grid:
                 3,
                 2
             )
-        )
+        ).astype(np.int64)
         
         # TODO this is basically the same as the above... should consolidate code to just use one of these masks
         # mosart ocean/land mask
@@ -179,7 +179,7 @@ class Grid:
                     0
                 )
             )
-        )
+        ).astype(np.int64)
         
         # determine final downstream outlet of each cell
         # this essentially slices up the grid into discrete basins
@@ -188,15 +188,15 @@ class Grid:
         for i, _id in enumerate(self.id):
             id_hashmap[int(_id)] = int(i)
         # convert downstream ids into downstream indices
-        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=int)
+        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=np.int64)
         # update the id to be zero-indexed (note this makes them one less than fortran mosart ids)
-        self.id = np.arange(self.id.size)
+        self.id = np.arange(self.id.size).astype(np.int64)
         
         # follow each cell downstream to compute outlet id
         size = self.downstream_id.size
-        self.outlet_id = np.full(size, -1)
-        self.upstream_id = np.full(size, -1)
-        self.upstream_cell_count = np.full(size, 0)
+        self.outlet_id = np.full(size, -1, dtype=np.int64)
+        self.upstream_id = np.full(size, -1, dtype=np.int64)
+        self.upstream_cell_count = np.full(size, 0, dtype=np.int64)
         for i in np.arange(size):
             if self.downstream_id[i] >= 0:
                 # mark as upstream cell of downstream cell

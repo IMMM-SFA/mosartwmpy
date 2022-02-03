@@ -198,7 +198,7 @@ class State:
         # tracer, i.e. liquid or ice - TODO ice not implemented yet
         self.tracer: np.ndarray = np.empty(0)
         # euler mask - which cells to perform the euler calculation on
-        self.euler_mask: np.ndarray = np.empty(0)
+        self.euler_mask: np.ndarray = np.empty(0, dtype=np.int64)
         # a column of always all zeros, to use as a utility
         self.zeros: np.ndarray = np.empty(0)
 
@@ -209,11 +209,11 @@ class State:
         # storage [m3]
         self.reservoir_storage: np.ndarray = np.empty(0)
         # MthStOp,
-        self.reservoir_month_start_operations: np.ndarray = np.empty(0)
+        self.reservoir_month_start_operations: np.ndarray = np.empty(0, dtype=np.int64)
         # MthStFC
-        self.reservoir_month_flood_control_start: np.ndarray = np.empty(0)
+        self.reservoir_month_flood_control_start: np.ndarray = np.empty(0, dtype=np.int64)
         # MthNdFC
-        self.reservoir_month_flood_control_end: np.ndarray = np.empty(0)
+        self.reservoir_month_flood_control_end: np.ndarray = np.empty(0, dtype=np.int64)
         # release [m3/s]
         self.reservoir_release: np.ndarray = np.empty(0)
         # supply [m3/s]
