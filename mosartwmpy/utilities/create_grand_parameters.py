@@ -199,7 +199,7 @@ def create_grand_parameters(
     latitude = latitude.flatten()
     grid = gpd.GeoDataFrame(geometry=gpd.points_from_xy(longitude, latitude))
     grid['GRID_CELL_INDEX'] = grid.index
-    grid['DOWNSTREAM_INDEX'] = domain[grid_downstream_key].values.flatten().astype(int) - 1
+    grid['DOWNSTREAM_INDEX'] = domain[grid_downstream_key].values.flatten().astype(np.int64) - 1
     grid['DRAINAGE_AREA'] = domain[grid_drainage_area_key].values.flatten() / 1000000
 
     # create a dam geometry point column
@@ -432,7 +432,7 @@ def create_grand_parameters(
         dependent_cells = dependent_cells[dependent_cells['ELEVATION'] <= dam_cell['ELEVATION']]
         dependent_cells = dependent_cells[dependent_cells['OUTLET_INDEX'] == dam_cell['OUTLET_INDEX']]
         dependent_cells = dependent_cells.index.values
-        dependent_cell_indices.append(dependent_cells[~np.isnan(dependent_cells)].astype(int))
+        dependent_cell_indices.append(dependent_cells[~np.isnan(dependent_cells)].astype(np.int64))
     filtered['DEPENDENT_CELL_INDICES'] = dependent_cell_indices
 
     filtered.index = filtered.GRAND_ID.values
