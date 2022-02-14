@@ -8,6 +8,7 @@ from xarray import concat, open_dataset
 import rioxarray
 
 from mosartwmpy.utilities.timing import timing
+from mosartwmpy.utilities.get_experiment_name import get_experiment_name
 
 
 def initialize_output(self):
@@ -51,28 +52,11 @@ def write_output(self):
     """Writes the output buffer and requested grid variables to a netcdf file."""
     # TODO only daily resolution is currently supported - need to support arbitrary resolutions
 
-    # check the write frequency to see if writing to new file or appending to existing file
-    # also construct the file name
-    period = self.config.get('simulation.output_file_frequency')
-    is_new_period = False
-    # use yesterday's date as the file name, to match with what is actually being averaged
+    experiment_name, is_new_period = get_experiment_name(self)
+    filename = f'{experiment_name}.nc'
+
+    # Use yesterday's date as the file name, to match with what is actually being averaged.
     true_date = self.current_time if not (self.current_time.hour == 0 and self.current_time.minute == 0 and self.current_time.second == 0) else (self.current_time - timedelta(days=1))
-    filename = f'{self.config.get("simulation.output_path")}/{self.name}/{self.name}_{true_date.year}'
-    if period == 'daily':
-        filename += f'_{true_date.strftime("%m")}_{true_date.strftime("%d")}'
-        if self.current_time.hour == 0 and self.current_time.second == 0:
-            is_new_period = True
-    elif period == 'monthly':
-        filename += f'_{true_date.strftime("%m")}'
-        if self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
-            is_new_period = True
-    elif period == 'yearly':
-        if self.current_time.month == 1 and self.current_time.day == 2 and self.current_time.hour == 0 and self.current_time.second == 0:
-            is_new_period = True
-    else:
-        logging.warning(f'Configuration value for `simulation.output_file_frequency: {period}` is not recognized.')
-        return
-    filename += '.nc'
 
     # create the data frame
     frame = pd.DataFrame(self.grid.latitude, columns=['latitude']).join(pd.DataFrame(self.grid.longitude, columns=['longitude'])).join(
