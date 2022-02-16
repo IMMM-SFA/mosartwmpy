@@ -25,7 +25,7 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
 
     # Calculate water demand for farmers using an ABM.
     if config.get_bool('water_management.demand.farmer_abm.enabled'):
-        farmerABM.calc_demand(name, current_time.year)
+        farmerABM.calc_demand()
         path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}_{current_time.strftime('%m')}.nc"
 
     # demand path can have placeholders for year and month and day, so check for those and replace if needed

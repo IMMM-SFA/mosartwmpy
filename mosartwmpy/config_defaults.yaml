@@ -304,7 +304,7 @@ water_management:
                 streamflow_month_index: MONTH_INDEX
                 # mean streamflow for month
                 streamflow: MEAN_FLOW
-      # database of monthly mean demand for each reservoir
+        # database of monthly mean demand for each reservoir
         demand:
           # path to the demand file; can be absolute or relative to the source code root
           path: ./input/reservoirs/grand_average_monthly_demand.parquet
