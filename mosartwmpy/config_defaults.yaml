@@ -86,6 +86,9 @@ simulation:
         - variable: id
           name: GINDEX
           long_name: Index of the grid cell in a 1d array
+        - variable: nldas_id
+          name: NLDAS_ID
+          long_name: NLDAS_ID of grid cell. 
         - variable: outlet_id
           name: OUTLETG
           long_name: Index of the outlet grid cell in a 1d array
@@ -110,7 +113,7 @@ simulation:
 ###
 grid:
     # path to the grid domain file; can be absolute or relative to the source code root
-    path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+    path: ./input/domains/MOSART_NLDAS_8th.nc
     # longitude field name
     longitude: lon
     # latitude field name
@@ -127,6 +130,8 @@ grid:
         total_drainage_area_single: areaTotal2
         # grid cell id field name
         id: ID
+        # NLDAS_Id of the grid cell
+        nldas_id: NLDAS_ID
         # downstream ID field name
         downstream_id: dnID
         # flow direction field name
@@ -155,14 +160,8 @@ grid:
         channel_floodplain_width: rwid0
         # bankfull depth of main channel field name [m]
         grid_channel_depth: rdep
-    # land grid information
-    # TODO this is only needed for land_frac variable, so should just add it to mosart grid
-    # TODO assumed to be the same grid as the main grid
-    land:
-      # path to the land grid domain file; can be absolute or relative to the source code root
-      path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
-      # land fraction field name
-      land_fraction: frac
+        # land fraction field name
+        land_fraction: frac
 ###
 ### Runoff (forcing input)
 ###
