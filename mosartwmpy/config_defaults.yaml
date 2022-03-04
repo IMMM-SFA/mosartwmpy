@@ -73,7 +73,7 @@ simulation:
           long_name: Mosart reservoir supply to grid cell
           units: m3/s
         - variable: grid_cell_demand_rate
-          name: WRM_DEMAND0
+          name: WRM_DEMAND
           long_name: Mosart demand reqeusted by grid cell
           units: m3/s
         - variable: grid_cell_deficit

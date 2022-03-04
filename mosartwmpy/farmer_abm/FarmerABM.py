@@ -1,4 +1,3 @@
-from benedict.dicts import benedict
 import netCDF4
 import logging
 import numpy as np
@@ -8,9 +7,11 @@ from pyomo.environ import *
 from pyomo.opt import SolverFactory
 import pyutilib.subprocess.GlobalData
 import shutil
+from timeit import default_timer as timer
 import xarray as xr
 
 from mosartwmpy import model
+from mosartwmpy.utilities.pretty_timer import pretty_timer
 
 
 class FarmerABM:
@@ -35,9 +36,11 @@ class FarmerABM:
 
 
     def calc_demand(self):
+        t = timer()
+
         month = '1'
         year = self.model.current_time.year
-         # acre-ft/year (the resulting units for the two multiplied terms) to cubic meters/sec (the demand units that MOSART-WM takes in)
+         # acre-ft/year to cubic meters/sec (the demand units that MOSART-WM takes in)
         ACREFTYEAR_TO_CUBICMSEC = 25583.64
         months = ['01','02','03','04','05','06','07','08','09','10','11','12']
         pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
@@ -45,6 +48,7 @@ class FarmerABM:
         historic_storage_supply_path = self.code_path + '/historic_storage_supply_bias.parquet'
         mosart_wm_pmp_path = self.code_path + '/MOSART_WM_PMP_inputs_20201028.parquet'
         output_dir = f"{self.config.get('simulation.output_path')}/demand/"
+        gammas_net_prices_path = f"{self.code_path}/gammas_net_prices.parquet" 
 
         # Check that we haven't already performed farmer ABM calculation.
         if year in self.processed_years:
@@ -151,12 +155,12 @@ class FarmerABM:
 
             logging.info(f'Loaded PMP calibration files for month {month} year {year}.')
 
-            # Number of crop and NLDAS ID combinations
+            # Number of crop and NLDAS ID combinations.
             ids = range(len(data_profit)) 
-            # Number of farm agents / NLDAS IDs
+            # Number of farm agents / NLDAS IDs.
             farm_ids = range(len(pd.unique(data_profit['nldas'])))
 
-            # TODO: merge pickle files into one
+            # Land constraints are scenario specific.
             with open(self.code_path+'/max_land_constr_20201102_protocol2.p', 'rb') as fp:
                 land_constraints_by_farm = pickle.load(fp)
 
@@ -164,17 +168,12 @@ class FarmerABM:
             crop_ids_by_farm.set_axis(range(0, len(crop_ids_by_farm)), inplace = True)
             crop_ids_by_farm = crop_ids_by_farm.to_dict()
 
-            # Load gammas and alphas
-            with open(self.code_path+'/gammas_new_20201102_protocol2.p', 'rb') as fp:
-                gammas = pickle.load(fp)
-            with open(self.code_path+'/net_prices_new_20201102_protocol2.p', 'rb') as fp:
-                net_prices = pickle.load(fp)
+            # Load calibration variables.
+            gammas_net_prices = pd.read_parquet(gammas_net_prices_path)
+            gammas = gammas_net_prices['gammas'].to_dict()
+            net_prices = gammas_net_prices['net_prices'].to_dict()
 
-            # Replace net_prices with zero value for gammas that equal to zero
-            for n in range(len(net_prices)):
-                if gammas[n] == 0:
-                    net_prices[n] = 0
-
+            # Initialize start values to zero.
             x_start_values=dict(enumerate([0.0]*3))
 
             logging.info(f'Loaded constructed model indices and constraints for month {month} year {year}.')
@@ -275,4 +274,5 @@ class FarmerABM:
         except Exception as e:
             logging.exception(str(e))
         
-        logging.info('Done running. \n')
+        logging.info(f'Ran in {pretty_timer(timer() - t)}.')
+        # logging.info('Done running. \n')
