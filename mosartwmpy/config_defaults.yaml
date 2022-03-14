@@ -199,6 +199,19 @@ water_management:
           enabled: false
           path: ./mosartwmpy/farmer_abm
           mu: 0.2
+          warmup_period: 1
+          land_water_constraints:
+              path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
+          land_water_constraints_live:
+              path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
+          historic_storage_supply:
+              path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
+          mosart_wm_pmp:
+              path: ./input/demand/farmer_abm/MOSART_WM_PMP_inputs.parquet
+        output:
+            path: ./output/demand
+          
+          
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true

@@ -10,7 +10,6 @@ import xarray as xr
 from mosartwmpy import model
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 
-
 class FarmerABM:
 
     def __init__(self, model: model):
@@ -18,7 +17,6 @@ class FarmerABM:
         self.config = model.config 
         self.processed_years = []
 
-        self.code_path = self.config.get('water_management.demand.farmer_abm.path')
         self.demand = self.config.get('water_management.demand.demand')
         self.dependent_cell_index = self.config.get('water_management.reservoirs.dependencies.variables.dependent_cell_index')
         self.grid_cell_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'id'), None).get('name')
@@ -42,29 +40,26 @@ class FarmerABM:
         ACREFTYEAR_TO_CUBICMSEC = 25583.64
         pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
 
-        historic_storage_supply_path = f"{self.code_path}/historic_storage_supply_bias.parquet"
-        mosart_wm_pmp_path = f"{self.code_path}/MOSART_WM_PMP_inputs.parquet"
-        output_dir = f"{self.config.get('simulation.output_path')}/demand/"
-
-        land_water_constraints_by_farm_path = f"{self.code_path}/hist_avail_bias_correction.parquet"
+        # All file paths.
         dependency_database_path = self.config.get('water_management.reservoirs.dependencies.path')
+        historic_storage_supply_path = f"{self.config.get('water_management.demand.farmer_abm.historic_storage_supply.path')}"
+        land_water_constraints_by_farm_live_path = f"{self.config.get('water_management.demand.farmer_abm.land_water_constraints_live.path')}"
+        land_water_constraints_by_farm_path = self.config.get('water_management.demand.farmer_abm.land_water_constraints.path')
+        mosart_wm_pmp_path = f"{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.path')}"
+        output_dir = f"{self.config.get('water_management.demand.output.path')}"
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
-        simulation_output_path = 'output/tutorial/tutorial_1981_*.nc'
-        historic_available_bias_correction_live_path = f"{self.code_path}/hist_avail_bias_correction_live.csv"
+        simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{year}_*.nc"
 
-        # Check we haven't already performed farmer ABM calculation.
+        # Check we haven't already performed the farmer ABM calculation.
         if year in self.processed_years:
-            logging.debug('Already performed farmer ABM calculations for ' + year + '. Files are in ' + output_dir)
+            logging.debug(f"Already performed farmer ABM calculations for {year}. Files are in {output_dir}.")
             return
 
         try:
-            # Read in Water Availability Files from MOSART-PMP
             land_water_constraints_by_farm = pd.read_parquet(land_water_constraints_by_farm_path)
 
-            # If year is before 1950 (warm-up period), use the external baseline water demand files
-            # TODO: add warmup period. If warmup period is <1 execute this block
-            if year <= 1950:
-                # Use baseline water demand data for warmup period
+            # If warm-up period is < 1, use the external baseline water demand files
+            if self.config.get('water_management.demand.farmer_abm.warmup_period') < 1:
                 water_constraints_by_farm = land_water_constraints_by_farm[['NLDAS_ID','sw_irrigation_vol']].reset_index()
                 water_constraints_by_farm = water_constraints_by_farm['sw_irrigation_vol'].to_dict()
             else:
@@ -138,15 +133,16 @@ class FarmerABM:
                 abm_data['WRM_SUPPLY_acreft_updated'] = ((1 - self.mu) * abm_data['WRM_SUPPLY_acreft_prev']) + (self.mu * abm_data['WRM_SUPPLY_acreft_newinfo'])
                 abm_data['WRM_SUPPLY_acreft_prev'] = abm_data['WRM_SUPPLY_acreft_updated']
 
-                # Update CSV with 'live' data.
-                abm_data[[self.nldas_id,'WRM_SUPPLY_acreft_OG','WRM_SUPPLY_acreft_prev','sw_avail_bias_corr','demand_factor','RIVER_DISCHARGE_OVER_LAND_LIQ_OG']].to_csv(historic_available_bias_correction_live_path)
+                # TODO: what is the live data for and do we need it?
+                # Update parquet with 'live' data.
+                abm_data[[self.nldas_id,'WRM_SUPPLY_acreft_OG','WRM_SUPPLY_acreft_prev','sw_avail_bias_corr','demand_factor','RIVER_DISCHARGE_OVER_LAND_LIQ_OG']].to_parquet(land_water_constraints_by_farm_live_path)
 
                 abm_data['WRM_SUPPLY_acreft_bias_corr'] = abm_data['WRM_SUPPLY_acreft_updated'] + abm_data['sw_avail_bias_corr']
 
                 water_constraints_by_farm = abm_data.reset_index()['WRM_SUPPLY_acreft_bias_corr'].to_dict()
-                logging.info(f'Converted units dataframe for month {month} year {year}')
+                logging.info(f"Converted units dataframe for month {month} year {year}")
 
-            logging.info(f'Loaded water availability files for month {month} year {year}.')
+            logging.info(f"Loaded water availability files for month {month} year {year}.")
 
             # Read in PMP calibration files.
             data_profit = pd.read_parquet(mosart_wm_pmp_path)
@@ -154,7 +150,7 @@ class FarmerABM:
             gammas = data_profit['gammas'].to_dict()
             net_prices = data_profit['net_prices'].to_dict()
 
-            logging.info(f'Loaded PMP calibration files for month {month} year {year}.')
+            logging.info(f"Loaded PMP calibration files for month {month} year {year}.")
 
             # Number of crop and NLDAS ID combinations.
             ids = range(len(data_profit)) 
@@ -170,7 +166,7 @@ class FarmerABM:
             # Initialize start values to zero.
             x_start_values=dict(enumerate([0.0]*3))
 
-            logging.info(f'Loaded constructed model indices and constraints for month {month} year {year}.')
+            logging.info(f"Loaded constructed model indices and constraints for month {month} year {year}.")
 
             # 2st stage: Quadratic model included in JWP model simulations.
             # Construct model inputs.
@@ -202,31 +198,33 @@ class FarmerABM:
             fwm_s.c2 = Constraint(fwm_s.farm_ids, rule=water_constraint)
 
 
-            logging.info(f'Constructed pyomo model for month {month} year {year}.')
+            logging.info(f"Constructed pyomo model for month {month} year {year}.")
 
             # Create and run the solver.
             try:
                 opt = SolverFactory("ipopt", solver_io='nl')
                 results = opt.solve(fwm_s, keepfiles=False, tee=True)
                 print(results.solver.termination_condition)
-                logging.info(f'Solved pyomo model for month {month} year {year}.')
+                logging.info(f"Solved pyomo model for month {month} year {year}.")
             except:
-                logging.info(f'Pyomo model solve has failed for month {month} year {year}.')
+                logging.info(f"Pyomo model solve has failed for month {month} year {year}.")
                 return
 
             # Store main model outputs.
             result_xs = dict(fwm_s.xs.get_values())
 
-            # Store results into a pandas dataframe.
+            # Store results in a pandas dataframe.
             results_pd = data_profit
             results_pd = results_pd.assign(calc_area=result_xs.values())
             results_pd = results_pd.assign(nir=nirs.values())
             results_pd['calc_water_demand'] = results_pd['calc_area'] * results_pd['nir'] / ACREFTYEAR_TO_CUBICMSEC
+            # TODO: Address the comment below.
             results_pivot = pd.pivot_table(results_pd, index=['nldas'], values=['calc_water_demand'], aggfunc=np.sum) #JY demand is order of magnitude low, double check calcs
 
+            # TODO: Would we rather have parquet?
             # Export results to CSV.
             results_pd = results_pd[['nldas', 'crop', 'calc_area']]
-            results_pd.to_csv(output_dir+'/abm_results_'+ str(year))
+            results_pd.to_csv(output_dir+'/farmer_abm_'+ str(year))
 
             # Construct a DataFrame with all NLDAS IDs.
             demand_per_nldas_id = pd.DataFrame(self.model.grid.nldas_id).rename(columns={0:self.nldas_id})
@@ -236,14 +234,11 @@ class FarmerABM:
             demand_per_nldas_id = demand_per_nldas_id.set_index(self.nldas_id,drop=False)
             demand_per_nldas_id.loc[results_pivot.index,self.demand] = results_pivot.calc_water_demand.values
 
-            output_dir = self.config.get('simulation.output_path') + '/demand'
-            logging.info('Outputting demand file to: ' + output_dir)
-
+            # Convert pandas DataFrame to xarray Dataset to more easily output to a NetCDF.
             demand_ABM = demand_per_nldas_id.totalDemand.values.reshape(
                 len(self.model.grid.unique_latitudes), len(self.model.grid.unique_longitudes),
                 order='C'
             )
-
             demand_ABM = xr.Dataset(
                 data_vars={
                     self.demand:([self.time, self.latitude, self.longitude], np.array([demand_ABM]))
@@ -254,11 +249,12 @@ class FarmerABM:
                     self.time: ([self.time], [np.datetime64(f"{year}-01")]),
                 }
             )
-            demand_ABM.to_netcdf(f"{output_dir}/farmer_abm_demand_{year}.nc")
+            logging.info(f"Outputting demand file to: {output_dir}.")
+            demand_ABM.to_netcdf(f"{output_dir}/{self.config.get('simulation.name')}_farmer_abm_demand_{year}.nc")
+            logging.info(f"Wrote new demand files for month {month} year {year}.")
 
-            logging.info(f'Written out new demand files for month {month} year {year}.')
             self.processed_years.append(year)
         except Exception as e:
             logging.exception(str(e))
         
-        logging.info(f'Ran Farmer ABM in {pretty_timer(timer() - t)}.')
+        logging.info(f"Ran farmer ABM in {pretty_timer(timer() - t)}.")
