@@ -199,18 +199,46 @@ water_management:
           enabled: false
           path: ./mosartwmpy/farmer_abm
           mu: 0.2
-          warmup_period: 1
+          warmup_period: 10
           land_water_constraints:
               path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
+              variables:
+                # NLDAS identifier for the grid cell
+                nldas_id: NLDAS_ID
+                land_constraints_by_farm: LAND_CONSTRAINTS_BY_FARM
+                # Surface water irrigation volume [acre-ft/year]
+                sw_irrigation_vol: sw_irrigation_vol
           land_water_constraints_live:
               path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
           historic_storage_supply:
               path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
+              variables:
+                # NLDAS identifier for the grid cell
+                nldas_id: NLDAS_ID
+                storage_sum_original: STORAGE_SUM_OG
+                # Water resource management
+                wrm_supply_original: WRM_SUPPLY_acreft_OG
+                wrm_supply_prev: WRM_SUPPLY_acreft_prev
+                # Surface water available with bias correction 
+                sw_avail_bias_correction: sw_avail_bias_corr
+                demand_factor: demand_factor
+                river_discharge_over_land_liquid_original: RIVER_DISCHARGE_OVER_LAND_LIQ_OG
           mosart_wm_pmp:
               path: ./input/demand/farmer_abm/MOSART_WM_PMP_inputs.parquet
+              variables:
+                calculated_area: calc_area
+                calculated_water_demand: calc_water_demand
+                crop: crop
+                # Net irrigation requirement
+                nir: nir
+                # Net irrigation requirement corrected
+                nir_corrected: nir_corrected
+                gammas: gammas
+                net_prices: net_prices
+                # NLDAS identifier for the grid cell
+                nldas_ids: nldas
         output:
             path: ./output/demand
-          
           
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
@@ -304,6 +332,8 @@ water_management:
                 dependent_cell_index: DEPENDENT_CELL_INDEX
                 # ID of the reservoir
                 dependent_reservoir_id: GRAND_ID
+                # Reservoir cell index
+                reservoir_cell_index: RESERVOIR_CELL_INDEX
         # database of monthly mean streamflow for each reservoir
         streamflow:
             # path to the flow file; can be absolute or relative to the source code root

@@ -2,18 +2,14 @@
 
 simulation:
     # name this simulation
-    name: mosartwmpy demo
-    # path to a directory for writing output files; will be created if doesn't exist
-    output_path: ./output
+    name: tutorial
     # date to begin the simulation
     start_date: 1981-05-01
     # date to end the simulation
     end_date: 1981-05-30
 
 grid:
-  path: ./input/domains/mosart.nc
-  land:
-    path: ./input/domains/land.nc
+  path: ./input/domains/CONUS_NLDAS.nc
 
 runoff:
   read_from_file: true
@@ -22,14 +18,17 @@ runoff:
 water_management:
   enabled: true
   demand:
+    farmer_abm:
+      enabled: true
+      warmup_period: 1
     read_from_file: true
     path: ./input/demand/demand_1981_05.nc
   reservoirs:
     parameters:
-      path: ./input/reservoirs/grand_reservoir_parameters.nc
+      path: ./input/reservoirs/reservoirs.nc
     dependencies:
-      path: ./input/reservoirs/grand_dependency_database.parquet
+      path: ./input/reservoirs/dependency_database.parquet
     streamflow:
-      path: ./input/reservoirs/grand_average_monthly_flow.parquet
+      path: ./input/reservoirs/mean_monthly_reservoir_flow.parquet
     demand:
-      path: ./input/reservoirs/grand_average_monthly_demand.parquet
+      path: ./input/reservoirs/mean_monthly_reservoir_demand.parquet
