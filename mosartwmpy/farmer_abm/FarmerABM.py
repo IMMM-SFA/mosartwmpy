@@ -9,8 +9,6 @@ import xarray as xr
 from mosartwmpy import model
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 
-import pdb
-
 
 class FarmerABM:
 
@@ -29,17 +27,36 @@ class FarmerABM:
         self.reservoir_id = self.config.get('water_management.reservoirs.parameters.variables.reservoir_id')
         self.time = self.config.get('water_management.demand.time')
 
-        # TODO: add try except for each var
         # Get variables from the mosartwmpy output based on the mosartwmpy configuration.
         try:
             self.grid_cell_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'id'), None).get('name')
+        except Exception as e:
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation grid_output variable id.")
+            exit()
+        try:
             self.grid_cell_supply = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'grid_cell_supply'), None).get('name')
+        except Exception as e:
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable grid_cell_supply.")
+            exit()
+        try:
             self.nldas_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'nldas_id'), None).get('name')
+        except Exception as e:
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation grid_output variable nldas_id.")
+            exit()
+        try:
             self.reservoir_storage = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'reservoir_storage'), None).get('name')
+        except Exception as e:
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable reservoir_storage.")
+            exit()
+        try:
             self.runoff_land = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'runoff_land'), None).get('name')
+        except Exception as e:
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable runoff_land.")
+            exit()
+        try:
             self.test = next((o for o in self.config.get('simulation.test') if o.get('variable', '').casefold() == 'runoff_land'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy outputs needed for the farmer ABM.")
+            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation test variable runoff_land.")
             exit()
 
     def calc_demand(self):
@@ -67,22 +84,19 @@ class FarmerABM:
         try:
             warmup_year = self.config.get('simulation.start_date').year + self.config.get('water_management.demand.farmer_abm.warmup_period')
 
-            # TODO: de-cryptify these comments
-            # initalize file the first year after the warmup period 
-            # then after that year we read off the live file
-            # After the warmup year
+            # During the warm-up period and the first year after the warm-up, read from the initial value file (not live).
+            # After that, read off the `live` file.
             if year > warmup_year:
                 land_water_constraints_by_farm = pd.read_parquet(land_water_constraints_by_farm_live_path)
             else:
                 land_water_constraints_by_farm = pd.read_parquet(land_water_constraints_by_farm_path)
 
-            # If within the warm-up period, use the external baseline water demand files
+            # If within the warm-up period, use the external baseline water demand files.
             if year < warmup_year:
                 water_constraints_by_farm = land_water_constraints_by_farm[[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.nldas_id'), self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')]]
                 water_constraints_by_farm = water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')].to_dict()
             else:
-                # ABM constants
-                # TODO: double check that these vars are internal
+                # ABM constants 
                 DEMAND_FACTOR = 'demand_factor'
                 STORAGE_SUM = 'STORAGE_SUM'
                 STORAGE_SUM_ORIGINAL = 'STORAGE_SUM_OG'
@@ -97,28 +111,28 @@ class FarmerABM:
                 # Map between grid cell ID and the cell that is dependent upon it (many to many). 
                 historic_storage_supply = pd.read_parquet(historic_storage_supply_path)
 
-                # Relationships between grid cells and reservoirs they can consume from (many to many)
+                # Relationships between grid cells and reservoirs they can consume from (many to many).
                 dependency_database = pd.read_parquet(dependency_database_path)
 
-                # Determines which grid cells the reservoirs are located in (one to one)
+                # Determines which grid cells the reservoirs are located in (one to one).
                 reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
 
-                # Get mosartwmpy output
+                # Get mosartwmpy output.
                 simulation_output = xr.open_mfdataset(simulation_output_path)[[
                     self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
                 ]].mean('time').to_dataframe().reset_index()
 
-                # Merge the dependencies with the reservoir grid cells
+                # Merge the dependencies with the reservoir grid cells.
                 dependency_database = dependency_database.merge(reservoir_parameters, how='left', on=self.reservoir_id).rename(columns={self.reservoir_grid_index: self.config.get('water_management.reservoirs.dependencies.variables.reservoir_cell_index')})
 
-                # Merge the dependency database with the mean storage at reservoir locations, and aggregate per grid cell
+                # Merge the dependency database with the mean storage at reservoir locations, and aggregate per grid cell.
                 abm_data = dependency_database.merge(simulation_output[[
                     self.grid_cell_id, self.reservoir_storage
                 ]], how='left', left_on=self.config.get('water_management.reservoirs.dependencies.variables.reservoir_cell_index'), right_on=self.grid_cell_id).groupby(self.dependent_cell_index, as_index=False)[[self.reservoir_storage]].sum().rename(
                     columns={self.reservoir_storage: STORAGE_SUM}
                 )
 
-                # Merge in the mean supply and mean channel outflow from the simulation results per grid cell
+                # Merge in the mean supply and mean channel outflow from the simulation results per grid cell.
                 abm_data[[ 
                     self.grid_cell_supply, self.runoff_land
                 ]] =  abm_data[[self.dependent_cell_index]].merge(simulation_output[[
@@ -127,12 +141,12 @@ class FarmerABM:
                     self.grid_cell_supply, self.runoff_land
                 ]]
 
-                # Merge in NLDAS ID from simulation output
+                # Merge in NLDAS ID from simulation output.
                 abm_data = simulation_output[[
                     self.grid_cell_supply, self.nldas_id
                 ]].merge(abm_data, left_on=self.grid_cell_supply, right_on=self.dependent_cell_index, how='left')
                     
-                # Merge bias correction, original supply in acreft, historic storage, and original channel outflow
+                # Merge bias correction, original supply in acreft, historic storage, and original channel outflow.
                 abm_data[[
                     SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_ORIGINAL, STORAGE_SUM_ORIGINAL
                 ]] = abm_data[[self.nldas_id]].merge(historic_storage_supply[[
@@ -169,8 +183,7 @@ class FarmerABM:
                 abm_data[WRM_SUPPLY_UPDATED] = ((1 - self.mu) * abm_data[WRM_SUPPLY_PREV]) + (self.mu * abm_data[WRM_SUPPLY_NEW])
                 abm_data[WRM_SUPPLY_PREV] = abm_data[WRM_SUPPLY_UPDATED]
 
-                # TODO: define 'live'
-                # Update parquet with 'live' data.
+                # Update parquet with 'live' data: variables updated year to year.
                 abm_data[[self.nldas_id, WRM_SUPPLY_ORIGINAL, WRM_SUPPLY_PREV, SW_AVAIL_BIAS_CORRECTION, DEMAND_FACTOR, RIVER_DISCHARGE_OVER_LAND_ORIGINAL]].to_parquet(land_water_constraints_by_farm_live_path)
 
                 abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[WRM_SUPPLY_UPDATED] + abm_data[SW_AVAIL_BIAS_CORRECTION]
