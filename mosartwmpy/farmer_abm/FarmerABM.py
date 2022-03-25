@@ -53,11 +53,7 @@ class FarmerABM:
         except Exception as e:
             logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable runoff_land.")
             exit()
-        try:
-            self.test = next((o for o in self.config.get('simulation.test') if o.get('variable', '').casefold() == 'runoff_land'), None).get('name')
-        except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation test variable runoff_land.")
-            exit()
+        
 
     def calc_demand(self):
         t = timer()
