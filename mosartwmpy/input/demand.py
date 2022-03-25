@@ -1,11 +1,13 @@
+import logging
 import numpy as np
 import regex as re
+import sys
 
 from datetime import datetime
 from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
-from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
+from mosartwmpy.farmer_abm.farmer_abm import FarmerABM
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
@@ -22,20 +24,24 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     """
 
     path = config.get('water_management.demand.path')
-    farmer_abm_flag = config.get_bool('water_management.demand.farmer_abm.enabled')
-    if farmer_abm_flag:
-        # ABM can only calculate demand starting from the first month
-        farmerABM.calc_demand(name, current_time.year)
-        path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}_{current_time.strftime('%m')}.nc"
 
-    # demand path can have placeholders for year and month and day, so check for those and replace if needed
+    # Demand path can have placeholders for year and month and day, so check for those and replace if needed
     path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
     path = re.sub('\{m[^}]*}', current_time.strftime('%m'), path)
     path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
 
-    print("path: ", path)
+    # Calculate water demand for farmers using an ABM.
+    if config.get_bool('water_management.demand.farmer_abm.enabled'):
+        try:
+            farmerABM.calc_demand()
+            path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}.nc"
+        except:
+            logging.info(f"Water demand calculation for farmer ABM failed. Defaulting to precalculated values. ")
 
-    demand = open_dataset(path)
+    try:
+        demand = open_dataset(path)
+    except:
+        sys.exit(f"Unable to open demand file: {path} ")
 
     # if the demand file has a time axis, use it; otherwise assume data is just 2D
     if config.get('water_management.demand.time', None) in demand:

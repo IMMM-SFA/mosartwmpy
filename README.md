@@ -36,9 +36,7 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >   end_date: 1981-05-26
 >
 > grid:
->   path: ./input/domains/mosart.nc
->   land:
->     path: ./input/domains/land.nc
+>   path: ./input/domains/mosart_conus_nldas_grid.nc
 >
 > runoff:
 >   read_from_file: true

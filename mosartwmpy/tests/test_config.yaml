@@ -1,10 +1,22 @@
 simulation:
   name: unit_tests
   start_date: 1981-01-01
+  output_path: ./mosartwmpy/tests
 runoff:
   path: ./mosartwmpy/tests/runoff_1981_01_01.nc
 water_management:
   demand:
+    farmer_abm:
+      enabled: false
+      path: ./mosartwmpy/tests
+      land_water_constraints:
+          path: ./mosartwmpy/tests/test_land_water_constraints_by_farm.parquet
+      land_water_constraints_live:
+          path: ./mosartwmpy/tests/test_land_water_constraints_by_farm_live.parquet
+      historic_storage_supply:
+          path: ./mosartwmpy/tests/test_historic_storage_supply_bias.parquet
+      crop_prices_by_nldas_id:
+          path: ./mosartwmpy/tests/test_crop_prices_by_nldas_id.parquet
     path: ./mosartwmpy/tests/demand_1981_01_01.nc
   reservoirs:
     parameters:

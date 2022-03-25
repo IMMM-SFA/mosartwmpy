@@ -19,7 +19,7 @@ import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
-from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
+from mosartwmpy.farmer_abm.farmer_abm import FarmerABM
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
@@ -145,7 +145,7 @@ class Model(Bmi):
                 raise e
 
         if self.config.get('water_management.demand.farmer_abm.enabled', False):
-            self.farmerABM = FarmerABM(self.config)
+            self.farmerABM = FarmerABM(self)
         
         # setup output file averaging
         try:
