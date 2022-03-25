@@ -145,7 +145,7 @@ class Model(Bmi):
                 raise e
 
         if self.config.get('water_management.demand.farmer_abm.enabled', False):
-            self.farmerABM = FarmerABM(self.config)
+            self.farmerABM = FarmerABM(self)
         
         # setup output file averaging
         try:

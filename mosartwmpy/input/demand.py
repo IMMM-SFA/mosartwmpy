@@ -22,18 +22,16 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     """
 
     path = config.get('water_management.demand.path')
-    farmer_abm_flag = config.get_bool('water_management.demand.farmer_abm.enabled')
-    if farmer_abm_flag:
-        # ABM can only calculate demand starting from the first month
-        farmerABM.calc_demand(name, current_time.year)
+
+    # Calculate water demand for farmers using an ABM.
+    if config.get_bool('water_management.demand.farmer_abm.enabled'):
+        farmerABM.calc_demand()
         path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}_{current_time.strftime('%m')}.nc"
 
     # demand path can have placeholders for year and month and day, so check for those and replace if needed
     path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
     path = re.sub('\{m[^}]*}', current_time.strftime('%m'), path)
     path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
-
-    print("path: ", path)
 
     demand = open_dataset(path)
 
