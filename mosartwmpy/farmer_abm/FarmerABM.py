@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from os import mkdir
 import pandas as pd
 from pyomo.environ import ConcreteModel, Constraint, maximize, NonNegativeReals, Objective, Set, Param, Set, Var 
 from pyomo.opt import SolverFactory
@@ -80,7 +81,7 @@ class FarmerABM:
         try:
             warmup_year = self.config.get('simulation.start_date').year + self.config.get('water_management.demand.farmer_abm.warmup_period')
 
-            # During the warm-up period and the first year after the warm-up, read from the initial value file (not live).
+            # During the warm-up period and the first year after the warm-up, read initial values (not live).
             # After that, read off the `live` file.
             if year > warmup_year:
                 land_water_constraints_by_farm = pd.read_parquet(land_water_constraints_by_farm_live_path)
@@ -272,7 +273,12 @@ class FarmerABM:
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.crop'), 
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')
             ]]
-            results_pd.to_parquet(output_dir+'/farmer_abm_'+ str(year))
+            # Create output directory if it doesn't already exist
+            try: 
+                mkdir(output_dir) 
+            except OSError as error: 
+                print(error) 
+            results_pd.to_parquet(f"{output_dir}/farmer_abm_{str(year)}.parquet")
 
             # Construct a DataFrame with all NLDAS IDs.
             demand_per_nldas_id = pd.DataFrame(self.model.grid.nldas_id).rename(columns={0:self.nldas_id})
