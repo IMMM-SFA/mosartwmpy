@@ -21,7 +21,7 @@ def get_epiweek_from_datetime(dt: datetime) -> int:
         week = (dt_ordinal - year_start_ordinal) // 7
     elif week >= 52:
         year_start_ordinal = _get_year_start_ordinal(year + 1)
-        if date_ordinal > year_start_ordinal:
+        if dt_ordinal > year_start_ordinal:
             year = year + 1
             week = 0
     week = week + 1
