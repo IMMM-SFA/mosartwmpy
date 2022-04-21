@@ -8,7 +8,7 @@ from click import progressbar
 from datetime import datetime, time, timedelta
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from numba import get_num_threads, threading_layer, config as numba_config
+from numba import get_num_threads, threading_layer
 import numpy as np
 from pathlib import Path
 from pathvalidate import sanitize_filename
@@ -94,7 +94,6 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            numba_config.THREADING_LAYER = 'workqueue'
             logging.debug(f'Cores: {self.cores}.')
             logging.debug(f'Numba threads: {get_num_threads()}.')
             logging.debug(f'Numba threading layer: {threading_layer()}')
@@ -183,12 +182,13 @@ class Model(Bmi):
                     (self.config.get('water_management.reservoirs.enable_istarf') and self.current_time ==
                      datetime(self.current_time.year, self.current_time.month, self.current_time.day, 0, 0, 0)) or \
                         self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
-                    # release water from reservoirs
+                    # update reservoir release targets
                     reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
             # perform simulation for one timestep
+            logging.debug('Solving...')
             update(self.state, self.grid, self.parameters, self.config, self.current_time)
             # advance timestep
             self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))

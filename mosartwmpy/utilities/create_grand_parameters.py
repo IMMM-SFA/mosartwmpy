@@ -128,6 +128,17 @@ from scipy.spatial import KDTree
     prompt='Where should the reservoir average monthly flow be written?',
     help="""The path to which the average monthly flow should be written."""
 )
+@click.option(
+    '--placement-corrections-path',
+    default=None,
+    type=click.Path(
+        file_okay=True,
+        dir_okay=False,
+        writable=False,
+        resolve_path=True,
+    ),
+    prompt='What is the path to a CSV file containing reservoir placement corrections? Leave blank for none'
+)
 def create_grand_parameters(
         grid_path,
         grand_path,
@@ -139,6 +150,7 @@ def create_grand_parameters(
         dependency_output_path,
         average_monthly_demand_output_path,
         average_monthly_flow_output_path,
+        placement_corrections_path=None,
         upscale_elevation=False,
         grid_longitude_key='lon',
         grid_latitude_key='lat',
@@ -154,6 +166,8 @@ def create_grand_parameters(
         elevation_key='hydroshed_average_elevation',
         elevation_upscale_cells=225,
         dependency_radius_meters=200000,
+        corrections_grid_index_key='gindex',
+        corrections_grand_id_key='GRAND_ID',
         istarf_key_map=dict(
             GRanD_MEANFLOW_CUMECS='grand_meanflow_cumecs',
             Obs_MEANFLOW_CUMECS='observed_meanflow_cumecs',
@@ -359,10 +373,12 @@ def create_grand_parameters(
             if len(group) > 1:
                 for k in np.arange(len(group))[1:]:
                     if getattr(group.iloc[k], grand_drainage_area_key) > getattr(group.iloc[0], grand_drainage_area_key):
-                        # move downstream
-                        moved_downstream.append(group.iloc[k].GRAND_ID)
-                        grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = grid.iloc[
-                            group.iloc[k].GRID_CELL_INDEX].DOWNSTREAM_INDEX
+                        new_index = grid.iloc[group.iloc[k].GRID_CELL_INDEX].DOWNSTREAM_INDEX
+                        # if new index is less than 0, dam would be moved into the ocean... so don't allow this.
+                        if new_index >= 0:
+                            # move downstream
+                            moved_downstream.append(group.iloc[k].GRAND_ID)
+                            grand.at[group.iloc[k]['index'], 'GRID_CELL_INDEX'] = new_index
                     else:
                         # move upstream
                         # there can be multiple upstream cells, so move to the best flow or drainage area match
@@ -408,6 +424,30 @@ def create_grand_parameters(
 
     click.echo(f'GRanD dams dropped due to overlaps: {len(dropped.index)} - {dropped.GRAND_ID.values.tolist()}')
     click.echo(f'GRanD dams remaining after removing overlaps: {len(filtered.index)}')
+
+    # if provided, implement placement corrections
+    # note that this currently doesn't correct any manual placement errors (duplicates will just get dropped)
+    if (placement_corrections_path is not None) and (placement_corrections_path != ''):
+        click.echo(f'Applying corrections to GRanD parameters.')
+        corrections = pd.read_csv(placement_corrections_path)[[corrections_grand_id_key, corrections_grid_index_key]]
+        for i in np.arange(len(corrections)):
+            # if another dam is in this same grid cell, remove it
+            filtered = filtered.drop(filtered[filtered['GRID_CELL_INDEX'] == corrections.iloc[i][corrections_grid_index_key]].index)
+            if corrections.iloc[i][corrections_grand_id_key] in filtered['GRAND_ID'].values:
+                filtered.loc[
+                    filtered['GRAND_ID'] == corrections.iloc[i][corrections_grand_id_key],
+                    'GRID_CELL_INDEX'
+                ] = int(corrections.iloc[i][corrections_grid_index_key])
+            else:
+                # get the rest of the parameters from the grand file
+                filtered = pd.concat(
+                    [filtered, grand[grand['GRAND_ID'] == corrections.iloc[i][corrections_grand_id_key]][filtered.columns]],
+                    ignore_index=True,
+                )
+                filtered.loc[
+                    filtered['GRAND_ID'] == corrections.iloc[i][corrections_grand_id_key],
+                    'GRID_CELL_INDEX'
+                ] = int(corrections.iloc[i][corrections_grid_index_key])
 
     # find the grid cells dependent on each dam
     dependent_cell_indices = []
