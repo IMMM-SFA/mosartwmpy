@@ -1,7 +1,6 @@
 import numba as nb
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from benedict.dicts import benedict as Benedict
 from datetime import datetime
