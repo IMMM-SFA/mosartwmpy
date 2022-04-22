@@ -32,33 +32,36 @@ class FarmerABM:
         try:
             self.grid_cell_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'id'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation grid_output variable id.")
-            exit()
+            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation grid_output variable id.")
+            raise
         try:
             self.grid_cell_supply = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'grid_cell_supply'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable grid_cell_supply.")
-            exit()
+            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable grid_cell_supply.")
+            raise
         try:
             self.nldas_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'nldas_id'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation grid_output variable nldas_id.")
-            exit()
+            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation grid_output variable nldas_id.")
+            raise
         try:
             self.reservoir_storage = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'reservoir_storage'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable reservoir_storage.")
-            exit()
+            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable reservoir_storage.")
+            raise
         try:
             self.runoff_land = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'runoff_land'), None).get('name')
         except Exception as e:
-            logging.error(f"Can't find the mosartwmpy output needed for the farmer ABM: simulation output variable runoff_land.")
-            exit()
+            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable runoff_land.")
+            raise
         
 
     def calc_demand(self):
+        # todo: add required files to docstring
+        """Calculates water demand for each farmer using an agent based model(ABM) and outputs into a netCDF file. """
+       
+        logging.info("\nRunning farmer ABM. ")
         t = timer()
-        month = '01'
         year = self.model.current_time.year
         # Conversion from acre-feet/year to cubic meters/sec (the demand units that MOSART-WM takes in).
         ACREFTYEAR_TO_CUBICMSEC = 25583.64
@@ -71,7 +74,9 @@ class FarmerABM:
         mosart_wm_pmp_path = f"{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.path')}"
         output_dir = f"{self.config.get('water_management.demand.output.path')}"
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
-        simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{year}_*.nc"
+
+        # Look at previous year mosartwmpy results
+        simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{year-1}_*.nc"
 
         # Check we haven't already performed the farmer ABM calculation.
         if year in self.processed_years:
@@ -90,9 +95,9 @@ class FarmerABM:
 
             # If within the warm-up period, use the external baseline water demand files.
             if year < warmup_year:
-                water_constraints_by_farm = land_water_constraints_by_farm[[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.nldas_id'), self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')]]
-                water_constraints_by_farm = water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')].to_dict()
+                water_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')].to_dict()
             else:
+                # todo: clean up ABM constants: all lowercase or all caps
                 # ABM constants 
                 DEMAND_FACTOR = 'demand_factor'
                 STORAGE_SUM = 'STORAGE_SUM'
@@ -115,9 +120,11 @@ class FarmerABM:
                 reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
 
                 # Get mosartwmpy output.
-                simulation_output = xr.open_mfdataset(simulation_output_path)[[
+                simulation_output_xr = xr.open_mfdataset(simulation_output_path)
+                simulation_output = simulation_output_xr[[
                     self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
                 ]].mean('time').to_dataframe().reset_index()
+                simulation_output[self.nldas_id] = simulation_output_xr[self.nldas_id].isel(time=0).to_dataframe().reset_index()[self.nldas_id].values
 
                 # Merge the dependencies with the reservoir grid cells.
                 dependency_database = dependency_database.merge(reservoir_parameters, how='left', on=self.reservoir_id).rename(columns={self.reservoir_grid_index: self.config.get('water_management.reservoirs.dependencies.variables.reservoir_cell_index')})
@@ -179,16 +186,17 @@ class FarmerABM:
                 abm_data[WRM_SUPPLY_NEW] = abm_data[DEMAND_FACTOR] * abm_data[WRM_SUPPLY_ORIGINAL]
                 abm_data[WRM_SUPPLY_UPDATED] = ((1 - self.mu) * abm_data[WRM_SUPPLY_PREV]) + (self.mu * abm_data[WRM_SUPPLY_NEW])
                 abm_data[WRM_SUPPLY_PREV] = abm_data[WRM_SUPPLY_UPDATED]
-
-                # Update parquet with 'live' data: variables updated year to year.
-                abm_data[[self.nldas_id, WRM_SUPPLY_ORIGINAL, WRM_SUPPLY_PREV, SW_AVAIL_BIAS_CORRECTION, DEMAND_FACTOR, RIVER_DISCHARGE_OVER_LAND_ORIGINAL]].to_parquet(land_water_constraints_by_farm_live_path)
-
                 abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[WRM_SUPPLY_UPDATED] + abm_data[SW_AVAIL_BIAS_CORRECTION]
 
-                water_constraints_by_farm = abm_data.reset_index()[WRM_SUPPLY_BIAS_CORRECTION].to_dict()
-                logging.info(f"Converted units dataframe for month {month} year {year}")
+                # Update parquet with 'live' data, variables updated year to year: sw_irrigation_vol, land_constraints_by_farm
+                land_water_constraints_by_farm_live = land_water_constraints_by_farm
+                land_water_constraints_by_farm_live[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')] = abm_data[WRM_SUPPLY_BIAS_CORRECTION]
+                land_water_constraints_by_farm_live[[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol'), self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')]].to_parquet(land_water_constraints_by_farm_live_path)
 
-            logging.info(f"Loaded water availability files for month {month} year {year}.")
+                water_constraints_by_farm = abm_data.reset_index()[WRM_SUPPLY_BIAS_CORRECTION].to_dict()
+                logging.info(f"Converted units dataframe for year {year}")
+
+            logging.info(f"Loaded water availability files for year {year}.")
 
             # Read in PMP calibration files.
             mosart_wm_pmp = pd.read_parquet(mosart_wm_pmp_path)
@@ -196,7 +204,7 @@ class FarmerABM:
             gammas = mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.gammas')].to_dict()
             net_prices = mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.net_prices')].to_dict()
 
-            logging.info(f"Loaded PMP calibration files for month {month} year {year}.")
+            logging.info(f"Loaded PMP calibration files for year {year}.")
 
             # Number of crop and NLDAS ID combinations.
             ids = range(len(mosart_wm_pmp)) 
@@ -212,7 +220,7 @@ class FarmerABM:
             # Initialize start values to zero.
             x_start_values=dict(enumerate([0.0]*3))
 
-            logging.info(f"Loaded constructed model indices and constraints for month {month} year {year}.")
+            logging.info(f"Loaded constructed model indices and constraints for year {year}.")
 
             # 2st stage: Quadratic model included in JWP model simulations.
             # Construct model inputs.
@@ -231,7 +239,8 @@ class FarmerABM:
             # 2nd stage model: Construct functions.
             def obj_fun(fwm_s):
                 # .00001 is a scaling factor for computational purposes (doesn't influence optimization results). 
-                # 0.5 is part of the positive mathematical formulation equation. Both values will not vary between runs.
+                # 0.5 is part of the positive mathematical formulation equation. 
+                # Both values will not vary between runs.
                 return 0.00001*sum(sum((fwm_s.net_prices[i] * fwm_s.xs[i] - 0.5 * fwm_s.gammas[i] * fwm_s.xs[i] * fwm_s.xs[i]) for i in fwm_s.crop_ids_by_farm[f]) for f in fwm_s.farm_ids)
             fwm_s.obj_f = Objective(rule=obj_fun, sense=maximize)
 
@@ -246,16 +255,16 @@ class FarmerABM:
             fwm_s.c2 = Constraint(fwm_s.farm_ids, rule=water_constraint)
 
 
-            logging.info(f"Constructed pyomo model for month {month} year {year}.")
+            logging.info(f"Constructed pyomo model for year {year}.")
 
             # Create and run the solver.
             try:
                 opt = SolverFactory("ipopt", solver_io='nl')
                 results = opt.solve(fwm_s, keepfiles=False, tee=True)
-                print(results.solver.termination_condition)
-                logging.info(f"Solved pyomo model for month {month} year {year}.")
+                logging.info(results.solver.termination_condition)
+                logging.info(f"Solved pyomo model for year {year}.")
             except:
-                logging.info(f"Pyomo model solve has failed for month {month} year {year}.")
+                logging.info(f"Pyomo model solve has failed for year {year}.")
                 return
 
             # Store main model outputs.
@@ -273,11 +282,12 @@ class FarmerABM:
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.crop'), 
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')
             ]]
+
             # Create output directory if it doesn't already exist
             try: 
                 mkdir(output_dir) 
             except OSError as error: 
-                print(error) 
+                logging.error(error)
             results_pd.to_parquet(f"{output_dir}/farmer_abm_{str(year)}.parquet")
 
             # Construct a DataFrame with all NLDAS IDs.
@@ -305,10 +315,10 @@ class FarmerABM:
             )
             logging.info(f"Outputting demand file to: {output_dir}.")
             demand_ABM.to_netcdf(f"{output_dir}/{self.config.get('simulation.name')}_farmer_abm_demand_{year}.nc")
-            logging.info(f"Wrote new demand files for month {month} year {year}.")
+            logging.info(f"Wrote new demand files for year {year}.")
 
             self.processed_years.append(year)
         except Exception as e:
             logging.exception(str(e))
         
-        logging.info(f"Ran farmer ABM in {pretty_timer(timer() - t)}.")
+        logging.info(f"Ran farmer ABM in {pretty_timer(timer() - t)}. This does not indicate success or failure. ")

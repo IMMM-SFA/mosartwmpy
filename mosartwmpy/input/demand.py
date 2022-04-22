@@ -7,7 +7,7 @@ from datetime import datetime
 from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
-from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
+from mosartwmpy.farmer_abm.farmer_abm import FarmerABM
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
