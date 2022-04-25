@@ -57,7 +57,6 @@ class FarmerABM:
         
 
     def calc_demand(self):
-        # todo: add required files to docstring
         """Calculates water demand for each farmer using an agent based model(ABM) and outputs into a netCDF file. """
        
         logging.info("\nRunning farmer ABM. ")
@@ -74,8 +73,6 @@ class FarmerABM:
         mosart_wm_pmp_path = f"{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.path')}"
         output_dir = f"{self.config.get('water_management.demand.output.path')}"
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
-
-        # Look at previous year mosartwmpy results
         simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{year-1}_*.nc"
 
         # Check we haven't already performed the farmer ABM calculation.
@@ -99,16 +96,27 @@ class FarmerABM:
             else:
                 # todo: clean up ABM constants: all lowercase or all caps
                 # ABM constants 
+                # DEMAND_FACTOR = 'demand_factor'
+                # STORAGE_SUM = 'STORAGE_SUM'
+                # STORAGE_SUM_ORIGINAL = 'STORAGE_SUM_OG'
+                # SW_AVAIL_BIAS_CORRECTION = 'sw_avail_bias_corr'
+                # WRM_SUPPLY_ORIGINAL = 'WRM_SUPPLY_acreft_OG'
+                # WRM_SUPPLY_PREV = 'WRM_SUPPLY_acreft_prev'
+                # WRM_SUPPLY_NEW = 'WRM_SUPPLY_acreft_newinfo'
+                # WRM_SUPPLY_UPDATED = 'WRM_SUPPLY_acreft_updated'
+                # WRM_SUPPLY_BIAS_CORRECTION = 'WRM_SUPPLY_acreft_bias_corr'
+                # RIVER_DISCHARGE_OVER_LAND_ORIGINAL = 'RIVER_DISCHARGE_OVER_LAND_LIQ_OG'
+
                 DEMAND_FACTOR = 'demand_factor'
-                STORAGE_SUM = 'STORAGE_SUM'
-                STORAGE_SUM_ORIGINAL = 'STORAGE_SUM_OG'
+                STORAGE_SUM = 'storage_sum'
+                STORAGE_SUM_ORIGINAL = 'storage_sum_original'
                 SW_AVAIL_BIAS_CORRECTION = 'sw_avail_bias_corr'
-                WRM_SUPPLY_ORIGINAL = 'WRM_SUPPLY_acreft_OG'
-                WRM_SUPPLY_PREV = 'WRM_SUPPLY_acreft_prev'
-                WRM_SUPPLY_NEW = 'WRM_SUPPLY_acreft_newinfo'
-                WRM_SUPPLY_UPDATED = 'WRM_SUPPLY_acreft_updated'
-                WRM_SUPPLY_BIAS_CORRECTION = 'WRM_SUPPLY_acreft_bias_corr'
-                RIVER_DISCHARGE_OVER_LAND_ORIGINAL = 'RIVER_DISCHARGE_OVER_LAND_LIQ_OG'
+                WRM_SUPPLY_ORIGINAL = 'wrm_supply_original'
+                WRM_SUPPLY_PREV = 'wrm_supply_prev'
+                WRM_SUPPLY_NEW = 'wrm_supply_new'
+                WRM_SUPPLY_UPDATED = 'wrm_supply_updated'
+                WRM_SUPPLY_BIAS_CORRECTION = 'wrm_supply_bias_correction'
+                RIVER_DISCHARGE_OVER_LAND_ORIGINAL = 'river_discharge_over_land_original'
 
                 # Map between grid cell ID and the cell that is dependent upon it (many to many). 
                 historic_storage_supply = pd.read_parquet(historic_storage_supply_path)
@@ -209,11 +217,11 @@ class FarmerABM:
             # Number of crop and NLDAS ID combinations.
             ids = range(len(mosart_wm_pmp)) 
             # Number of farm agents / NLDAS IDs.
-            farm_ids = range(len(pd.unique(mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_ids')])))
+            farm_ids = range(len(pd.unique(mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id')])))
 
             land_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')].to_dict()
 
-            crop_ids_by_farm = mosart_wm_pmp.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_ids'))['index'].apply(list)
+            crop_ids_by_farm = mosart_wm_pmp.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id'))['index'].apply(list)
             crop_ids_by_farm.set_axis(range(0, len(crop_ids_by_farm)), inplace = True)
             crop_ids_by_farm = crop_ids_by_farm.to_dict()
 
@@ -274,11 +282,11 @@ class FarmerABM:
             results_pd = mosart_wm_pmp.assign(**{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area'):result_xs.values()})
             results_pd = results_pd.assign(**{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nir'):nirs.values()})
             results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_water_demand')] = results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')] * results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nir')] / ACREFTYEAR_TO_CUBICMSEC
-            results_pivot = pd.pivot_table(results_pd, index=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_ids')], values=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_water_demand')], aggfunc=np.sum)
+            results_pivot = pd.pivot_table(results_pd, index=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id')], values=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_water_demand')], aggfunc=np.sum)
 
             # Export results to parquet.
             results_pd = results_pd[[
-                self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_ids'), 
+                self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id'), 
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.crop'), 
                 self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')
             ]]
@@ -296,7 +304,7 @@ class FarmerABM:
 
             # Use NLDAS_ID as the index and merge ABM demand.
             demand_per_nldas_id = demand_per_nldas_id.set_index(self.nldas_id,drop=False)
-            demand_per_nldas_id.loc[results_pivot.index,self.demand] = results_pivot.calc_water_demand.values
+            demand_per_nldas_id.loc[results_pivot.index,self.demand] = results_pivot.calculated_water_demand.values
 
             # Convert pandas DataFrame to xarray Dataset to more easily output to a NetCDF.
             demand_ABM = demand_per_nldas_id.totalDemand.values.reshape(
