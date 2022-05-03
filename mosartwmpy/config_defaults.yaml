@@ -73,7 +73,7 @@ simulation:
           long_name: Mosart reservoir supply to grid cell
           units: m3/s
         - variable: grid_cell_demand_rate
-          name: WRM_DEMAND0
+          name: WRM_DEMAND
           long_name: Mosart demand reqeusted by grid cell
           units: m3/s
         - variable: grid_cell_deficit
@@ -86,6 +86,9 @@ simulation:
         - variable: id
           name: GINDEX
           long_name: Index of the grid cell in a 1d array
+        - variable: nldas_id
+          name: NLDAS_ID
+          long_name: NLDAS_ID of grid cell. 
         - variable: outlet_id
           name: OUTLETG
           long_name: Index of the outlet grid cell in a 1d array
@@ -110,7 +113,7 @@ simulation:
 ###
 grid:
     # path to the grid domain file; can be absolute or relative to the source code root
-    path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+    path: ./input/domains/MOSART_NLDAS_8th.nc
     # longitude field name
     longitude: lon
     # latitude field name
@@ -127,6 +130,8 @@ grid:
         total_drainage_area_single: areaTotal2
         # grid cell id field name
         id: ID
+        # NLDAS_Id of the grid cell
+        nldas_id: NLDAS_ID
         # downstream ID field name
         downstream_id: dnID
         # flow direction field name
@@ -155,14 +160,8 @@ grid:
         channel_floodplain_width: rwid0
         # bankfull depth of main channel field name [m]
         grid_channel_depth: rdep
-    # land grid information
-    # TODO this is only needed for land_frac variable, so should just add it to mosart grid
-    # TODO assumed to be the same grid as the main grid
-    land:
-      # path to the land grid domain file; can be absolute or relative to the source code root
-      path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
-      # land fraction field name
-      land_fraction: frac
+        # land fraction field name
+        land_fraction: frac
 ###
 ### Runoff (forcing input)
 ###
@@ -195,6 +194,52 @@ water_management:
     enabled: true
     # Demand
     demand:
+        # farmer Agent Based Model (ABM) calculation of demand
+        farmer_abm:
+          enabled: false
+          path: ./mosartwmpy/farmer_abm
+          mu: 0.2
+          warmup_period: 10
+          land_water_constraints:
+              path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
+              variables:
+                # NLDAS identifier for the grid cell
+                nldas_id: NLDAS_ID
+                land_constraints_by_farm: LAND_CONSTRAINTS_BY_FARM
+                # Surface water irrigation volume [acre-ft/year]
+                sw_irrigation_vol: sw_irrigation_vol
+          land_water_constraints_live:
+              path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
+          historic_storage_supply:
+              path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
+              variables:
+                # NLDAS identifier for the grid cell
+                nldas_id: NLDAS_ID
+                storage_sum_original: STORAGE_SUM_OG
+                # Water resource management
+                wrm_supply_original: WRM_SUPPLY_acreft_OG
+                wrm_supply_prev: WRM_SUPPLY_acreft_prev
+                # Surface water available with bias correction 
+                sw_avail_bias_correction: sw_avail_bias_corr
+                demand_factor: demand_factor
+                river_discharge_over_land_liquid_original: RIVER_DISCHARGE_OVER_LAND_LIQ_OG
+          mosart_wm_pmp:
+              path: ./input/demand/farmer_abm/MOSART_WM_PMP_inputs.parquet
+              variables:
+                calculated_area: calc_area
+                calculated_water_demand: calc_water_demand
+                crop: crop
+                # Net irrigation requirement
+                nir: nir
+                # Net irrigation requirement corrected
+                nir_corrected: nir_corrected
+                gammas: gammas
+                net_prices: net_prices
+                # NLDAS identifier for the grid cell
+                nldas_ids: nldas
+        output:
+            path: ./output/demand
+          
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true
@@ -287,6 +332,8 @@ water_management:
                 dependent_cell_index: DEPENDENT_CELL_INDEX
                 # ID of the reservoir
                 dependent_reservoir_id: GRAND_ID
+                # Reservoir cell index
+                reservoir_cell_index: RESERVOIR_CELL_INDEX
         # database of monthly mean streamflow for each reservoir
         streamflow:
             # path to the flow file; can be absolute or relative to the source code root
@@ -299,7 +346,7 @@ water_management:
                 streamflow_month_index: MONTH_INDEX
                 # mean streamflow for month
                 streamflow: MEAN_FLOW
-      # database of monthly mean demand for each reservoir
+        # database of monthly mean demand for each reservoir
         demand:
           # path to the demand file; can be absolute or relative to the source code root
           path: ./input/reservoirs/grand_average_monthly_demand.parquet

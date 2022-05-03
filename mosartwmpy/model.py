@@ -8,7 +8,7 @@ from click import progressbar
 from datetime import datetime, time, timedelta
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from numba import get_num_threads, threading_layer, config as numba_config
+from numba import get_num_threads, threading_layer
 import numpy as np
 from pathlib import Path
 from pathvalidate import sanitize_filename
@@ -19,6 +19,7 @@ import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
+from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
@@ -45,6 +46,7 @@ class Model(Bmi):
     def __init__(self):
         self.name: str = None
         self.config = benedict()
+        self.farmerABM = None
         self.grid = None
         self.restart = None
         self.current_time: datetime = None
@@ -94,7 +96,6 @@ class Model(Bmi):
                 raise ValueError(f"Configured `end_date` {self.config.get('simulation.end_date')} is prior to configured `start_date` {self.config.get('simulation.start_date')}; please update and try again.")
             # detect available physical cores
             self.cores = psutil.cpu_count(logical=False)
-            numba_config.THREADING_LAYER = 'workqueue'
             logging.debug(f'Cores: {self.cores}.')
             logging.debug(f'Numba threads: {get_num_threads()}.')
             logging.debug(f'Numba threading layer: {threading_layer()}')
@@ -141,6 +142,9 @@ class Model(Bmi):
             except Exception as e:
                 logging.exception('Failed to initialize model; see below for stacktrace.')
                 raise e
+
+        if self.config.get('water_management.demand.farmer_abm.enabled', False):
+            self.farmerABM = FarmerABM(self)
         
         # setup output file averaging
         try:
@@ -176,19 +180,20 @@ class Model(Bmi):
                     if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
-                        load_demand(self.state, self.config, self.current_time)
+                        load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM)
                 # only compute new release if it's the very start of simulation or new month
                 # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
                 if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
                     (self.config.get('water_management.reservoirs.enable_istarf') and self.current_time ==
                      datetime(self.current_time.year, self.current_time.month, self.current_time.day, 0, 0, 0)) or \
                         self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
-                    # release water from reservoirs
+                    # update reservoir release targets
                     reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
             # perform simulation for one timestep
+            logging.debug('Solving...')
             update(self.state, self.grid, self.parameters, self.config, self.current_time)
             # advance timestep
             self.current_time += timedelta(seconds=self.config.get('simulation.timestep'))

@@ -19,4 +19,7 @@ for most use cases it would be sufficient to simply update the mean flow and dem
 
 Once the necessary data has been collected, run the utility with the `create_grand_parameters` that is installed along with `mosartwmpy`.
 This script will ask for the locations of the datasets and desired output locations.
+
+Optionally, examine the reservoir placement output file with a GIS utility (for instance QGIS), manually update the placement of problem reservoirs, and then rerun this script with a corrections file specified.
+
 For more complete control of the script, examine the [method signature](create_grand_parameters.py) and invoke directly from python.
