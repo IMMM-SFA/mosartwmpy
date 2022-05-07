@@ -41,7 +41,7 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     try:
         demand = open_dataset(path)
     except:
-        sys.exit("Unable to open demand file. ")
+        sys.exit(f"Unable to open demand file: {path} ")
 
     # if the demand file has a time axis, use it; otherwise assume data is just 2D
     if config.get('water_management.demand.time', None) in demand:
