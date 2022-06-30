@@ -7,8 +7,10 @@ from pyomo.opt import SolverFactory
 from timeit import default_timer as timer
 import xarray as xr
 
+# TODO: breaks if changed to "Model"
 from mosartwmpy import model
 from mosartwmpy.utilities.pretty_timer import pretty_timer
+from mosartwmpy.utilities.get_config_variable_name import get_config_variable_name
 
 
 class FarmerABM:
@@ -29,35 +31,15 @@ class FarmerABM:
         self.time = self.config.get('water_management.demand.time')
 
         # Get variables from the mosartwmpy output based on the mosartwmpy configuration.
-        try:
-            self.grid_cell_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'id'), None).get('name')
-        except Exception as e:
-            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation grid_output variable id.")
-            raise
-        try:
-            self.grid_cell_supply = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'grid_cell_supply'), None).get('name')
-        except Exception as e:
-            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable grid_cell_supply.")
-            raise
-        try:
-            self.nldas_id = next((o for o in self.config.get('simulation.grid_output') if o.get('variable', '').casefold() == 'nldas_id'), None).get('name')
-        except Exception as e:
-            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation grid_output variable nldas_id.")
-            raise
-        try:
-            self.reservoir_storage = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'reservoir_storage'), None).get('name')
-        except Exception as e:
-            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable reservoir_storage.")
-            raise
-        try:
-            self.runoff_land = next((o for o in self.config.get('simulation.output') if o.get('variable', '').casefold() == 'runoff_land'), None).get('name')
-        except Exception as e:
-            logging.error(f"{e}\nFarmer ABM can't find the mosartwmpy output: simulation output variable runoff_land.")
-            raise
+        self.grid_cell_id = get_config_variable_name(self, 'simulation.grid_output', 'id')
+        self.grid_cell_supply = get_config_variable_name(self, 'simulation.output', 'grid_cell_supply')
+        self.nldas_id = get_config_variable_name(self, 'simulation.grid_output', 'nldas_id')
+        self.reservoir_storage = get_config_variable_name(self, 'simulation.output', 'reservoir_storage')
+        self.runoff_land = get_config_variable_name(self, 'simulation.output', 'runoff_land')
         
 
     def calc_demand(self):
-        """Calculates water demand for each farmer using an agent based model(ABM) and outputs into a netCDF file. """
+        """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a netCDF file. """
        
         logging.info("\nRunning farmer ABM. ")
         t = timer()
@@ -90,7 +72,7 @@ class FarmerABM:
             else:
                 land_water_constraints_by_farm = pd.read_parquet(land_water_constraints_by_farm_path)
 
-            # If within the warm-up period, use the external baseline water demand files.
+            # If within the warm-up period, use external baseline water demand files.
             if year < warmup_year:
                 water_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol')].to_dict()
             else:
@@ -99,9 +81,6 @@ class FarmerABM:
                 STORAGE_SUM_ORIGINAL = 'storage_sum_original'
                 SW_AVAIL_BIAS_CORRECTION = 'sw_avail_bias_correction'
                 WRM_SUPPLY_ORIGINAL = 'wrm_supply_original'
-                WRM_SUPPLY_PREV = 'wrm_supply_prev'
-                WRM_SUPPLY_NEW = 'wrm_supply_new'
-                WRM_SUPPLY_UPDATED = 'wrm_supply_updated'
                 WRM_SUPPLY_BIAS_CORRECTION = 'wrm_supply_bias_correction'
                 RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL = 'river_discharge_over_land_liquid_original'
 
@@ -142,9 +121,9 @@ class FarmerABM:
 
                 # Merge in NLDAS ID from simulation output.
                 abm_data = simulation_output[[
-                    self.grid_cell_supply, self.nldas_id
-                ]].merge(abm_data, left_on=self.grid_cell_supply, right_on=self.dependent_cell_index, how='left')
-                    
+                    self.grid_cell_id, self.nldas_id
+                ]].merge(abm_data, left_on=self.grid_cell_id, right_on=self.dependent_cell_index, how='left')
+
                 # Merge bias correction, original supply in acreft, historic storage, and original channel outflow.
                 abm_data[[
                     SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
@@ -161,8 +140,8 @@ class FarmerABM:
                 # Select only the NLDAS_IDs listed in historic_storage_supply.
                 abm_data = abm_data.loc[abm_data[self.nldas_id].isin(historic_storage_supply[self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.nldas_id')])]
 
-                # Rename original supply.
-                abm_data[WRM_SUPPLY_PREV] = abm_data[WRM_SUPPLY_ORIGINAL]
+                # Sort by NLDAS ID.
+                abm_data = abm_data.sort_values(by=['NLDAS_ID']).reset_index(drop=True)
 
                 # Zero the missing data.
                 abm_data = abm_data.fillna(0)
@@ -178,10 +157,7 @@ class FarmerABM:
                     )
                 )
 
-                abm_data[WRM_SUPPLY_NEW] = abm_data[DEMAND_FACTOR] * abm_data[WRM_SUPPLY_ORIGINAL]
-                abm_data[WRM_SUPPLY_UPDATED] = ((1 - self.mu) * abm_data[WRM_SUPPLY_PREV]) + (self.mu * abm_data[WRM_SUPPLY_NEW])
-                abm_data[WRM_SUPPLY_PREV] = abm_data[WRM_SUPPLY_UPDATED]
-                abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[WRM_SUPPLY_UPDATED] + abm_data[SW_AVAIL_BIAS_CORRECTION]
+                abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[SW_AVAIL_BIAS_CORRECTION] + (abm_data[WRM_SUPPLY_ORIGINAL] * (1 + (self.mu * (abm_data[DEMAND_FACTOR] - 1))))
 
                 # Update parquet with 'live' data, variables updated year to year: sw_irrigation_vol, land_constraints_by_farm
                 land_water_constraints_by_farm_live = land_water_constraints_by_farm
@@ -205,19 +181,16 @@ class FarmerABM:
             ids = range(len(mosart_wm_pmp)) 
             # Number of farm agents / NLDAS IDs.
             farm_ids = range(len(pd.unique(mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id')])))
-
-            land_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')].to_dict()
-
             crop_ids_by_farm = mosart_wm_pmp.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id'))['index'].apply(list)
             crop_ids_by_farm.set_axis(range(0, len(crop_ids_by_farm)), inplace = True)
             crop_ids_by_farm = crop_ids_by_farm.to_dict()
+            land_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')].to_dict()
 
             # Initialize start values to zero.
             x_start_values=dict(enumerate([0.0]*3))
 
             logging.info(f"Loaded constructed model indices and constraints for year {year}.")
 
-            # 2st stage: Quadratic model included in JWP model simulations.
             # Construct model inputs.
             fwm_s = ConcreteModel()
             fwm_s.ids = Set(initialize=ids)
@@ -231,7 +204,7 @@ class FarmerABM:
             fwm_s.nirs = Param(fwm_s.ids, initialize=nirs, mutable=True)
 
 
-            # 2nd stage model: Construct functions.
+            # Construct functions.
             def obj_fun(fwm_s):
                 # .00001 is a scaling factor for computational purposes (doesn't influence optimization results). 
                 # 0.5 is part of the positive mathematical formulation equation. 
@@ -283,7 +256,7 @@ class FarmerABM:
                 mkdir(output_dir) 
             except OSError as error: 
                 logging.error(error)
-            results_pd.to_parquet(f"{output_dir}/farmer_abm_{str(year)}.parquet")
+            results_pd.to_parquet(f"{output_dir}/{self.config.get('simulation.name')}_farmer_abm_results_{str(year)}.parquet")
 
             # Construct a DataFrame with all NLDAS IDs.
             demand_per_nldas_id = pd.DataFrame(self.model.grid.nldas_id).rename(columns={0:self.nldas_id})
@@ -295,12 +268,13 @@ class FarmerABM:
 
             # Convert pandas DataFrame to xarray Dataset to more easily output to a NetCDF.
             demand_ABM = demand_per_nldas_id.totalDemand.values.reshape(
-                len(self.model.grid.unique_latitudes), len(self.model.grid.unique_longitudes),
+                len(self.model.grid.unique_latitudes),
+                len(self.model.grid.unique_longitudes),
                 order='C'
             )
             demand_ABM = xr.Dataset(
                 data_vars={
-                    self.demand:([self.time, self.latitude, self.longitude], np.array([demand_ABM]))
+                    self.demand: ([self.time, self.latitude, self.longitude], np.array([demand_ABM]))
                 },
                 coords={
                     self.longitude: ([self.longitude], self.model.grid.unique_longitudes),
