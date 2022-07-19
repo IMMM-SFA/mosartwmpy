@@ -115,6 +115,18 @@ grid:
     longitude: lon
     # latitude field name
     latitude: lat
+    # limit simulation to particular basins
+    #   ~ for all, or
+    #   a list of coordinate pairs to simulate only basins that include them, i.e:
+    #     subdomain:
+    #       - 47.6062,-122.3321
+    #       - 45.5152,-122.6784
+    subdomain: ~
+    # Specify whether to unmask the output
+    #   - true if output should cover the whole domain regardless of active cells (inactive cells will be filled with NaN-like values)
+    #   - false if output should only consist of active cells
+    # False will result in faster runs and much smaller output sizes, but the output may be more difficult to interoperate with other models
+    unmask_output: true
     # variable field names
     variables:
         # fraction of unit draining to outlet field
