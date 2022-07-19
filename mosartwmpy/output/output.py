@@ -18,10 +18,13 @@ def initialize_output(self):
         raise Exception('The `simulation.output_resolution` must be greater than or equal to and evenly divisible by the `simulation.timestep`.')
     for output in self.config.get('simulation.output'):
         if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
+            data = np.zeros_like(self.state.zeros)
+            if self.config.get('grid.unmask_output', True):
+                data = self.unmask(data)
             if self.output_buffer is None:
-                self.output_buffer = pd.DataFrame(self.state.zeros, columns=[output.get('name')])
+                self.output_buffer = pd.DataFrame(data, columns=[output.get('name')])
             else:
-                self.output_buffer = self.output_buffer.join(pd.DataFrame(self.state.zeros, columns=[output.get('name')]))
+                self.output_buffer = self.output_buffer.join(pd.DataFrame(data, columns=[output.get('name')]))
 
 
 # @timing
@@ -32,7 +35,10 @@ def update_output(self):
     self.output_n += 1
     for output in self.config.get('simulation.output'):
         if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
-            self.output_buffer.loc[:, output.get('name')] += getattr(self.state, output.get('variable'))
+            data = getattr(self.state, output.get('variable'))
+            if self.config.get('grid.unmask_output', True):
+                data = self.unmask(data)
+            self.output_buffer.loc[:, output.get('name')] += data
 
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 0:
@@ -41,7 +47,7 @@ def update_output(self):
         self.output_n = 0
         for output in self.config.get('simulation.output'):
             if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
-                self.output_buffer.loc[:, output.get('name')] = 0.0 * self.state.zeros
+                self.output_buffer.loc[:, output.get('name')] = 0.0
     
     # check if restart file if need
     check_restart(self)
@@ -75,8 +81,22 @@ def write_output(self):
     filename += '.nc'
 
     # create the data frame
-    frame = pd.DataFrame(self.grid.latitude, columns=['latitude']).join(pd.DataFrame(self.grid.longitude, columns=['longitude'])).join(
-        pd.DataFrame(np.full(self.get_grid_size(), pd.to_datetime(true_date)), columns=['time'])
+    latitude = self.grid.latitude
+    longitude = self.grid.longitude
+    if self.config.get('grid.unmask_output', True):
+        longitude, latitude = np.meshgrid(
+            self.grid.unique_longitudes,
+            self.grid.unique_latitudes
+        )
+        longitude = longitude.flatten()
+        latitude = latitude.flatten()
+    frame = pd.DataFrame(
+        latitude,
+        columns=['latitude']
+    ).join(
+        pd.DataFrame(longitude, columns=['longitude'])
+    ).join(
+        pd.DataFrame(np.full(latitude.size, pd.to_datetime(true_date)), columns=['time'])
     ).join(
         self.output_buffer
     ).rename(columns={
@@ -115,10 +135,17 @@ def write_output(self):
         nc.close()
     else:
         if len(self.config.get('simulation.grid_output', [])) > 0:
-            grid_frame = pd.DataFrame(self.grid.latitude, columns=['latitude']).join(pd.DataFrame(self.grid.longitude, columns=['longitude']))
+            grid_frame = pd.DataFrame(
+                latitude, columns=['latitude']
+            ).join(
+                pd.DataFrame(longitude, columns=['longitude'])
+            )
             for grid_output in self.config.get('simulation.grid_output'):
                 if getattr(self.grid, grid_output.get('variable'), None) is not None:
-                    grid_frame = grid_frame.join(pd.DataFrame(getattr(self.grid, grid_output.get('variable')), columns=[grid_output.get('variable')]))
+                    data = getattr(self.grid, grid_output.get('variable'))
+                    if self.config.get('grid.unmask_output', True):
+                        data = self.unmask(data)
+                    grid_frame = grid_frame.join(pd.DataFrame(data, columns=[grid_output.get('variable')]))
             grid_frame = grid_frame.rename(columns={
                 'latitude': 'lat',
                 'longitude': 'lon'
@@ -164,7 +191,7 @@ def check_restart(self):
 def write_restart(self):
     """Writes the state to a netcdf file, with the current simulation time in the file name."""
 
-    x = self.state.to_dataframe().to_xarray()
+    x = self.state.to_dataframe(self.mask).to_xarray()
     filename = Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files/{self.name}_restart_{self.current_time.year}_{self.current_time.strftime("%m")}_{self.current_time.strftime("%d")}.nc')
     x = x.rio.write_crs(4326)
     logging.debug(f'Writing restart file: {filename}.')

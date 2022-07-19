@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 import pickle
 import tempfile
+from typing import Union
 import xarray as xr
 
 from benedict.dicts import benedict as Benedict
@@ -215,7 +216,24 @@ class Grid:
                 # ocean
                 self.upstream_cell_count[i] += 1
                 self.outlet_id[i] = i
-        
+
+        # if a subdomain is desired, update mosart_mask to disable out-of-subdomain cells
+        subdomain = config.get('grid.subdomain', None)
+        if subdomain is not None:
+            if not isinstance(subdomain, list):
+                subdomain = [subdomain]
+            outlet_ids = set()
+            for point in subdomain:
+                point = [float(x) for x in point.split(',')]
+                distance = Grid.haversine(self.latitude, self.longitude, point[0], point[1])
+                index = np.argmin(distance)
+                outlet_ids.add(self.outlet_id[index])
+            self.mosart_mask = np.where(
+                np.in1d(self.outlet_id, list(outlet_ids)),
+                self.mosart_mask,
+                0
+            )
+
         # recalculate area to fill in missing values
         # assumes grid spacing is in degrees and uniform
         deg2rad = np.pi / 180.0
@@ -477,3 +495,25 @@ class Grid:
                 grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
         
         return grid
+
+    @staticmethod
+    def haversine(
+            lat1: Union[float, np.ndarray],
+            lon1: Union[float, np.ndarray],
+            lat2: float,
+            lon2: float
+    ) -> Union[float, np.ndarray]:
+        """Calculates the haversine distance between points
+
+                Args:
+                    lat1 (float|ArrayLike[float]): latitude of the origin point or array of points
+                    lon1 (float|ArrayLike[float]): longitude of the origin point or array of points
+                    lat2 (float): latitude of the point in question
+                    lon2 (float): longitude of the point in question
+
+                Returns:
+                    float or array of floats of the haversine distance between points
+                """
+        p = 0.017453292519943295
+        hav = 0.5 - np.cos((lat2 - lat1) * p) / 2 + np.cos(lat1 * p) * np.cos(lat2 * p) * (1 - np.cos((lon2 - lon1) * p)) / 2
+        return 12742 * np.arcsin(np.sqrt(hav))

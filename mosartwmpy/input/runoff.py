@@ -9,7 +9,7 @@ from mosartwmpy.utilities.timing import timing
 
 
 # @timing
-def load_runoff(state: State, grid: Grid, config: Benedict, current_time: datetime) -> None:
+def load_runoff(state: State, grid: Grid, config: Benedict, current_time: datetime, mask: np.ndarray) -> None:
     """Loads runoff from file into the state for each grid cell.
 
     Args:
@@ -17,6 +17,7 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
         grid (Grid): the model grid
         config (Benedict): the model configuration
         current_time (datetime): the current time of the simulation
+        mask (ndarray): mask of active grid cells
     """
     
     # note that the forcing is provided in mm/s
@@ -32,16 +33,16 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
     if config.get('runoff.variables.surface_runoff', None) is not None:
         state.hillslope_surface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.surface_runoff')].sel(sel, method='pad')
-        ).flatten()
+        ).flatten()[mask]
     
     if config.get('runoff.variables.subsurface_runoff', None) is not None:
         state.hillslope_subsurface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.subsurface_runoff')].sel(sel, method='pad')
-        ).flatten()
+        ).flatten()[mask]
     
     if config.get('runoff.variables.wetland_runoff', None) is not None:
         state.hillslope_wetland_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
             runoff[config.get('runoff.variables.wetland_runoff')].sel(sel, method='pad')
-        ).flatten()
+        ).flatten()[mask]
     
     runoff.close()

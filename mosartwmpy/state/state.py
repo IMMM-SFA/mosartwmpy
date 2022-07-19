@@ -251,8 +251,8 @@ class State:
     def __getitem__(self, item):
         return getattr(self, item)
 
-    def to_dataframe(self) -> pd.DataFrame:
-        """Builds a dataframe from all the state values.
+    def to_dataframe(self, mask: np.ndarray) -> pd.DataFrame:
+        """Builds a dataframe from all the unmasked state values.
 
         Returns:
             pd.DataFrame: a dataframe with all the state values as columns
@@ -260,7 +260,12 @@ class State:
         keys = [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]
         df = pd.DataFrame()
         for key in keys:
-            df[key] = getattr(self, key)
+            data = getattr(self, key)
+            unmasked = np.zeros_like(mask, dtype=data.dtype)
+            if data.dtype == float:
+                unmasked[:] = np.nan
+            unmasked[mask] = data
+            df[key] = unmasked
         return df
     
     @staticmethod

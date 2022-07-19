@@ -109,6 +109,30 @@ mosart_wm.get_output_var_names()
 supply = mosart_wm.get_value_ptr('supply_water_amount')
 ```
 
+
+## subdomains
+
+To simulate only a subset of basins (defined here as a collection of grid cells that share the same outlet cell),
+use the configuration option `grid -> subdomain` (see example below) and provide a list of latitude/longitude
+coordinate pairs representing each basin of interest (any single coordinate pair within the basin). For example, to
+simulate only the Columbia River basin and the Lake Washington regions, one could enter the coordinates for Portland and
+Seattle:
+
+> `config.yaml`
+> ```yaml
+> grid:
+>   subdomain:
+>     - 47.6062,-122.3321
+>     - 45.5152,-122.6784
+>   unmask_output: true
+> ```
+
+By default, the output files will still store empty NaN-like values for grid cells outside the subdomain, but
+for even faster simulations and smaller output files set the `grid -> unmask_output` option to `false`. Disabling 
+this option causes the output files to only store values for grid cells within the subdomain. These smaller files
+will likely take extra processing to effectively interoperate with other models.
+
+
 ## visualization
 
 `Model` instances can plot the current value of certain input and output variables (those available from `Model.get_output_var_name` and `Model.get_input_var_names`):
