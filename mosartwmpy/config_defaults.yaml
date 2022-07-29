@@ -113,7 +113,7 @@ simulation:
 ###
 grid:
     # path to the grid domain file; can be absolute or relative to the source code root
-    path: ./input/domains/MOSART_NLDAS_8th.nc
+    path: ./input/domains/mosart_conus_nldas_grid.nc
     # longitude field name
     longitude: lon
     # latitude field name
@@ -219,12 +219,12 @@ water_management:
                 # Water resource management
                 wrm_supply_original: wrm_supply_original
                 wrm_supply_prev: wrm_supply_prev
-                # Surface water available with bias correction 
-                sw_avail_bias_correction: sw_avail_bias_correction
+                # Surface water available with bias correction
+                sw_avail_bias_corrected: sw_avail_bias_corrected
                 demand_factor: demand_factor
                 river_discharge_over_land_liquid_original: river_discharge_over_land_liquid_original
-          mosart_wm_pmp:
-              path: ./input/demand/farmer_abm/mosart_wm_pmp_inputs.parquet
+          crop_prices_by_nldas_id:
+              path: ./input/demand/farmer_abm/crop_prices_by_nldas_id.parquet
               variables:
                 calculated_area: calculated_area
                 calculated_water_demand: calculated_water_demand
@@ -252,6 +252,7 @@ water_management:
         # time field name
         time: time
         # demand field name # TODO support the different demand types using the flags
+        # todo: change to be consistent with other variable names: total_demand
         demand: totalDemand
         # TODO these modules aren't available yet
         # flag to enable or disable groundwater
@@ -267,7 +268,7 @@ water_management:
         # physical and use type parameters of the reservoirs, typically from GRanD
         parameters:
             # path to the reservoir parameter file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_reservoir_parameters.nc
+            path: ./input/reservoirs/reservoirs.nc
             # grid cell index field
             grid_cell_index: GRID_CELL_INDEX
             # variable field names
@@ -325,7 +326,7 @@ water_management:
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_dependency_database.parquet
+            path: ./input/reservoirs/dependency_database.parquet
             # variable field names
             variables:
                 # flattened index of dependent grid cell
@@ -337,7 +338,7 @@ water_management:
         # database of monthly mean streamflow for each reservoir
         streamflow:
             # path to the flow file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_average_monthly_flow.parquet
+            path: ./input/reservoirs/mean_monthly_reservoir_flow.parquet
             # variable field names
             variables:
                 # ID of the reservoir
@@ -349,7 +350,7 @@ water_management:
         # database of monthly mean demand for each reservoir
         demand:
           # path to the demand file; can be absolute or relative to the source code root
-          path: ./input/reservoirs/grand_average_monthly_demand.parquet
+          path: ./input/reservoirs/mean_monthly_reservoir_demand.parquet
           # variable field names
           variables:
             # ID of the reservoir

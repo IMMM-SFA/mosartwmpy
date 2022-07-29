@@ -39,7 +39,11 @@ class FarmerABM:
         
 
     def calc_demand(self):
-        """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a netCDF file. """
+        """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a parquet file. Requires input files:
+        * historic_storage_supply_bias.parquet
+        * land_water_constraints_by_farm.parquet
+        * crop_prices_by_nldas_id.parquet
+        """
        
         logging.info("\nRunning farmer ABM. ")
         t = timer()
@@ -52,7 +56,7 @@ class FarmerABM:
         historic_storage_supply_path = f"{self.config.get('water_management.demand.farmer_abm.historic_storage_supply.path')}"
         land_water_constraints_by_farm_live_path = f"{self.config.get('water_management.demand.farmer_abm.land_water_constraints_live.path')}"
         land_water_constraints_by_farm_path = self.config.get('water_management.demand.farmer_abm.land_water_constraints.path')
-        mosart_wm_pmp_path = f"{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.path')}"
+        crop_prices_by_nldas_id_path = f"{self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.path')}"
         output_dir = f"{self.config.get('water_management.demand.output.path')}"
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
         simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{year-1}_*.nc"
@@ -79,7 +83,7 @@ class FarmerABM:
                 DEMAND_FACTOR = 'demand_factor'
                 STORAGE_SUM = 'storage_sum'
                 STORAGE_SUM_ORIGINAL = 'storage_sum_original'
-                SW_AVAIL_BIAS_CORRECTION = 'sw_avail_bias_correction'
+                SW_AVAIL_BIAS_CORRECTED = 'sw_avail_bias_corrected'
                 WRM_SUPPLY_ORIGINAL = 'wrm_supply_original'
                 WRM_SUPPLY_BIAS_CORRECTION = 'wrm_supply_bias_correction'
                 RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL = 'river_discharge_over_land_liquid_original'
@@ -126,15 +130,15 @@ class FarmerABM:
 
                 # Merge bias correction, original supply in acreft, historic storage, and original channel outflow.
                 abm_data[[
-                    SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
+                    SW_AVAIL_BIAS_CORRECTED, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
                 ]] = abm_data[[self.nldas_id]].merge(historic_storage_supply[[
                     self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.nldas_id'),
-                    self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.sw_avail_bias_correction'),
+                    self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.sw_avail_bias_corrected'),
                     self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.wrm_supply_original'),
                     self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.river_discharge_over_land_liquid_original'),
                     self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.storage_sum_original'),
                 ]], left_on=self.nldas_id, right_on=self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.nldas_id'), how='left')[[
-                    SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
+                    SW_AVAIL_BIAS_CORRECTED, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
                 ]]
 
                 # Select only the NLDAS_IDs listed in historic_storage_supply.
@@ -157,7 +161,7 @@ class FarmerABM:
                     )
                 )
 
-                abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[SW_AVAIL_BIAS_CORRECTION] + (abm_data[WRM_SUPPLY_ORIGINAL] * (1 + (self.mu * (abm_data[DEMAND_FACTOR] - 1))))
+                abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[SW_AVAIL_BIAS_CORRECTED] + (abm_data[WRM_SUPPLY_ORIGINAL] * (1 + (self.mu * (abm_data[DEMAND_FACTOR] - 1))))
 
                 # Update parquet with 'live' data, variables updated year to year: sw_irrigation_vol, land_constraints_by_farm
                 land_water_constraints_by_farm_live = land_water_constraints_by_farm
@@ -169,19 +173,19 @@ class FarmerABM:
 
             logging.info(f"Loaded water availability files for year {year}.")
 
-            # Read in PMP calibration files.
-            mosart_wm_pmp = pd.read_parquet(mosart_wm_pmp_path)
-            nirs = mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nir_corrected')].to_dict()
-            gammas = mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.gammas')].to_dict()
-            net_prices = mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.net_prices')].to_dict()
+            # Read in crop prices by NLDAS ID for Positive Mathematical Programming(PMP) calibration.
+            crop_prices_by_nldas_id = pd.read_parquet(crop_prices_by_nldas_id_path)
+            nirs = crop_prices_by_nldas_id[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nir_corrected')].to_dict()
+            gammas = crop_prices_by_nldas_id[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.gammas')].to_dict()
+            net_prices = crop_prices_by_nldas_id[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.net_prices')].to_dict()
 
-            logging.info(f"Loaded PMP calibration files for year {year}.")
+            logging.info(f"Loaded crop prices by NLDAS ID files for PMP calibration for year {year}.")
 
             # Number of crop and NLDAS ID combinations.
-            ids = range(len(mosart_wm_pmp)) 
+            ids = range(len(crop_prices_by_nldas_id)) 
             # Number of farm agents / NLDAS IDs.
-            farm_ids = range(len(pd.unique(mosart_wm_pmp[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id')])))
-            crop_ids_by_farm = mosart_wm_pmp.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id'))['index'].apply(list)
+            farm_ids = range(len(pd.unique(crop_prices_by_nldas_id[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id')])))
+            crop_ids_by_farm = crop_prices_by_nldas_id.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id'))['index'].apply(list)
             crop_ids_by_farm.set_axis(range(0, len(crop_ids_by_farm)), inplace = True)
             crop_ids_by_farm = crop_ids_by_farm.to_dict()
             land_constraints_by_farm = land_water_constraints_by_farm[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')].to_dict()
@@ -239,19 +243,19 @@ class FarmerABM:
             result_xs = dict(fwm_s.xs.get_values())
 
             # Store results in a pandas dataframe.
-            results_pd = mosart_wm_pmp.assign(**{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area'):result_xs.values()})
-            results_pd = results_pd.assign(**{self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nir'):nirs.values()})
-            results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_water_demand')] = results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')] * results_pd[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nir')] / ACREFTYEAR_TO_CUBICMSEC
-            results_pivot = pd.pivot_table(results_pd, index=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id')], values=[self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_water_demand')], aggfunc=np.sum)
+            results_pd = crop_prices_by_nldas_id.assign(**{self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_area'):result_xs.values()})
+            results_pd = results_pd.assign(**{self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nir'):nirs.values()})
+            results_pd[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_water_demand')] = results_pd[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_area')] * results_pd[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nir')] / ACREFTYEAR_TO_CUBICMSEC
+            results_pivot = pd.pivot_table(results_pd, index=[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id')], values=[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_water_demand')], aggfunc=np.sum)
 
             # Export results to parquet.
             results_pd = results_pd[[
-                self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.nldas_id'), 
-                self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.crop'), 
-                self.config.get('water_management.demand.farmer_abm.mosart_wm_pmp.variables.calculated_area')
+                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id'), 
+                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.crop'), 
+                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_area')
             ]]
 
-            # Create output directory if it doesn't already exist
+            # Create output directory if it doesn't already exist.
             try: 
                 mkdir(output_dir) 
             except OSError as error: 
