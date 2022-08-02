@@ -264,9 +264,10 @@ class Model(Bmi):
             self,
             variable: str,
             log_scale: bool = False,
+            show: bool = True,
     ):
         """Display a colormap of a spatial variable at the current timestep."""
-        data = self.unmask(self.get_value_ptr(variable)).reshape(self.get_grid_shape())
+        data = self.get_value_ptr(variable).reshape(self.get_grid_shape())
         if log_scale:
             data = np.where(data > 0, data, np.nan)
         xr.DataArray(
@@ -281,7 +282,9 @@ class Model(Bmi):
             cmap='winter_r',
             norm=colors.LogNorm() if log_scale else None,
         )
-        plt.show()
+        if show:
+            plt.show()
+        return plt
 
     def unmask(self, vector: np.ndarray) -> np.ndarray:
         unmasked = np.empty_like(self.mask, dtype=vector.dtype)

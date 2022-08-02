@@ -90,12 +90,12 @@ def plot_reservoir(
     offset_x = spacing[0] / 2
     offset_y = spacing[1] / 2
 
-    dam_index = model.grid.reservoir_id.tolist().index(grand_id)
+    dam_index = model.unmask(model.grid.reservoir_id).tolist().index(grand_id)
     ilat = dam_index // model.get_grid_shape()[1]
     ilon = dam_index % model.get_grid_shape()[1]
     dependent_cell_indices = model.grid.reservoir_dependency_database.query(
         f'reservoir_id == {grand_id}').index.values
-    basin_cell_indices = np.nonzero(model.grid.outlet_id == model.grid.outlet_id[dam_index])[0]
+    basin_cell_indices = np.nonzero(model.unmask(model.grid.outlet_id) == model.unmask(model.grid.outlet_id)[dam_index])[0]
 
     if grand_file_path is not None:
         grand = gpd.read_file(grand_file_path)
@@ -109,7 +109,7 @@ def plot_reservoir(
     stream_indices = [dam_index]
     j = dam_index
     while True:
-        i = model.grid.downstream_id[j]
+        i = model.unmask(model.grid.downstream_id)[j]
         if (i >= 0) and (i != j):
             stream_indices.append(i)
             j = i
@@ -118,7 +118,7 @@ def plot_reservoir(
     stream_indices = np.array(stream_indices)
 
     to_plot = [{
-        'geometry': Point(model.grid.longitude[dam_index], model.grid.latitude[dam_index]),
+        'geometry': Point(model.unmask(model.grid.longitude)[dam_index], model.unmask(model.grid.latitude)[dam_index]),
         'type': 'dam',
     }]
     if grand_point is not None:
@@ -133,8 +133,8 @@ def plot_reservoir(
         })
     for t, array in dict(dependency=dependent_cell_indices, basin=basin_cell_indices, stream=stream_indices).items():
         for i in array:
-            x = model.grid.longitude[i]
-            y = model.grid.latitude[i]
+            x = model.unmask(model.grid.longitude)[i]
+            y = model.unmask(model.grid.latitude)[i]
             to_plot.append({
                 'geometry': Polygon([
                     (x - offset_x, y - offset_y),
