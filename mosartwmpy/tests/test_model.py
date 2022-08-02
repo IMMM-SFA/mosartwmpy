@@ -36,6 +36,10 @@ class ModelTest(unittest.TestCase):
         self.model.update()
         self.assertTrue(True, "model initializes and updates")
 
+    def test_can_plot(self):
+        self.model.update()
+        self.model.plot_variable('surface_water_amount', log_scale=True, show=False)
+
     def test_input_io(self):
         self.assertGreater(self.model.get_input_item_count(), 0, "model can count input")
         input_vars = self.model.get_input_var_names()
