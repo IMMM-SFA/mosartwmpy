@@ -1,5 +1,7 @@
 import numpy as np
-from datetime import datetime, time, timedelta
+from datetime import datetime
+import pandas as pd
+import regex as re
 from xarray import open_dataset
 
 from benedict.dicts import benedict as Benedict
@@ -23,8 +25,25 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
     # note that the forcing is provided in mm/s
     # the flood section needs m3/s, but the routing needs m/s, so be aware of the conversions
     # method="pad" means the closest time in the past is selected from the file
-    
-    runoff = open_dataset(config.get('runoff.path'))
+
+    path = config.get('runoff.path')
+    path = re.sub('\{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
+    path = re.sub('\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
+    path = re.sub('\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
+
+    runoff = open_dataset(path)
+
+    # check for non-standard calendar and convert if needed
+    if not isinstance(runoff.indexes[config.get('runoff.time')], pd.DatetimeIndex):
+        runoff[config.get('runoff.time')] = runoff.indexes[config.get('runoff.time')].to_datetimeindex()
+
+    # check if time index includes current time (with some slack)
+    if not (
+        runoff[config.get('runoff.time')].values.min() <= np.datetime64(current_time) <= (runoff[config.get('runoff.time')].values.max() + np.timedelta64(2, 'D'))
+    ):
+        raise ValueError(
+            f"Current simulation date {current_time.strftime('%Y-%m-%d')} not within time bounds of runoff input file {path}. Aborting..."
+        )
     
     sel = {
         config.get('runoff.time'): current_time

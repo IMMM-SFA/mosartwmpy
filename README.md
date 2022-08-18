@@ -87,9 +87,18 @@ Currently, the gridded data is expected to be provided at the same spatial resol
 Runoff input can be provided at any time resolution; each timestep will select the runoff at the closest time in the past.
 Currently, demand input is read monthly but will also pad to the closest time in the past.
 Efforts are under way for more robust demand handling.
+
 Dams/reservoirs require four different input files: the physical characteristics, the average monthly flow expected during the simulation period, the average monthly demand expected during the simulation period, and a database mapping each GRanD ID to grid cell IDs allowed to extract water from it.
 These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
 The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: `python -m mosartwmpy.download`.
+
+#### multi-file input
+
+To use multi-file demand or runoff input, use year/month/day placeholders in the file path options like so:
+* If your files look like `runoff-1999.nc`, use `runoff-{Y}.nc` as the path
+* If your files look like `runoff-1999-02.nc`, use `runoff-{Y}-{M}.nc` as the path
+* If your files look like `runoff-1999-02-03`, use `runoff-{Y}-{M}-{D}.nc` as the path, but be sure to provide files for leap days as well!
+
 
 ## model output
 
