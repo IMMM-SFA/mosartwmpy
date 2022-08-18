@@ -1,10 +1,10 @@
-import numpy as np
-import regex as re
-
+from benedict.dicts import benedict as Benedict
 from datetime import datetime
+import numpy as np
+import pandas as pd
+import regex as re
 from xarray import open_dataset
 
-from benedict.dicts import benedict as Benedict
 from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
@@ -30,6 +30,10 @@ def load_demand(state: State, config: Benedict, current_time: datetime, mask: np
 
     # if the demand file has a time axis, use it; otherwise assume data is just 2d
     if config.get('water_management.demand.time', None) in demand:
+        # check for non-standard calendar and convert if needed
+        if not isinstance(demand.indexes[config.get('water_management.demand.time')], pd.DatetimeIndex):
+            demand[config.get('water_management.demand.time')] = demand.indexes[config.get('water_management.demand.time')].to_datetimeindex()
+        # check if time index includes current time (with some slack on the end)
         if not (
             demand[config.get('water_management.demand.time')].values.min() <= np.datetime64(current_time) <= (demand[config.get('water_management.demand.time')].values.max() + np.timedelta64(31, 'D'))
         ):
