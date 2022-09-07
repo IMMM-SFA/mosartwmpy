@@ -51,7 +51,7 @@ class FarmerABM:
         crop_prices_by_nldas_id_path = f"{self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.path')}"
         output_dir = f"{self.config.get('water_management.demand.output.path')}"
 
-        # Check we haven't already performed the farmer ABM calculation.
+        # Check we haven't already performed the farmer ABM calculation for this year.
         if year in self.processed_years:
             logging.info(f"Already performed farmer ABM calculations for {year}. Files are in {output_dir}.")
             return
@@ -104,7 +104,7 @@ class FarmerABM:
             fwm_s.net_prices = Param(fwm_s.ids, initialize=net_prices, mutable=True)
             fwm_s.gammas = Param(fwm_s.ids, initialize=gammas, mutable=True)
             fwm_s.land_constraints = Param(fwm_s.farm_ids, initialize=land_constraints_by_farm, mutable=True)
-            fwm_s.water_constraints = Param(fwm_s.farm_ids, initialize=water_constraints_by_farm, mutable=True) #JY here need to read calculate new water constraints
+            fwm_s.water_constraints = Param(fwm_s.farm_ids, initialize=water_constraints_by_farm, mutable=True)
             fwm_s.xs = Var(fwm_s.ids, domain=NonNegativeReals, initialize=x_start_values)
             fwm_s.nirs = Param(fwm_s.ids, initialize=nirs, mutable=True)
 
@@ -156,7 +156,7 @@ class FarmerABM:
                 self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_area')
             ]]
 
-            # Create output directory if it doesn't already exist
+            # Create output directory if it doesn't already exist.
             try: 
                 mkdir(output_dir) 
             except OSError as error: 
