@@ -1,7 +1,7 @@
 simulation:
-  name: unit_tests
-  start_date: 1981-01-01
-  output_path: ./mosartwmpy/tests
+    name: unit_tests
+    start_date: 1981-01-01
+    output_path: ./mosartwmpy/tests
 runoff:
   path: ./mosartwmpy/tests/runoff_1981_01_01.nc
 water_management:

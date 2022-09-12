@@ -210,7 +210,7 @@ class FarmerABM:
         dependency_database_path = self.config.get('water_management.reservoirs.dependencies.path')
         historic_storage_supply_path = f"{self.config.get('water_management.demand.farmer_abm.historic_storage_supply.path')}"
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
-        simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{self.year-1}_*.nc"
+        simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{self.model.current_time.year-1}_*.nc"
 
         # Map between grid cell ID and the cell that is dependent upon it (many to many). 
         historic_storage_supply = pd.read_parquet(historic_storage_supply_path)
@@ -222,6 +222,8 @@ class FarmerABM:
         reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
 
         # Get mosartwmpy output.
+        print("simulation_output_path: ", simulation_output_path)
+        print("simulation name: ", self.config.get('simulation.name'))
         simulation_output_xr = xr.open_mfdataset(simulation_output_path)
         simulation_output = simulation_output_xr[[
             self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
