@@ -2,7 +2,7 @@
 
 tutorial:
   description: Minimal input dataset that can be used to run the tutorial; covers May 1981.
-  url: https://zenodo.org/record/5597952/files/mosartwmpy-tutorial-1981-05.zip?download=1
+  url: https://zenodo.org/record/6959736/files/mosartwmpy_tutorial_1981_05.zip?download=1
   destination: ./
 
 sample_input:
