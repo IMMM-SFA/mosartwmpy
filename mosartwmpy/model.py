@@ -19,7 +19,11 @@ import xarray as xr
 
 from mosartwmpy.config.config import get_config
 from mosartwmpy.config.parameters import Parameters
+<<<<<<< HEAD
 from mosartwmpy.farmer_abm.farmer_abm import FarmerABM
+=======
+from mosartwmpy.farmer_abm.FarmerABM import FarmerABM
+>>>>>>> e7929b7 (resolve merge conflict by incorporating both changes)
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.input.runoff import load_runoff
 from mosartwmpy.input.demand import load_demand
@@ -161,6 +165,9 @@ class Model(Bmi):
             if getattr(self.state, key).size == n:
                 setattr(self.state, key, getattr(self.state, key)[self.mask])
 
+        if self.config.get('water_management.demand.farmer_abm.enabled', False):
+            self.farmerABM = FarmerABM(self.config)
+        
         # setup output file averaging
         try:
             initialize_output(self)
@@ -196,10 +203,14 @@ class Model(Bmi):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
 <<<<<<< HEAD
+<<<<<<< HEAD
                         load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM, self.mask)
 =======
                         load_demand(self.name, self.state, self.config, self.current_time, self.mask)
 >>>>>>> 8c7afa4 (resolve merge conflict by incorporating both changes)
+=======
+                        load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM, self.mask)
+>>>>>>> e7929b7 (resolve merge conflict by incorporating both changes)
                 # only compute new release if it's the very start of simulation or new month
                 # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
                 if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \

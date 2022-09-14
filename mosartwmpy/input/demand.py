@@ -14,7 +14,7 @@ from mosartwmpy.utilities.timing import timing
 
 
 # @timing
-def load_demand(name: str, state: State, config: Benedict, current_time: datetime, farmerABM: FarmerABM, mask: np.ndarray) -> None:
+def load_demand(name: str, state: State, config: Benedict, current_time: datetime, farmer_abm: FarmerABM, mask: np.ndarray) -> None:
     """Loads water demand from file into the state for each grid cell.
 
     Args:
@@ -30,7 +30,7 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     # Calculate water demand for farmers using an ABM.
     if config.get_bool('water_management.demand.farmer_abm.enabled'):
         try:
-            farmerABM.calc_demand()
+            farmer_abm.calc_demand()
             path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{current_time.strftime('%Y')}.nc"
         except:
             logging.info(f"Water demand calculation for farmer ABM failed. Defaulting to precalculated values. ")

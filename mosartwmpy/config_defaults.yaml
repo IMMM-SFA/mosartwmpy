@@ -210,6 +210,7 @@ water_management:
         farmer_abm:
           enabled: false
 <<<<<<< HEAD
+<<<<<<< HEAD
           path: ./mosartwmpy/farmer_abm
           mu: 0.2
           warmup_period: 10
@@ -256,6 +257,10 @@ water_management:
 =======
           path: ./mosartwmpy/abm
 >>>>>>> 0752bdb (resolve merge conflict by incorporating both changes)
+=======
+          path: ./mosartwmpy/farmer_abm
+          mu: 0.2
+>>>>>>> e7929b7 (resolve merge conflict by incorporating both changes)
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true
