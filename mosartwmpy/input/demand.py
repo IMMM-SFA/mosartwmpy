@@ -25,12 +25,7 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     """
 
     path = config.get('water_management.demand.path')
-
-    # Demand path can have placeholders for year and month and day, so check for those and replace if needed
-    path = re.sub('\{y[^}]*}', current_time.strftime('%Y'), path)
-    path = re.sub('\{m[^}]*}', current_time.strftime('%m'), path)
-    path = re.sub('\{d[^}]*}', current_time.strftime('%d'), path)
-
+    
     # Calculate water demand for farmers using an ABM.
     if config.get_bool('water_management.demand.farmer_abm.enabled'):
         try:
@@ -39,6 +34,10 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
         except:
             logging.info(f"Water demand calculation for farmer ABM failed. Defaulting to precalculated values. ")
 
+    path = re.sub('\{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
+    path = re.sub('\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
+    path = re.sub('\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
+
     try:
         demand = open_dataset(path)
     except:
@@ -46,6 +45,12 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
 
     # if the demand file has a time axis, use it; otherwise assume data is just 2D
     if config.get('water_management.demand.time', None) in demand:
+        if not (
+            demand[config.get('water_management.demand.time')].values.min() <= np.datetime64(current_time) <= (demand[config.get('water_management.demand.time')].values.max() + np.timedelta64(31, 'D'))
+        ):
+            raise ValueError(
+                f"Current simulation date {current_time.strftime('%Y-%m-%d')} not within time bounds of demand input file {path}. Aborting..."
+            )
         state.grid_cell_demand_rate = np.array(demand[config.get('water_management.demand.demand')].sel({config.get('water_management.demand.time'): current_time}, method='pad')).flatten()[mask]
     else:
         state.grid_cell_demand_rate = np.array(demand[config.get('water_management.demand.demand')]).flatten()[mask]
