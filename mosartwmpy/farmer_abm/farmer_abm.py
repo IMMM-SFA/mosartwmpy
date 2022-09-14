@@ -202,7 +202,7 @@ class FarmerABM:
         DEMAND_FACTOR = 'demand_factor'
         STORAGE_SUM = 'storage_sum'
         STORAGE_SUM_ORIGINAL = 'storage_sum_original'
-        SW_AVAIL_BIAS_CORRECTION = 'sw_avail_bias_correction'
+        SW_AVAIL_BIAS_CORRECTED = 'sw_avail_bias_corrected'
         WRM_SUPPLY_ORIGINAL = 'wrm_supply_original'
         WRM_SUPPLY_BIAS_CORRECTION = 'wrm_supply_bias_correction'
         RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL = 'river_discharge_over_land_liquid_original'
@@ -222,8 +222,6 @@ class FarmerABM:
         reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
 
         # Get mosartwmpy output.
-        print("simulation_output_path: ", simulation_output_path)
-        print("simulation name: ", self.config.get('simulation.name'))
         simulation_output_xr = xr.open_mfdataset(simulation_output_path)
         simulation_output = simulation_output_xr[[
             self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
@@ -256,15 +254,15 @@ class FarmerABM:
 
         # Merge bias correction, original supply in acreft, historic storage, and original channel outflow.
         abm_data[[
-            SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
+            SW_AVAIL_BIAS_CORRECTED, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
         ]] = abm_data[[self.nldas_id]].merge(historic_storage_supply[[
             self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.nldas_id'),
-            self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.sw_avail_bias_correction'),
+            self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.sw_avail_bias_corrected'),
             self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.wrm_supply_original'),
             self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.river_discharge_over_land_liquid_original'),
             self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.storage_sum_original'),
         ]], left_on=self.nldas_id, right_on=self.config.get('water_management.demand.farmer_abm.historic_storage_supply.variables.nldas_id'), how='left')[[
-            SW_AVAIL_BIAS_CORRECTION, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
+            SW_AVAIL_BIAS_CORRECTED, WRM_SUPPLY_ORIGINAL, RIVER_DISCHARGE_OVER_LAND_LIQUID_ORIGINAL, STORAGE_SUM_ORIGINAL
         ]]
 
         # Select only the NLDAS_IDs listed in historic_storage_supply.
@@ -287,7 +285,7 @@ class FarmerABM:
             )
         )
 
-        abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[SW_AVAIL_BIAS_CORRECTION] + (abm_data[WRM_SUPPLY_ORIGINAL] * (1 + (self.mu * (abm_data[DEMAND_FACTOR] - 1))))
+        abm_data[WRM_SUPPLY_BIAS_CORRECTION] = abm_data[SW_AVAIL_BIAS_CORRECTED] + (abm_data[WRM_SUPPLY_ORIGINAL] * (1 + (self.mu * (abm_data[DEMAND_FACTOR] - 1))))
 
         # Update parquet with 'live' data, variables updated year to year: sw_irrigation_vol, land_constraints_by_farm
         land_water_constraints_by_farm_live = land_water_constraints_by_farm
@@ -295,6 +293,6 @@ class FarmerABM:
         land_water_constraints_by_farm_live[[self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.sw_irrigation_vol'), self.config.get('water_management.demand.farmer_abm.land_water_constraints.variables.land_constraints_by_farm')]].to_parquet(f"{self.config.get('water_management.demand.farmer_abm.land_water_constraints_live.path')}")
 
         water_constraints_by_farm = abm_data.reset_index()[WRM_SUPPLY_BIAS_CORRECTION].to_dict()
-        logging.info(f"Converted units dataframe for year {self.year}")
+        logging.info(f"Converted units dataframe for year {self.model.current_time.year}")
 
         return water_constraints_by_farm
