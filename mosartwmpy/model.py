@@ -56,6 +56,7 @@ class Model(Bmi):
         self.output_n = 0
         self.cores = 1
         self.client = None
+        self.mask = None
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -146,6 +147,20 @@ class Model(Bmi):
         if self.config.get('water_management.demand.farmer_abm.enabled', False):
             self.farmerABM = FarmerABM(self)
         
+        # trim all grid and state arrays to match mosart mask
+        self.mask = np.where(
+            self.grid.mosart_mask > 0,
+            True,
+            False
+        )
+        n = self.mask.size
+        for key in [key for key in dir(self.grid) if isinstance(getattr(self.grid, key), np.ndarray)]:
+            if getattr(self.grid, key).size == n:
+                setattr(self.grid, key, getattr(self.grid, key)[self.mask])
+        for key in [key for key in dir(self.state) if isinstance(getattr(self.state, key), np.ndarray)]:
+            if getattr(self.state, key).size == n:
+                setattr(self.state, key, getattr(self.state, key)[self.mask])
+
         # setup output file averaging
         try:
             initialize_output(self)
@@ -165,7 +180,7 @@ class Model(Bmi):
             if self.config.get('runoff.read_from_file', False):
                 # read runoff from file
                 logging.debug(f'Reading runoff input from file.')
-                load_runoff(self.state, self.grid, self.config, self.current_time)
+                load_runoff(self.state, self.grid, self.config, self.current_time, self.mask)
             else:
                 # convert provided runoff from mm/s to m3/s
                 self.state.hillslope_surface_runoff = 0.001 * self.grid.land_fraction * self.grid.area * self.state.hillslope_surface_runoff
@@ -180,7 +195,7 @@ class Model(Bmi):
                     if self.config.get('water_management.demand.read_from_file', False):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
-                        load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM)
+                        load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM, self.mask)
                 # only compute new release if it's the very start of simulation or new month
                 # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
                 if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
@@ -256,7 +271,7 @@ class Model(Bmi):
             log_scale: bool = False,
     ):
         """Display a colormap of a spatial variable at the current timestep."""
-        data = self.get_value_ptr(variable).reshape(self.get_grid_shape())
+        data = self.unmask(self.get_value_ptr(variable)).reshape(self.get_grid_shape())
         if log_scale:
             data = np.where(data > 0, data, np.nan)
         xr.DataArray(
@@ -272,6 +287,17 @@ class Model(Bmi):
             norm=colors.LogNorm() if log_scale else None,
         )
         plt.show()
+
+    def unmask(self, vector: np.ndarray) -> np.ndarray:
+        unmasked = np.empty_like(self.mask, dtype=vector.dtype)
+        if vector.dtype == float:
+            unmasked[:] = np.nan
+        elif vector.dtype == int:
+            unmasked[:] = -9999
+        elif vector.dtype == bool:
+            unmasked[:] = False
+        unmasked[self.mask] = vector
+        return unmasked
 
     def get_component_name(self) -> str:
         return f'mosartwmpy ({self.git_hash})'
@@ -328,34 +354,36 @@ class Model(Bmi):
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             return 1
-        dest[:] = self[var.variable_class][var.variable]
+        dest[:] = self.unmask(self[var.variable_class][var.variable])
         return 0
 
     def get_value_ptr(self, name: str) -> np.ndarray:
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             raise IOError(f'Variable {name} not found in model input/output definition.')
-        return self[var.variable_class][var.variable]
+        return self.unmask(self[var.variable_class][var.variable])
 
     def get_value_at_indices(self, name: str, dest: np.ndarray, inds: np.ndarray) -> int:
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             return 1
-        dest[:] = self[var.variable_class][var.variable][inds]
+        dest[:] = self.unmask(self[var.variable_class][var.variable])[inds]
         return 0
 
     def set_value(self, name: str, src: np.ndarray) -> int:
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             return 1
-        self[var.variable_class][var.variable][:] = src
+        self[var.variable_class][var.variable][:] = src[self.mask]
         return 0
 
     def set_value_at_indices(self, name: str, inds: np.ndarray, src: np.ndarray) -> int:
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             return 1
-        self[var.variable_class][var.variable][inds] = src
+        unmasked = self.unmask(self[var.variable_class][var.variable])
+        unmasked[inds] = src
+        self[var.variable_class][var.variable][:] = unmasked[self.mask]
         return 0
 
     def get_grid_type(self, grid: int = 0) -> str:
