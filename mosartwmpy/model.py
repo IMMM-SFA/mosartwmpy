@@ -166,7 +166,7 @@ class Model(Bmi):
                 setattr(self.state, key, getattr(self.state, key)[self.mask])
 
         if self.config.get('water_management.demand.farmer_abm.enabled', False):
-            self.farmerABM = FarmerABM(self.config)
+            self.farmerABM = FarmerABM(self)
         
         # setup output file averaging
         try:
