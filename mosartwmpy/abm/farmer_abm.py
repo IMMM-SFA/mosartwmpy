@@ -43,11 +43,11 @@ logging.info('code_path: ' + code_path)
 logging.info('output_path: ' + output_path)
 logging.info('mu: ' + str(mu))
 
-def calc_demand(config: Benedict, year, month, reservoir_file_path):
+def calc_demand(name, config: Benedict, year, month, reservoir_file_path):
     pyutilib.subprocess.GlobalData.DEFINE_SIGNAL_HANDLERS_DEFAULT = False
     year_int = int(year)
     months = ['01','02','03','04','05','06','07','08','09','10','11','12']
-    output_path = config.get('simulation.output_path') + '/demand'
+    output_path = f"{config.get('simulation.output_path')}/demand/{name}_farmer_abm_demand_{year}_{month}.nc"
 
     # check that we haven't already performed this ABM calculation
     existing_demand_files = 0
