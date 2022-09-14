@@ -226,8 +226,6 @@ class FarmerABM:
         reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
 
         # Get mosartwmpy output.
-        print("simulation_output_path: ", simulation_output_path)
-        print("simulation name: ", self.config.get('simulation.name'))
         simulation_output_xr = xr.open_mfdataset(simulation_output_path)
         simulation_output = simulation_output_xr[[
             self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
