@@ -37,7 +37,11 @@ class FarmerABM:
         
 
     def calc_demand(self):
-        """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a netCDF file. """
+        """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a parquet file. Requires input files:
+        * historic_storage_supply_bias.parquet
+        * land_water_constraints_by_farm.parquet
+        * crop_prices_by_nldas_id.parquet
+        """
        
         logging.info("\nRunning farmer ABM. ")
         t = timer()
