@@ -22,6 +22,9 @@ runoff:
 water_management:
   enabled: true
   demand:
+    farmer_abm:
+      enabled: true
+      warmup_period: 1
     read_from_file: true
     path: ./input/demand/demand_1981_05.nc
   reservoirs:

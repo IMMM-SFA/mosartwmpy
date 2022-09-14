@@ -218,8 +218,13 @@ water_management:
               path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
               variables:
                 # NLDAS identifier for the grid cell
+<<<<<<< HEAD
                 nldas_id: nldas_id
                 land_constraints_by_farm: land_constraints_by_farm
+=======
+                nldas_id: NLDAS_ID
+                land_constraints_by_farm: LAND_CONSTRAINTS_BY_FARM
+>>>>>>> 75db83d (resolve merge conflict by incorporating both changes)
                 # Surface water irrigation volume [acre-ft/year]
                 sw_irrigation_vol: sw_irrigation_vol
           land_water_constraints_live:
@@ -228,6 +233,7 @@ water_management:
               path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
               variables:
                 # NLDAS identifier for the grid cell
+<<<<<<< HEAD
                 nldas_id: nldas_id
                 storage_sum_original: storage_sum_original
                 # Water resource management
@@ -242,6 +248,22 @@ water_management:
               variables:
                 calculated_area: calculated_area
                 calculated_water_demand: calculated_water_demand
+=======
+                nldas_id: NLDAS_ID
+                storage_sum_original: STORAGE_SUM_OG
+                # Water resource management
+                wrm_supply_original: WRM_SUPPLY_acreft_OG
+                wrm_supply_prev: WRM_SUPPLY_acreft_prev
+                # Surface water available with bias correction 
+                sw_avail_bias_correction: sw_avail_bias_corr
+                demand_factor: demand_factor
+                river_discharge_over_land_liquid_original: RIVER_DISCHARGE_OVER_LAND_LIQ_OG
+          mosart_wm_pmp:
+              path: ./input/demand/farmer_abm/MOSART_WM_PMP_inputs.parquet
+              variables:
+                calculated_area: calc_area
+                calculated_water_demand: calc_water_demand
+>>>>>>> 75db83d (resolve merge conflict by incorporating both changes)
                 crop: crop
                 # Net irrigation requirement
                 nir: nir
@@ -250,6 +272,7 @@ water_management:
                 gammas: gammas
                 net_prices: net_prices
                 # NLDAS identifier for the grid cell
+<<<<<<< HEAD
                 nldas_id: nldas_id
         output:
             path: ./output/demand
@@ -261,6 +284,12 @@ water_management:
           path: ./mosartwmpy/farmer_abm
           mu: 0.2
 >>>>>>> e7929b7 (resolve merge conflict by incorporating both changes)
+=======
+                nldas_ids: nldas
+        output:
+            path: ./output/demand
+          
+>>>>>>> 75db83d (resolve merge conflict by incorporating both changes)
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true
