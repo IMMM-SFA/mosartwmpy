@@ -90,6 +90,8 @@ Dams/reservoirs require four different input files: the physical characteristics
 These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
 The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: `python -m mosartwmpy.download`.
 
+#### multi-file input
+
 To use multi-file demand or runoff input, use year/month/day placeholders in the file path options like so:
 * If your files look like `runoff-1999.nc`, use `runoff-{Y}.nc` as the path
 * If your files look like `runoff-1999-02.nc`, use `runoff-{Y}-{M}.nc` as the path

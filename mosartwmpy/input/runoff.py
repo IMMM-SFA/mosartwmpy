@@ -1,5 +1,6 @@
 import numpy as np
 from datetime import datetime
+import pandas as pd
 import regex as re
 from xarray import open_dataset
 
@@ -32,7 +33,11 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
 
     runoff = open_dataset(path)
 
-    # if current timestep not within the range of the current file, abort
+    # check for non-standard calendar and convert if needed
+    if not isinstance(runoff.indexes[config.get('runoff.time')], pd.DatetimeIndex):
+        runoff[config.get('runoff.time')] = runoff.indexes[config.get('runoff.time')].to_datetimeindex()
+
+    # check if time index includes current time (with some slack)
     if not (
         runoff[config.get('runoff.time')].values.min() <= np.datetime64(current_time) <= (runoff[config.get('runoff.time')].values.max() + np.timedelta64(2, 'D'))
     ):
