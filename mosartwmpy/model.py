@@ -146,7 +146,7 @@ class Model(Bmi):
 
         if self.config.get('water_management.demand.farmer_abm.enabled', False):
             self.farmerABM = FarmerABM(self)
-        
+
         # trim all grid and state arrays to match mosart mask
         self.mask = np.where(
             self.grid.mosart_mask > 0,

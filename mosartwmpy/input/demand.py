@@ -1,4 +1,3 @@
-
 from benedict.dicts import benedict as Benedict
 from datetime import datetime
 import logging
