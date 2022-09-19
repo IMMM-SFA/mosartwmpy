@@ -46,6 +46,7 @@ setup(
         'pathvalidate==2.5.0',
         'psutil==5.8.0',
         'pyarrow==6.0.0',
+        'pyomo==6.2',
         'python-benedict==0.24.3',
         'regex==2021.10.23',
         'requests==2.26.0',

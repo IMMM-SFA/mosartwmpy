@@ -73,7 +73,7 @@ simulation:
           long_name: Mosart reservoir supply to grid cell
           units: m3/s
         - variable: grid_cell_demand_rate
-          name: WRM_DEMAND0
+          name: WRM_DEMAND
           long_name: Mosart demand reqeusted by grid cell
           units: m3/s
         - variable: grid_cell_deficit
@@ -86,6 +86,9 @@ simulation:
         - variable: id
           name: GINDEX
           long_name: Index of the grid cell in a 1d array
+        - variable: nldas_id
+          name: NLDAS_ID
+          long_name: NLDAS_ID of grid cell. 
         - variable: outlet_id
           name: OUTLETG
           long_name: Index of the outlet grid cell in a 1d array
@@ -110,7 +113,7 @@ simulation:
 ###
 grid:
     # path to the grid domain file; can be absolute or relative to the source code root
-    path: ./input/domains/MOSART_NLDAS_8th_20160426.nc
+    path: ./input/domains/mosart_conus_nldas_grid.nc
     # longitude field name
     longitude: lon
     # latitude field name
@@ -139,6 +142,8 @@ grid:
         total_drainage_area_single: areaTotal2
         # grid cell id field name
         id: ID
+        # NLDAS_Id of the grid cell
+        nldas_id: NLDAS_ID
         # downstream ID field name
         downstream_id: dnID
         # flow direction field name
@@ -167,14 +172,8 @@ grid:
         channel_floodplain_width: rwid0
         # bankfull depth of main channel field name [m]
         grid_channel_depth: rdep
-    # land grid information
-    # TODO this is only needed for land_frac variable, so should just add it to mosart grid
-    # TODO assumed to be the same grid as the main grid
-    land:
-      # path to the land grid domain file; can be absolute or relative to the source code root
-      path: ./input/domains/domain.lnd.nldas2_0224x0464_c110415.nc
-      # land fraction field name
-      land_fraction: frac
+        # land fraction field name
+        land_fraction: frac
 ###
 ### Runoff (forcing input)
 ###
@@ -205,8 +204,72 @@ runoff:
 water_management:
     # flag to turn this feature on or off
     enabled: true
-    # Demand
+    # demand settings
     demand:
+        # farmer Agent Based Model (ABM) calculation of demand
+        farmer_abm:
+            # flag to enable/disable using a farmer ABM to calculate water demand
+            enabled: false
+            # defines the agent's "memory decay rate" - higher mu values indicate higher decay (1 indicates that agent only remembers previous year)
+            mu: 0.2
+            # how many years to use the external baseline water demand files before starting ABM calculations
+            warmup_period: 10
+            land_water_constraints:
+                # path to the land/water constraints by farm file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
+                # variable names
+                variables:
+                    # NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+                    # land constraints by farm field
+                    land_constraints_by_farm: land_constraints_by_farm
+                    # Surface water irrigation volume [acre-ft/year]
+                    sw_irrigation_vol: sw_irrigation_vol
+            land_water_constraints_live:
+                # path to the live land/water constraints by farm file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
+            historic_storage_supply:
+                # path to the historic storage/supply bias file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
+                variables:
+                    # field name for the NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+                    # field name for the original storage sum
+                    storage_sum_original: storage_sum_original
+                    # field name for the original supply
+                    wrm_supply_original: wrm_supply_original
+                    # field name for the previous supply
+                    wrm_supply_prev: wrm_supply_prev
+                    # field name for surface water available with bias correction
+                    sw_avail_bias_corrected: sw_avail_bias_corrected
+                    # field name for the demand factor
+                    demand_factor: demand_factor
+                    # field name for the original discharge
+                    river_discharge_over_land_liquid_original: river_discharge_over_land_liquid_original
+            crop_prices_by_nldas_id:
+                # path to the crop prices file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/crop_prices_by_nldas_id.parquet
+                variables:
+                    # field name for the calculated area
+                    calculated_area: calculated_area
+                    # field name for the calculated water demand
+                    calculated_water_demand: calculated_water_demand
+                    # field name for the crop identifier
+                    crop: crop
+                    # field name for the net irrigation requirement
+                    nir: nir
+                    # field name for the corrected net irrigation requirement
+                    nir_corrected: nir_corrected
+                    # field name for the gammas
+                    gammas: gammas
+                    # field name for the net prices
+                    net_prices: net_prices
+                    # field name for the NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+            output:
+                # path to the directory in which to write new demand files; can be absolute or relative to the source code root
+                path: ./output/demand
+          
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
         read_from_file: true
@@ -219,6 +282,7 @@ water_management:
         # time field name
         time: time
         # demand field name # TODO support the different demand types using the flags
+        # todo: change to be consistent with other variable names: total_demand
         demand: totalDemand
         # TODO these modules aren't available yet
         # flag to enable or disable groundwater
@@ -227,14 +291,14 @@ water_management:
         return_flow_enabled: false
         # flag to enable or disable the tracking of irrigation vs non irrigation demand
         total_demand_enabled: false
-    # Reservoirs
+    # reservoir settings
     reservoirs:
         # use improved reservoir schedule module (ISTARF)
         enable_istarf: true
         # physical and use type parameters of the reservoirs, typically from GRanD
         parameters:
             # path to the reservoir parameter file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_reservoir_parameters.nc
+            path: ./input/reservoirs/reservoirs.nc
             # grid cell index field
             grid_cell_index: GRID_CELL_INDEX
             # variable field names
@@ -292,17 +356,19 @@ water_management:
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_dependency_database.parquet
+            path: ./input/reservoirs/dependency_database.parquet
             # variable field names
             variables:
                 # flattened index of dependent grid cell
                 dependent_cell_index: DEPENDENT_CELL_INDEX
                 # ID of the reservoir
                 dependent_reservoir_id: GRAND_ID
+                # Reservoir cell index
+                reservoir_cell_index: RESERVOIR_CELL_INDEX
         # database of monthly mean streamflow for each reservoir
         streamflow:
             # path to the flow file; can be absolute or relative to the source code root
-            path: ./input/reservoirs/grand_average_monthly_flow.parquet
+            path: ./input/reservoirs/mean_monthly_reservoir_flow.parquet
             # variable field names
             variables:
                 # ID of the reservoir
@@ -311,10 +377,10 @@ water_management:
                 streamflow_month_index: MONTH_INDEX
                 # mean streamflow for month
                 streamflow: MEAN_FLOW
-      # database of monthly mean demand for each reservoir
+        # database of monthly mean demand for each reservoir
         demand:
           # path to the demand file; can be absolute or relative to the source code root
-          path: ./input/reservoirs/grand_average_monthly_demand.parquet
+          path: ./input/reservoirs/mean_monthly_reservoir_demand.parquet
           # variable field names
           variables:
             # ID of the reservoir

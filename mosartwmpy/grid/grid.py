@@ -25,6 +25,7 @@ class Grid:
     
     # initialize all properties
     id: np.ndarray = np.empty(0)
+    nldas_id: np.ndarray = np.empty(0)
     downstream_id: np.ndarray = np.empty(0)
     longitude: np.ndarray = np.empty(0)
     latitude: np.ndarray = np.empty(0)
@@ -263,15 +264,6 @@ class Grid:
             parameters.channel_slope_minimum,
             self.channel_slope
         )
-
-        # load the land grid to get the land fraction; if it's not there, default to 1
-        # TODO need to just add this field to mosart grid file
-        try:
-            land = open_dataset(config.get('grid.land.path'))
-            self.land_fraction = np.array(land[config.get('grid.land.land_fraction')]).flatten()
-            land.close()
-        except:
-            self.land_fraction = np.full(self.id.size, 1.0)
 
         # parameter for calculating number of main channel iterations needed
         # phi_r
