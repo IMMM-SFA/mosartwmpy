@@ -204,56 +204,71 @@ runoff:
 water_management:
     # flag to turn this feature on or off
     enabled: true
-    # Demand
+    # demand settings
     demand:
         # farmer Agent Based Model (ABM) calculation of demand
         farmer_abm:
-          # flag to enable/disable using a farmer ABM to calculate water demand 
-          enabled: false
-          path: ./mosartwmpy/farmer_abm
-          # defines the agent's "memory decay rate" - higher mu values indicate higher decay (1 indicates that agent only remembers previous year)
-          mu: 0.2
-          # how long to use the external baseline water demand files before starting ABM calculations
-          warmup_period: 10
-          land_water_constraints:
-              path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
-              variables:
-                # NLDAS identifier for the grid cell
-                nldas_id: nldas_id
-                land_constraints_by_farm: land_constraints_by_farm
-                # Surface water irrigation volume [acre-ft/year]
-                sw_irrigation_vol: sw_irrigation_vol
-          land_water_constraints_live:
-              path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
-          historic_storage_supply:
-              path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
-              variables:
-                # NLDAS identifier for the grid cell
-                nldas_id: nldas_id
-                storage_sum_original: storage_sum_original
-                # Water resource management
-                wrm_supply_original: wrm_supply_original
-                wrm_supply_prev: wrm_supply_prev
-                # Surface water available with bias correction
-                sw_avail_bias_corrected: sw_avail_bias_corrected
-                demand_factor: demand_factor
-                river_discharge_over_land_liquid_original: river_discharge_over_land_liquid_original
-          crop_prices_by_nldas_id:
-              path: ./input/demand/farmer_abm/crop_prices_by_nldas_id.parquet
-              variables:
-                calculated_area: calculated_area
-                calculated_water_demand: calculated_water_demand
-                crop: crop
-                # Net irrigation requirement
-                nir: nir
-                # Net irrigation requirement corrected
-                nir_corrected: nir_corrected
-                gammas: gammas
-                net_prices: net_prices
-                # NLDAS identifier for the grid cell
-                nldas_id: nldas_id
-        output:
-            path: ./output/demand
+            # flag to enable/disable using a farmer ABM to calculate water demand
+            enabled: false
+            # defines the agent's "memory decay rate" - higher mu values indicate higher decay (1 indicates that agent only remembers previous year)
+            mu: 0.2
+            # how many years to use the external baseline water demand files before starting ABM calculations
+            warmup_period: 10
+            land_water_constraints:
+                # path to the land/water constraints by farm file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
+                # variable names
+                variables:
+                    # NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+                    # land constraints by farm field
+                    land_constraints_by_farm: land_constraints_by_farm
+                    # Surface water irrigation volume [acre-ft/year]
+                    sw_irrigation_vol: sw_irrigation_vol
+            land_water_constraints_live:
+                # path to the live land/water constraints by farm file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/land_water_constraints_by_farm_live.parquet
+            historic_storage_supply:
+                # path to the historic storage/supply bias file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/historic_storage_supply_bias.parquet
+                variables:
+                    # field name for the NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+                    # field name for the original storage sum
+                    storage_sum_original: storage_sum_original
+                    # field name for the original supply
+                    wrm_supply_original: wrm_supply_original
+                    # field name for the previous supply
+                    wrm_supply_prev: wrm_supply_prev
+                    # field name for surface water available with bias correction
+                    sw_avail_bias_corrected: sw_avail_bias_corrected
+                    # field name for the demand factor
+                    demand_factor: demand_factor
+                    # field name for the original discharge
+                    river_discharge_over_land_liquid_original: river_discharge_over_land_liquid_original
+            crop_prices_by_nldas_id:
+                # path to the crop prices file; can be absolute or relative to the source code root
+                path: ./input/demand/farmer_abm/crop_prices_by_nldas_id.parquet
+                variables:
+                    # field name for the calculated area
+                    calculated_area: calculated_area
+                    # field name for the calculated water demand
+                    calculated_water_demand: calculated_water_demand
+                    # field name for the crop identifier
+                    crop: crop
+                    # field name for the net irrigation requirement
+                    nir: nir
+                    # field name for the corrected net irrigation requirement
+                    nir_corrected: nir_corrected
+                    # field name for the gammas
+                    gammas: gammas
+                    # field name for the net prices
+                    net_prices: net_prices
+                    # field name for the NLDAS identifier for the grid cell
+                    nldas_id: nldas_id
+            output:
+                # path to the directory in which to write new demand files; can be absolute or relative to the source code root
+                path: ./output/demand
           
         # flag to enable/disable reading demand from file
         # if disabled, demand should be provided by the model driver
@@ -276,7 +291,7 @@ water_management:
         return_flow_enabled: false
         # flag to enable or disable the tracking of irrigation vs non irrigation demand
         total_demand_enabled: false
-    # Reservoirs
+    # reservoir settings
     reservoirs:
         # use improved reservoir schedule module (ISTARF)
         enable_istarf: true
