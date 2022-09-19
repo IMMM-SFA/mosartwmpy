@@ -208,9 +208,12 @@ water_management:
     demand:
         # farmer Agent Based Model (ABM) calculation of demand
         farmer_abm:
+          # flag to enable/disable using a farmer ABM to calculate water demand 
           enabled: false
           path: ./mosartwmpy/farmer_abm
+          # defines the agent's "memory decay rate" - higher mu values indicate higher decay (1 indicates that agent only remembers previous year)
           mu: 0.2
+          # how long to use the external baseline water demand files before starting ABM calculations
           warmup_period: 10
           land_water_constraints:
               path: ./input/demand/farmer_abm/land_water_constraints_by_farm.parquet
