@@ -14,6 +14,7 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
     RUNOFF_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/runoff_1981_01_01.nc')
     DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
     RESERVOIRS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/reservoirs.nc')
+    CONSTRAINTS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_land_water_constraints_by_farm.parquet')
 
     def test_calculate_water_constraints_by_farm(self):
         model = Model()
@@ -24,6 +25,7 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
         model.config['runoff.path'] = self.RUNOFF_FILE
         model.config['water_management.demand.path'] = self.DEMAND_FILE
         model.config['water_management.reservoirs.path'] = self.RESERVOIRS_FILE
+        model.config['water_management.demand.farmer_abm.land_water_constraints.path'] = self.CONSTRAINTS_FILE
 
         farmerABM = FarmerABM(model)
 
