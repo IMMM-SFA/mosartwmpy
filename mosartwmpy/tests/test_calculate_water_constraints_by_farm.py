@@ -14,6 +14,9 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
     RUNOFF_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/runoff_1981_01_01.nc')
     DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
     RESERVOIRS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/reservoirs.nc')
+    DEPENDENCY_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/dependency_database.parquet')
+    MEAN_FLOW_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/mean_flow.parquet')
+    MEAN_DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/mean_demand.parquet')
     CONSTRAINTS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_land_water_constraints_by_farm.parquet')
     LIVE_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_land_water_constraints_by_farm_live.parquet')
     BIAS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_historic_storage_supply_bias.parquet')
@@ -27,7 +30,10 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
         # set paths for runoff data relative to package
         model.config['runoff.path'] = self.RUNOFF_FILE
         model.config['water_management.demand.path'] = self.DEMAND_FILE
-        model.config['water_management.reservoirs.path'] = self.RESERVOIRS_FILE
+        model.config['water_management.reservoirs.parameters.path'] = self.RESERVOIRS_FILE
+        model.config['water_management.reservoirs.dependencies.path'] = self.DEPENDENCY_FILE
+        model.config['water_management.reservoirs.streamflow.path'] = self.MEAN_DEMAND_FILE
+        model.config['water_management.reservoirs.demand.path'] = self.MEAN_FLOW_FILE
         model.config['water_management.demand.farmer_abm.land_water_constraints.path'] = self.CONSTRAINTS_FILE
         model.config['water_management.demand.farmer_abm.land_water_constraints_live.path'] = self.LIVE_FILE
         model.config['water_management.demand.farmer_abm.historic_storage_supply.path'] = self.BIAS_FILE
