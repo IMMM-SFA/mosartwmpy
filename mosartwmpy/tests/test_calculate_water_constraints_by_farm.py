@@ -15,6 +15,9 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
     DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
     RESERVOIRS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/reservoirs.nc')
     CONSTRAINTS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_land_water_constraints_by_farm.parquet')
+    LIVE_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_land_water_constraints_by_farm_live.parquet')
+    BIAS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_historic_storage_supply_bias.parquet')
+    CROP_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_crop_prices_by_nldas_id.parquet')
 
     def test_calculate_water_constraints_by_farm(self):
         model = Model()
@@ -26,6 +29,9 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
         model.config['water_management.demand.path'] = self.DEMAND_FILE
         model.config['water_management.reservoirs.path'] = self.RESERVOIRS_FILE
         model.config['water_management.demand.farmer_abm.land_water_constraints.path'] = self.CONSTRAINTS_FILE
+        model.config['water_management.demand.farmer_abm.land_water_constraints_live.path'] = self.LIVE_FILE
+        model.config['water_management.demand.farmer_abm.historic_storage_supply.path'] = self.BIAS_FILE
+        model.config['water_management.demand.farmer_abm.crop_prices_by_nldas_id.path'] = self.CROP_FILE
 
         farmerABM = FarmerABM(model)
 
