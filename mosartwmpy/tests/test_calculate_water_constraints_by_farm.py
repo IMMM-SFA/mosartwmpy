@@ -10,6 +10,7 @@ from mosartwmpy.grid.grid import Grid
 class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
 
     GRID_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/grid.zip')
+    OUTPUT_PATH = pkg_resources.resource_filename('mosartwmpy', 'tests')
     CONFIG_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_config.yaml')
     RUNOFF_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/runoff_1981_01_01.nc')
     DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
@@ -28,6 +29,7 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
         model.initialize(self.CONFIG_FILE, grid=grid)
 
         # set paths for runoff data relative to package
+        model.config['simulation.output_path'] = self.OUTPUT_PATH
         model.config['runoff.path'] = self.RUNOFF_FILE
         model.config['water_management.demand.path'] = self.DEMAND_FILE
         model.config['water_management.reservoirs.parameters.path'] = self.RESERVOIRS_FILE
