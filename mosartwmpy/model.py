@@ -196,14 +196,8 @@ class Model(Bmi):
                         logging.debug(f'Reading demand rate input from file.')
                         # load the demand from file
                         load_demand(self.name, self.state, self.config, self.current_time, self.farmerABM, self.mask)
-                # only compute new release if it's the very start of simulation or new month
-                # unless ISTARF mode is enabled, in which case update the release if it's the start of a new day
-                if self.current_time == datetime.combine(self.config.get('simulation.start_date'), time.min) or \
-                    (self.config.get('water_management.reservoirs.enable_istarf') and self.current_time ==
-                     datetime(self.current_time.year, self.current_time.month, self.current_time.day, 0, 0, 0)) or \
-                        self.current_time == datetime(self.current_time.year, self.current_time.month, 1):
-                    # update reservoir release targets
-                    reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time)
+                # update reservoir release targets (logic for when to do this is inside the method)
+                reservoir_release(self.state, self.grid, self.config, self.parameters, self.current_time, self.mask)
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0

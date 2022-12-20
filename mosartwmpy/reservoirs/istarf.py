@@ -1,5 +1,6 @@
 import numba as nb
 import numpy as np
+import pandas as pd
 
 from datetime import datetime
 from benedict.dicts import benedict as Benedict
@@ -10,16 +11,22 @@ from mosartwmpy.grid.grid import Grid
 from mosartwmpy.utilities.epiweek import get_epiweek_from_datetime
 
 
-def istarf_release(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime):
+def istarf_release(state: State, grid: Grid, current_time: datetime):
     # estimate reservoir release using ISTARF which is based on harmonic functions
 
     # restrict epiweek to [1, 52]
     epiweek = np.minimum(float(get_epiweek_from_datetime(current_time)), 52.0)
 
+    # boolean array indicating which cells use the istarf rules;
+    # if behavior is "generic", then just keep the monthly generic release value instead
+    uses_istarf = np.array([(x.lower() != 'generic') if pd.notna(x) else False for x in grid.reservoir_behavior])
+
+    # initialize the release array
     daily_release = np.zeros(len(grid.reservoir_id))
 
     compute_istarf_release(
         epiweek,
+        uses_istarf,
         grid.reservoir_id,
         grid.reservoir_upper_min,
         grid.reservoir_upper_max,
@@ -48,12 +55,17 @@ def istarf_release(state: State, grid: Grid, config: Benedict, parameters: Param
     )
 
     # join release back into the grid as m3/s
-    state.reservoir_release = daily_release / (24.0 * 60.0 * 60.0)
+    # except where generic behavior is requested
+    state.reservoir_release = np.where(
+        uses_istarf,
+        daily_release / (24.0 * 60.0 * 60.0),
+        state.reservoir_release
+    )
 
 
 @nb.jit(
     "void("
-        "float64, float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], "
+        "float64, boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], "
         "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], "
         "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:]"
     ")",
@@ -64,6 +76,7 @@ def istarf_release(state: State, grid: Grid, config: Benedict, parameters: Param
 )
 def compute_istarf_release(
     epiweek,
+    uses_istarf,
     reservoir_id,
     upper_min,
     upper_max,
@@ -95,7 +108,7 @@ def compute_istarf_release(
 
     for i in nb.prange(len(release)):
 
-        if np.isfinite(reservoir_id[i]):
+        if np.isfinite(reservoir_id[i]) and uses_istarf[i]:
 
             max_normal = np.minimum(
                 upper_max[i],

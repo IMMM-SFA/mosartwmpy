@@ -102,6 +102,7 @@ class Grid:
     reservoir_release_min: np.ndarray = np.empty(0)
     reservoir_release_p_one: np.ndarray = np.empty(0)
     reservoir_release_p_two: np.ndarray = np.empty(0)
+    reservoir_behavior: np.ndarray = np.empty(0)
     reservoir_dependency_database: pd.DataFrame = pd.DataFrame()
     grid_index_to_reservoirs_map: Dict = Dict.empty(
         key_type=types.int64,
@@ -171,7 +172,11 @@ class Grid:
         # TUnit%mask
         self.mosart_mask = np.where(
             np.array(self.flow_direction) < 0,
-            0,
+            np.where(
+                self.land_fraction > 0,
+                2,
+                0,
+            ),
             np.where(
                 np.array(self.flow_direction) == 0,
                 2,
@@ -376,11 +381,12 @@ class Grid:
     def __getitem__(self, item):
         return getattr(self, item)
 
-    def to_files(self, path: str) -> None:
+    def to_files(self, path: str, mask: np.ndarray) -> None:
         """Builds a dataframe from all the grid values.
         
         Args:
             path (str): the file path to save the grid zip file to
+            mask (ndarray): the mask applied by the model
         """
         
         if not path.endswith('.zip'):
@@ -402,7 +408,18 @@ class Grid:
         npdf = pd.DataFrame()
         for key in [key for key in keys if isinstance(getattr(self, key), np.ndarray)]:
             if getattr(self, key).size > 0:
-                npdf[key] = getattr(self, key)
+                vector = getattr(self, key)
+                unmasked = np.empty_like(mask, dtype=vector.dtype)
+                if vector.dtype == float:
+                    unmasked[:] = np.nan
+                elif vector.dtype == int:
+                    unmasked[:] = -9999
+                elif vector.dtype == bool:
+                    unmasked[:] = False
+                elif vector.dtype == np.object:
+                    unmasked[:] = np.nan
+                unmasked[mask] = vector
+                npdf[key] = unmasked
         
         # handle dataframes
         dfs = []
