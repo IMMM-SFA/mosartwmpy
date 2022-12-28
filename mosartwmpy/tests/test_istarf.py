@@ -12,6 +12,7 @@ class IstarfTest(unittest.TestCase):
     def test_is_correct(self):
 
         epiweek = np.minimum(float(get_epiweek_from_datetime(date(1994, 10, 1))), 52.0)
+        uses_istarf = np.array([True])
         reservoir_id = np.array([0.0])
         upper_min = np.array([-np.Inf])
         upper_max = np.array([np.Inf])
@@ -40,6 +41,7 @@ class IstarfTest(unittest.TestCase):
 
         compute_istarf_release(
             epiweek,
+            uses_istarf,
             reservoir_id,
             upper_min,
             upper_max,

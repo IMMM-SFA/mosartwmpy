@@ -1,6 +1,6 @@
 import numpy as np
 
-from datetime import datetime
+from datetime import datetime, time
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
@@ -9,30 +9,43 @@ from mosartwmpy.grid.grid import Grid
 from mosartwmpy.reservoirs.istarf import istarf_release
 
 
-def reservoir_release(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime):
+def reservoir_release(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime, mask: np.ndarray):
     # compute release from reservoirs
 
-    # if ISTARF enabled, use new module; else use old module
-    if config.get('water_management.reservoirs.enable_istarf'):
-        istarf_release(state, grid, config, parameters, current_time)
+    # to support enabling some reservoirs to use generic rules and others to use special rules,
+    # let's always compute release with the generic rules at the beginning of the month, and then let the
+    # special rules update the release afterward, where required
 
-    else:
+    # at the beginning of simulation and start of each month,
+    # apply the generic reservoir operating rules to update the release
+    if (
+        (current_time == datetime.combine(config.get('simulation.start_date'), time.min)) or
+        (current_time == datetime(current_time.year, current_time.month, 1))
+    ):
         month = current_time.month
-        # if it's the start of the operational year for the reservoir, set it's start of op year storage to the current storage
+        # if it's the start of the operational year for the reservoir,
+        # set it's start of op year storage to the current storage
         state.reservoir_storage_operation_year_start = np.where(
             state.reservoir_month_start_operations == month,
             state.reservoir_storage,
             state.reservoir_storage_operation_year_start
         )
-        regulation_release(state, grid, config, parameters, current_time)
-        storage_targets(state, grid, config, parameters, current_time)
+        regulation_release(state, grid, parameters, current_time, mask)
+        storage_targets(state, grid, current_time, mask)
+
+    # if ISTARF is enabled, and it is the start of a day, update the release targets for non-generic reservoirs
+    if (
+        config.get('water_management.reservoirs.enable_istarf') and
+        (current_time == datetime(current_time.year, current_time.month, current_time.day, 0, 0, 0))
+    ):
+        istarf_release(state, grid, current_time)
 
 
-def regulation_release(state, grid, config, parameters, current_time):
+def regulation_release(state, grid, parameters, current_time, mask):
     # compute the expected monthly release based on Biemans (2011)
     
     # initialize to the average flow
-    state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim='month').values
+    state.reservoir_release = grid.reservoir_streamflow_schedule.mean(dim='month').values[mask]
     
     # TODO what is k
     k = state.reservoir_storage_operation_year_start / (
@@ -40,32 +53,32 @@ def regulation_release(state, grid, config, parameters, current_time):
     
     # TODO what is factor
     factor = np.where(
-        grid.reservoir_runoff_capacity > parameters.reservoir_runoff_capacity_parameter,
-        (2.0 / grid.reservoir_runoff_capacity) ** 2.0,
+        grid.reservoir_runoff_capacity.values[mask] > parameters.reservoir_runoff_capacity_parameter,
+        (2.0 / grid.reservoir_runoff_capacity.values[mask]) ** 2.0,
         0
     )
     
     # release is some combination of prerelease, average flow in the time period, and total average flow
     state.reservoir_release = np.where(
-        np.logical_or(grid.reservoir_use_electricity, grid.reservoir_use_irrigation),
+        np.logical_or(grid.reservoir_use_electricity == True, grid.reservoir_use_irrigation == True),
         np.where(
-            grid.reservoir_runoff_capacity <= 2.0,
-            k * grid.reservoir_prerelease_schedule.sel({'month': current_time.month}).values,
+            grid.reservoir_runoff_capacity.values[mask] <= 2.0,
+            k * grid.reservoir_prerelease_schedule.sel({'month': current_time.month}).values[mask],
             k * factor * grid.reservoir_prerelease_schedule.sel({
-                'month': current_time.month}).values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
-                    'month': current_time.month}).values
+                'month': current_time.month}).values[mask] + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
+                    'month': current_time.month}).values[mask]
         ),
         np.where(
-            grid.reservoir_runoff_capacity <= 2.0,
-            k * grid.reservoir_streamflow_schedule.mean(dim='month').values,
+            grid.reservoir_runoff_capacity.values[mask] <= 2.0,
+            k * grid.reservoir_streamflow_schedule.mean(dim='month').values[mask],
             k * factor * grid.reservoir_streamflow_schedule.mean(
-                dim='month').values + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
-                    'month': current_time.month}).values
+                dim='month').values[mask] + (1 - factor) * grid.reservoir_streamflow_schedule.sel({
+                    'month': current_time.month}).values[mask]
         )
     )
 
 
-def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime) -> None:
+def storage_targets(state: State, grid: Grid, current_time: datetime, mask: np.ndarray) -> None:
     """Define the necessary drop in storage based on the reservoir storage targets at the start of the month.
 
     Args:
@@ -79,7 +92,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
     # TODO the logic here is really hard to follow... can it be simplified or made more readable?
 
     # if flood control active and has a flood control start
-    flood_control_condition = (grid.reservoir_use_flood_control > 0) & (state.reservoir_month_flood_control_start > 0)
+    flood_control_condition = (grid.reservoir_use_flood_control == True) & (state.reservoir_month_flood_control_start > 0)
     # modify release in order to maintain a certain storage level
     month_condition = state.reservoir_month_flood_control_start <= state.reservoir_month_flood_control_end
     total_condition = flood_control_condition & (
@@ -98,9 +111,9 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
         drop = np.where(
             (month_condition & m_and_condition) | (np.logical_not(month_condition) & m_or_condition),
             np.where(
-                grid.reservoir_streamflow_schedule.sel({'month': m}).values >= grid.reservoir_streamflow_schedule.mean(dim='month').values,
+                grid.reservoir_streamflow_schedule.sel({'month': m}).values[mask] >= grid.reservoir_streamflow_schedule.mean(dim='month').values[mask],
                 drop + 0,
-                drop + np.abs(grid.reservoir_streamflow_schedule.mean(dim='month').values - grid.reservoir_streamflow_schedule.sel({'month': m}).values)
+                drop + np.abs(grid.reservoir_streamflow_schedule.mean(dim='month').values[mask] - grid.reservoir_streamflow_schedule.sel({'month': m}).values[mask])
             ),
             drop
         )
@@ -125,7 +138,7 @@ def storage_targets(state: State, grid: Grid, config: Benedict, parameters: Para
         (current_time.month < state.reservoir_month_start_operations)
     )
     state.reservoir_release = np.where(
-        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim='month').values) & (first_condition | second_condition),
-        grid.reservoir_streamflow_schedule.mean(dim='month').values,
+        (state.reservoir_release > grid.reservoir_streamflow_schedule.mean(dim='month').values[mask]) & (first_condition | second_condition),
+        grid.reservoir_streamflow_schedule.mean(dim='month').values[mask],
         state.reservoir_release
     )

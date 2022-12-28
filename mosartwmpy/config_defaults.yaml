@@ -353,6 +353,10 @@ water_management:
                 reservoir_release_min: release_min
                 reservoir_release_p_one: release_p_one
                 reservoir_release_p_two: release_p_two
+                # field name for a value that allows setting the behavior of the reservoir release per reservoir;
+                # currently, if this field holds a value of "generic" for a particular reservoir,
+                # istarf is disabled for that reservoir, any other value in the field enables istarf
+                reservoir_behavior: fit
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
