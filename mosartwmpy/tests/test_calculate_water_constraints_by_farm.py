@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 import pandas as pd
 import pkg_resources
 
@@ -65,7 +66,11 @@ class CalculateWaterConstraintsByFarmTest(unittest.TestCase):
         90: 1867.5493916929483, 91: 871.2380665376529, 92: 551.7301491571899, 93: 12.085666626862842, 94: 0.0, 95: 0.0, 
         96: 2.757034402743735, 97: 2.059543992483289, 98: 0.0, 99: 0.0}
 
-        self.assertEqual(water_constraints_by_farm, expected)
+        np.testing.assert_almost_equal(
+            np.array(list(water_constraints_by_farm.values())),
+            np.array(list(expected.values())),
+            2
+        )
 
 
 if __name__ == '__main__':
