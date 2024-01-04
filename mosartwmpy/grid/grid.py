@@ -273,7 +273,7 @@ class Grid:
         # parameter for calculating number of main channel iterations needed
         # phi_r
         phi_main = np.where(
-            (self.mosart_mask > 0) & (self.channel_length > 0),
+            (self.mosart_mask > 0) & (self.channel_length > 0) & (self.channel_width > 0),
             self.total_drainage_area_single * np.sqrt(self.channel_slope) / (self.channel_length * self.channel_width),
             0
         )
@@ -352,7 +352,7 @@ class Grid:
         # parameter for calculating number of subnetwork iterations needed
         # phi_t
         phi_sub = np.where(
-            self.subnetwork_length > 0,
+            (self.mosart_mask > 0) & (self.subnetwork_length > 0) & (self.subnetwork_width > 0),
             (self.area * np.sqrt(self.subnetwork_slope)) / (self.subnetwork_length * self.subnetwork_width),
             0,
         )
