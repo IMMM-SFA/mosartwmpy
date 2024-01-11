@@ -43,11 +43,11 @@ simulation:
         - variable: hillslope_surface_runoff
           name: QSUR_LIQ
           long_name: Surface runoff
-          units: m/s
+          units: m3/s
         - variable: hillslope_subsurface_runoff
           name: QSUB_LIQ
           long_name: Subsurface runoff
-          units: m/s
+          units: m3/s
         - variable: storage
           name: STORAGE_LIQ
           long_name: Mosart liquid storage
