@@ -2,6 +2,9 @@ name: build
 
 on: [push]
 
+env:
+  HDF5_USE_FILE_LOCKING: FALSE
+
 jobs:
   build:
       runs-on: ${{ matrix.os }}
