@@ -41,7 +41,7 @@ setup(
         'nc-time-axis>=1.4.0',
         'netCDF4>=1.5.7',
         'numba>=0.53.1',
-        'numpy>=1.20.3',
+        'numpy>=1.20.3,<2.0',
         'pandas>=1.3.4',
         'pathvalidate>=2.5.0',
         'psutil>=5.8.0',
