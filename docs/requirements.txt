@@ -30,3 +30,4 @@ sphinx-panels>=0.6.0
 sphinx-rtd-theme>=1.0.0
 twine>=3.4.2
 sphinxcontrib-applehelp==1.0.4
+sphinxcontrib-devhelp==1.0.2
