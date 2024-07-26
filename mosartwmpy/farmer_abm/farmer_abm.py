@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from os import mkdir
 import pandas as pd
-from pyomo.environ import ConcreteModel, Constraint, maximize, NonNegativeReals, Objective, Set, Param, Set, Var 
+from pyomo.environ import ConcreteModel, Constraint, maximize, NonNegativeReals, Objective, Set, Param, Set, Var
 from pyomo.opt import SolverFactory
 from timeit import default_timer as timer
 import xarray as xr
@@ -15,7 +15,7 @@ class FarmerABM:
 
     def __init__(self, model):
         self.model = model
-        self.config = model.config 
+        self.config = model.config
         self.processed_years = []
 
         # Get variables from the config.
@@ -34,7 +34,7 @@ class FarmerABM:
         self.nldas_id = get_config_variable_name(self, 'simulation.grid_output', 'nldas_id')
         self.reservoir_storage = get_config_variable_name(self, 'simulation.output', 'reservoir_storage')
         self.runoff_land = get_config_variable_name(self, 'simulation.output', 'runoff_land')
-        
+
 
     def calc_demand(self):
         """Calculates water demand for each farmer using an agent-based model(ABM) and outputs into a parquet file. Requires input files:
@@ -42,7 +42,7 @@ class FarmerABM:
         * land_water_constraints_by_farm.parquet
         * crop_prices_by_nldas_id.parquet
         """
-       
+
         logging.info("\nRunning farmer ABM. ")
         t = timer()
         year = self.model.current_time.year
@@ -87,7 +87,7 @@ class FarmerABM:
             logging.info(f"Loaded positive mathematical programming (PMP) calibration files for year {year}.")
 
             # Number of crop and NLDAS ID combinations.
-            ids = range(len(crop_prices_by_nldas_id)) 
+            ids = range(len(crop_prices_by_nldas_id))
             # Number of farm agents / NLDAS IDs.
             farm_ids = range(len(pd.unique(crop_prices_by_nldas_id[self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id')])))
             crop_ids_by_farm = crop_prices_by_nldas_id.drop(columns='index').reset_index().groupby(by=self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id'))['index'].apply(list)
@@ -115,8 +115,8 @@ class FarmerABM:
 
             # Construct functions.
             def obj_fun(fwm_s):
-                # .00001 is a scaling factor for computational purposes (doesn't influence optimization results). 
-                # 0.5 is part of the positive mathematical formulation equation. 
+                # .00001 is a scaling factor for computational purposes (doesn't influence optimization results).
+                # 0.5 is part of the positive mathematical formulation equation.
                 # Both values will not vary between runs.
                 return 0.00001*sum(sum((fwm_s.net_prices[i] * fwm_s.xs[i] - 0.5 * fwm_s.gammas[i] * fwm_s.xs[i] * fwm_s.xs[i]) for i in fwm_s.crop_ids_by_farm[f]) for f in fwm_s.farm_ids)
             fwm_s.obj_f = Objective(rule=obj_fun, sense=maximize)
@@ -155,15 +155,15 @@ class FarmerABM:
 
             # Export results to parquet.
             results_pd = results_pd[[
-                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id'), 
-                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.crop'), 
+                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.nldas_id'),
+                self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.crop'),
                 self.config.get('water_management.demand.farmer_abm.crop_prices_by_nldas_id.variables.calculated_area')
             ]]
 
             # Create output directory if it doesn't already exist.
-            try: 
-                mkdir(output_dir) 
-            except OSError as error: 
+            try:
+                mkdir(output_dir)
+            except OSError as error:
                 logging.error(error)
             results_pd.to_parquet(f"{output_dir}/{self.config.get('simulation.name')}_farmer_abm_results_{str(year)}.parquet")
 
@@ -198,7 +198,7 @@ class FarmerABM:
             self.processed_years.append(year)
         except Exception as e:
             logging.exception(str(e))
-        
+
         logging.info(f"Ran farmer ABM in {pretty_timer(timer() - t)}. This does not indicate success or failure. ")
 
 
@@ -216,14 +216,16 @@ class FarmerABM:
         reservoir_parameter_path = self.config.get('water_management.reservoirs.parameters.path')
         simulation_output_path = f"{self.config.get('simulation.output_path')}/{self.config.get('simulation.name')}/{self.config.get('simulation.name')}_{self.model.current_time.year-1}_*.nc"
 
-        # Map between grid cell ID and the cell that is dependent upon it (many to many). 
+        # Map between grid cell ID and the cell that is dependent upon it (many to many).
         historic_storage_supply = pd.read_parquet(historic_storage_supply_path)
 
         # Relationships between grid cells and reservoirs they can consume from (many to many).
         dependency_database = pd.read_parquet(dependency_database_path)
 
         # Determines which grid cells the reservoirs are located in (one to one).
-        reservoir_parameters = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]].to_dataframe()
+        reservoir_parameters_xr = xr.open_dataset(reservoir_parameter_path)[[self.reservoir_id, self.reservoir_grid_index]]
+        reservoir_parameters = reservoir_parameters_xr.to_dataframe()
+        reservoir_parameters_xr.close()
 
         # Get mosartwmpy output.
         simulation_output_xr = xr.open_mfdataset(simulation_output_path)
@@ -231,6 +233,7 @@ class FarmerABM:
             self.grid_cell_id, self.reservoir_storage, self.grid_cell_supply, self.runoff_land, self.nldas_id
         ]].mean('time').to_dataframe().reset_index()
         simulation_output[self.nldas_id] = simulation_output_xr[self.nldas_id].isel(time=0).to_dataframe().reset_index()[self.nldas_id].values
+        simulation_output_xr.close()
 
         # Merge the dependencies with the reservoir grid cells.
         dependency_database = dependency_database.merge(reservoir_parameters, how='left', on=self.reservoir_id).rename(columns={self.reservoir_grid_index: self.config.get('water_management.reservoirs.dependencies.variables.reservoir_cell_index')})
@@ -243,7 +246,7 @@ class FarmerABM:
         )
 
         # Merge in the mean supply and mean channel outflow from the simulation results per grid cell.
-        abm_data[[ 
+        abm_data[[
             self.grid_cell_supply, self.runoff_land
         ]] =  abm_data[[self.dependent_cell_index]].merge(simulation_output[[
             self.grid_cell_id, self.grid_cell_supply, self.runoff_land

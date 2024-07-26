@@ -1,9 +1,9 @@
 from benedict import benedict
 from mosartwmpy.utilities.download_data import download_data
 from pathlib import Path
-import pkg_resources
+import importlib.resources
 
-available_data = benedict.from_yaml(pkg_resources.resource_filename('mosartwmpy', 'data_manifest.yaml'))
+available_data = benedict.from_yaml(str(importlib.resources.files('mosartwmpy').joinpath('data_manifest.yaml')))
 
 data_list = []
 data = []
@@ -27,9 +27,9 @@ for d in data:
     {d}""")
 
 print(f"""
-        
+
         0) exit
-        
+
 """)
 try:
     user_input = int(input("""
@@ -39,9 +39,9 @@ except:
 
 if not user_input or user_input == 0 or user_input > len(data):
     print("""
-        
+
         Exiting...
-        
+
     """)
     exit()
 

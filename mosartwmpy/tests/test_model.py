@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-import pkg_resources
+import importlib.resources
 
 from mosartwmpy import Model
 from mosartwmpy.grid.grid import Grid
@@ -11,11 +11,11 @@ class ModelTest(unittest.TestCase):
     """Test that the model initializes and runs with the default settings."""
 
     # package data
-    GRID_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/grid.zip')
-    CONFIG_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/test_config.yaml')
-    RUNOFF_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/runoff_1981_01_01.nc')
-    DEMAND_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/demand_1981_01_01.nc')
-    RESERVOIRS_FILE = pkg_resources.resource_filename('mosartwmpy', 'tests/reservoirs.nc')
+    GRID_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'grid.zip'))
+    CONFIG_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'test_config.yaml'))
+    RUNOFF_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'runoff_1981_01_01.nc'))
+    DEMAND_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'demand_1981_01_01.nc'))
+    RESERVOIRS_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'reservoirs.nc'))
 
     @classmethod
     def setUpClass(self):
