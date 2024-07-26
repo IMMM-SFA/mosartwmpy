@@ -60,7 +60,7 @@ setup(
             'nbsphinx>=0.8.7',
             'recommonmark>=0.7.1',
             'setuptools>=58.3.0',
-            'sphinx>=4.2.0',
+            'sphinx>=7.4.7',
             'sphinx-panels>=0.6.0',
             'sphinx-rtd-theme>=1.0.0',
             'twine>=3.4.2'
