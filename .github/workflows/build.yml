@@ -3,7 +3,7 @@ name: build
 on: [push]
 
 env:
-  HDF5_USE_FILE_LOCKING: FALSE
+  HDF5_USE_FILE_LOCKING: 'FALSE'
 
 jobs:
   build:
