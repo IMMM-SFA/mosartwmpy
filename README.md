@@ -2,6 +2,8 @@
 [![codecov](https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/mosartwmpy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.03221/status.svg)](https://doi.org/10.21105/joss.03221)
 [![DOI](https://zenodo.org/badge/312114600.svg)](https://zenodo.org/badge/latestdoi/312114600)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mosartwmpy)](https://pypi.org/project/mosartwmpy/)
+
 
 ## mosartwmpy
 
