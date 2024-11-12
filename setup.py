@@ -23,7 +23,7 @@ setup(
     description="Python implementation of MOSART-WM: A water routing and management model",
     long_description=readme(),
     long_description_content_type="text/markdown",
-    python_requires=">=3.9,<4.0",
+    python_requires=">=3.9,<3.13",
     include_package_data=True,
     entry_points={
         "console_scripts": [

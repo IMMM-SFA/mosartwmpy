@@ -12,7 +12,7 @@ For a quick start, check out the [Jupyter notebook tutorial](https://github.com/
 
 ## getting started
 
-Ensure you have Python >= 3.8 available (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
+Ensure you have Python v3.9 - v3.12 (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
 ```
@@ -137,7 +137,7 @@ Seattle:
 > ```
 
 By default, the output files will still store empty NaN-like values for grid cells outside the subdomain, but
-for even faster simulations and smaller output files set the `grid -> unmask_output` option to `false`. Disabling 
+for even faster simulations and smaller output files set the `grid -> unmask_output` option to `false`. Disabling
 this option causes the output files to only store values for grid cells within the subdomain. These smaller files
 will likely take extra processing to effectively interoperate with other models.
 
