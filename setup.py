@@ -59,11 +59,12 @@ setup(
     extras_require={
         "dev": [
             "build>=0.7.0",
+            "ipython",
             "nbsphinx>=0.8.7",
             "recommonmark>=0.7.1",
             "setuptools>=58.3.0",
-            "sphinx==4.2.0",
-            "sphinx-panels>=0.6.0",
+            "sphinx>=5",
+            "sphinx_design",
             "sphinx-rtd-theme>=1.0.0",
             "twine>=3.4.2",
             "pre-commit",
