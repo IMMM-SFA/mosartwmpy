@@ -1,6 +1,6 @@
 :notoc:
 
-.. mosartwmpy documentation master file, created by
+.. mosartwmpy documentation master file
 
 .. module:: mosartwmpy
 
@@ -11,72 +11,74 @@ mosartwmpy documentation
 **Date**: |today| **Version**: |version|
 
 **Useful links**:
-`Source Repository <https://github.com/immm-sfa/mosartwmpy>`__ |
-`Issues & Ideas <https://github.com/immm-sfa/mosartwmpy/issues>`__
+`Source Repository <https://github.com/immm-sfa/mosartwmpy>`_
+`Issues & Ideas <https://github.com/immm-sfa/mosartwmpy/issues>`_
 
 `mosartwmpy` is a Python translation of MOSART-WM, a water routing and reservoir management model written in Fortran.
 
 
-.. panels::
-    :card: + intro-card text-center
-    :column: col-lg-6 col-md-6 col-sm-6 col-xs-12 d-flex
+.. grid:: 2
+    :gutter: 5
 
-    >>>
-    :img-top: _static/cognitive.svg
+    .. grid-item-card:: Getting started
+        :img-top: _static/cognitive.svg
+        :class-img-top: sd-px-5, sd-py-5
+        :text-align: center
 
-    Getting started
-    ^^^
+        Get to know the *mosartwmpy* model.
 
-    Get to know the *mosartwmpy* model.
+        +++
+        .. button-ref:: README
+                :click-parent:
+                :color: primary
+                :expand:
 
-    +++
-    .. link-button:: README
-            :type: ref
-            :text: Getting started
-            :classes: btn-block btn-secondary stretched-link
+                Getting started
 
-    >>>
-    :img-top: _static/education.svg
+    .. grid-item-card:: Tutorial
+        :img-top: _static/education.svg
+        :class-img-top: sd-px-5, sd-py-5
+        :text-align: center
 
-    Tutorial
-    ^^^
+        Follow along with this Jupyter notebook to learn the ropes of *mosartwmpy*.
 
-    Follow along with this Jupyter notebook to learn the ropes of *mosartwmpy*.
+        +++
+        .. button-ref:: tutorial
+                :click-parent:
+                :color: primary
+                :expand:
 
-    +++
-    .. link-button:: tutorial
-            :type: ref
-            :text: Tutorial
-            :classes: btn-block btn-secondary stretched-link
+                Tutorial
 
-    >>>
-    :img-top: _static/soccer.svg
+    .. grid-item-card:: Tips & tricks
+        :img-top: _static/soccer.svg
+        :class-img-top: sd-px-5, sd-py-5
+        :text-align: center
 
-    Tips & tricks
-    ^^^
+        Learn about ways to manage Python virtual environments.
 
-    Learn about ways to manage Python virtual environments.
+        +++
+        .. button-ref:: virtualenv
+                :click-parent:
+                :color: primary
+                :expand:
 
-    +++
-    .. link-button:: virtualenv
-            :type: ref
-            :text: Virtual environments
-            :classes: btn-block btn-secondary stretched-link
+                Virtual environments
 
-    >>>
-    :img-top: _static/api.svg
+    .. grid-item-card:: API reference
+        :img-top: _static/api.svg
+        :class-img-top: sd-px-5, sd-py-5
+        :text-align: center
 
-    API reference
-    ^^^
+        A detailed description of the *mosartwmpy* API.
 
-    A detailed description of the *mosartwmpy* API.
+        +++
+        .. button-ref:: mosartwmpy
+                :click-parent:
+                :color: primary
+                :expand:
 
-    +++
-    .. link-button:: mosartwmpy
-            :type: ref
-            :text: API
-            :classes: btn-block btn-secondary stretched-link
-
+                API
 
 .. toctree::
     :maxdepth: 1
