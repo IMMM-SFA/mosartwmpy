@@ -1,4 +1,4 @@
-[![build](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/build.yml)
+[![test](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/test.yml/badge.svg)](https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB)](https://codecov.io/gh/IMMM-SFA/mosartwmpy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.03221/status.svg)](https://doi.org/10.21105/joss.03221)
 [![DOI](https://zenodo.org/badge/312114600.svg)](https://zenodo.org/badge/latestdoi/312114600)
