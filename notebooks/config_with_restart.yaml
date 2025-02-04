@@ -1,13 +1,20 @@
+# Place your use-case specific settings overrides here.
+
 simulation:
-  name: tutorial
-  restart_file: ./output/tutorial/restart_files/tutorial_restart_1981_05_15.nc 
+  # name this simulation
+  name: tutorial with restart
+  # path to a directory for writing output files; will be created if it doesn't exist
+  output_path: ./output
+  restart_file: ./output/tutorial/restart_files/tutorial_restart_1981_05_27.nc
+  # date to begin the simulation
   start_date: 1981-05-15
+  # date to end the simulation
   end_date: 1981-05-31
 
 grid:
-  path: ./input/domains/mosart.nc
-  land:
-    path: ./input/domains/land.nc
+  subdomain: ~
+  unmask_output: true
+  path: ./input/domains/mosart_conus_nldas_grid.nc
 
 runoff:
   read_from_file: true
