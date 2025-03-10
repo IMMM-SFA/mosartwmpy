@@ -1,0 +1,329 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mosartwmpy &mdash; mosartwmpy latest documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/style.css?v=61c4f311" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=c6e86fd7"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mosartwmpy tutorial" href="tutorial.html" />
+    <link rel="prev" title="mosartwmpy documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mosartwmpy
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">mosartwmpy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#getting-started">getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#model-input">model input</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#model-output">model output</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#subdomains">subdomains</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#visualization">visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#model-coupling">model coupling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#testing-and-validation">testing and validation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial.html"><code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="virtualenv.html">Python Virtual Environments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mosartwmpy.html">mosartwmpy Python API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mosartwmpy</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">mosartwmpy</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/README.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <p><a class="reference external" href="https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/test.yml"><img alt="test" src="https://github.com/IMMM-SFA/mosartwmpy/actions/workflows/test.yml/badge.svg" /></a>
+<a class="reference external" href="https://codecov.io/gh/IMMM-SFA/mosartwmpy"><img alt="codecov" src="https://codecov.io/gh/IMMM-SFA/mosartwmpy/branch/main/graph/badge.svg?token=IPOY8984MB" /></a>
+<a class="reference external" href="https://doi.org/10.21105/joss.03221"><img alt="DOI" src="https://joss.theoj.org/papers/10.21105/joss.03221/status.svg" /></a>
+<a class="reference external" href="https://zenodo.org/badge/latestdoi/312114600"><img alt="DOI" src="https://zenodo.org/badge/312114600.svg" /></a>
+<a class="reference external" href="https://pypi.org/project/mosartwmpy/"><img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/mosartwmpy" /></a></p>
+<section id="mosartwmpy">
+<h1>mosartwmpy<a class="headerlink" href="#mosartwmpy" title="Link to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> is a python translation of MOSART-WM, a model for water routing and reservoir management written in Fortran. The original code can be found at <a class="reference external" href="https://github.com/IMMM-SFA/iwmm">IWMM</a> and <a class="reference external" href="https://github.com/E3SM-Project/E3SM">E3SM</a>, in which MOSART is the river routing component of a larger suite of earth-science models. The motivation for rewriting is largely for developer convenience – running, debugging, and adding new capabilities were becoming increasingly difficult due to the complexity of the codebase and lack of familiarity with Fortran. This version aims to be intuitive, lightweight, and well documented, while still being highly interoperable.
+For a quick start, check out the <a class="reference external" href="https://github.com/IMMM-SFA/mosartwmpy/blob/main/notebooks/tutorial.ipynb">Jupyter notebook tutorial</a>!</p>
+</section>
+<section id="getting-started">
+<h1>getting started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h1>
+<p>Ensure you have Python v3.9 - v3.12 (consider using a <a class="reference external" href="https://github.com/pyenv/pyenv">virtual environment</a>, see the docs <a class="reference external" href="https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html">here</a> for a brief tutorial), then install <code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> with:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>mosartwmpy
+</pre></div>
+</div>
+<p>Alternatively, install via conda with:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>mosartwmpy
+</pre></div>
+</div>
+<p>Download a sample input dataset spanning May 1981 by running the following and selecting option <code class="docutils literal notranslate"><span class="pre">1</span></code> for “tutorial”. This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mosartwmpy.download
+</pre></div>
+</div>
+<p>Settings are defined by the merger of the <code class="docutils literal notranslate"><span class="pre">mosartwmpy/config_defaults.yaml</span></code> and a user specified file which can override any of the default settings. Create a <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> file that defines your simulation (if you chose an alternate download directory in the step above, you will need to update the paths to point at your data):</p>
+<blockquote>
+<div><p><code class="docutils literal notranslate"><span class="pre">config.yaml</span></code></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">simulation</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tutorial</span>
+<span class="w">  </span><span class="nt">start_date</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1981-05-24</span>
+<span class="w">  </span><span class="nt">end_date</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1981-05-26</span>
+
+<span class="nt">grid</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/domains/mosart_conus_nldas_grid.nc</span>
+
+<span class="nt">runoff</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">read_from_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/runoff/runoff_1981_05.nc</span>
+
+<span class="nt">water_management</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">demand</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">read_from_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/demand/demand_1981_05.nc</span>
+<span class="w">  </span><span class="nt">reservoirs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enable_istarf</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/reservoirs/reservoirs.nc</span>
+<span class="w">    </span><span class="nt">dependencies</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/reservoirs/dependency_database.parquet</span>
+<span class="w">    </span><span class="nt">streamflow</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/reservoirs/mean_monthly_reservoir_flow.parquet</span>
+<span class="w">    </span><span class="nt">demand</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./input/reservoirs/mean_monthly_reservoir_demand.parquet</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p><code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> implements the <a class="reference external" href="https://csdms.colorado.edu/wiki/BMI">Basic Model Interface</a> defined by the CSDMS, so driving it should be familiar to those accustomed to the BMI. To launch the simulation, open a python shell and run the following:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+
+<span class="c1"># path to the configuration yaml file</span>
+<span class="n">config_file</span> <span class="o">=</span> <span class="s1">&#39;config.yaml&#39;</span>
+
+<span class="c1"># initialize the model</span>
+<span class="n">mosart_wm</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+
+<span class="c1"># advance the model one timestep</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+
+<span class="c1"># advance until the `simulation.end_date` specified in config.yaml</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">update_until</span><span class="p">(</span><span class="n">mosart_wm</span><span class="o">.</span><span class="n">get_end_time</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+<section id="model-input">
+<h1>model input<a class="headerlink" href="#model-input" title="Link to this heading"></a></h1>
+<p>Input for <code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> consists of many files defining the characteristics of the discrete grid, the river network, surface and subsurface runoff, water demand, and dams/reservoirs.
+Currently, the gridded data is expected to be provided at the same spatial resolution.
+Runoff input can be provided at any time resolution; each timestep will select the runoff at the closest time in the past.
+Currently, demand input is read monthly but will also pad to the closest time in the past.
+Efforts are under way for more robust demand handling.</p>
+<p>Dams/reservoirs require four different input files: the physical characteristics, the average monthly flow expected during the simulation period, the average monthly demand expected during the simulation period, and a database mapping each GRanD ID to grid cell IDs allowed to extract water from it.
+These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the <a class="reference external" href="https://github.com/IMMM-SFA/mosartwmpy/blob/main/mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md">provided utility</a>.
+The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mosartwmpy.download</span></code>.</p>
+<section id="multi-file-input">
+<h2>multi-file input<a class="headerlink" href="#multi-file-input" title="Link to this heading"></a></h2>
+<p>To use multi-file demand or runoff input, use year/month/day placeholders in the file path options like so:</p>
+<ul class="simple">
+<li><p>If your files look like <code class="docutils literal notranslate"><span class="pre">runoff-1999.nc</span></code>, use <code class="docutils literal notranslate"><span class="pre">runoff-{Y}.nc</span></code> as the path</p></li>
+<li><p>If your files look like <code class="docutils literal notranslate"><span class="pre">runoff-1999-02.nc</span></code>, use <code class="docutils literal notranslate"><span class="pre">runoff-{Y}-{M}.nc</span></code> as the path</p></li>
+<li><p>If your files look like <code class="docutils literal notranslate"><span class="pre">runoff-1999-02-03</span></code>, use <code class="docutils literal notranslate"><span class="pre">runoff-{Y}-{M}-{D}.nc</span></code> as the path, but be sure to provide files for leap days as well!</p></li>
+</ul>
+</section>
+</section>
+<section id="model-output">
+<h1>model output<a class="headerlink" href="#model-output" title="Link to this heading"></a></h1>
+<p>By default, key model variables are output on a monthly basis at a daily averaged resolution to <code class="docutils literal notranslate"><span class="pre">./output/&lt;simulation</span> <span class="pre">name&gt;/&lt;simulation</span> <span class="pre">name&gt;_&lt;year&gt;_&lt;month&gt;.nc</span></code>. See the configuration file for examples of how to modify the outputs, and the <code class="docutils literal notranslate"><span class="pre">./mosartwmpy/state/state.py</span></code> file for state variable names.</p>
+<p>Alternatively, certain model outputs deemed most important can be accessed using the BMI interface methods. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+
+<span class="n">mosart_wm</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+
+<span class="c1"># get a list of model output variables</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">get_output_var_names</span><span class="p">()</span>
+
+<span class="c1"># get the flattened numpy.ndarray of values for an output variable</span>
+<span class="n">supply</span> <span class="o">=</span> <span class="n">mosart_wm</span><span class="o">.</span><span class="n">get_value_ptr</span><span class="p">(</span><span class="s1">&#39;supply_water_amount&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="subdomains">
+<h1>subdomains<a class="headerlink" href="#subdomains" title="Link to this heading"></a></h1>
+<p>To simulate only a subset of basins (defined here as a collection of grid cells that share the same outlet cell),
+use the configuration option <code class="docutils literal notranslate"><span class="pre">grid</span> <span class="pre">-&gt;</span> <span class="pre">subdomain</span></code> (see example below) and provide a list of latitude/longitude
+coordinate pairs representing each basin of interest (any single coordinate pair within the basin). For example, to
+simulate only the Columbia River basin and the Lake Washington regions, one could enter the coordinates for Portland and
+Seattle:</p>
+<blockquote>
+<div><p><code class="docutils literal notranslate"><span class="pre">config.yaml</span></code></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">grid</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">subdomain</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">47.6062,-122.3321</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45.5152,-122.6784</span>
+<span class="w">  </span><span class="nt">unmask_output</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>By default, the output files will still store empty NaN-like values for grid cells outside the subdomain, but
+for even faster simulations and smaller output files set the <code class="docutils literal notranslate"><span class="pre">grid</span> <span class="pre">-&gt;</span> <span class="pre">unmask_output</span></code> option to <code class="docutils literal notranslate"><span class="pre">false</span></code>. Disabling
+this option causes the output files to only store values for grid cells within the subdomain. These smaller files
+will likely take extra processing to effectively interoperate with other models.</p>
+</section>
+<section id="visualization">
+<h1>visualization<a class="headerlink" href="#visualization" title="Link to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">Model</span></code> instances can plot the current value of certain input and output variables (those available from <code class="docutils literal notranslate"><span class="pre">Model.get_output_var_name</span></code> and <code class="docutils literal notranslate"><span class="pre">Model.get_input_var_names</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+<span class="n">config_file</span> <span class="o">=</span> <span class="s1">&#39;config.yaml&#39;</span>
+<span class="n">mosart_wm</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+    <span class="n">mosart_wm</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">plot_variable</span><span class="p">(</span><span class="s1">&#39;outgoing_water_volume_transport_along_river_channel&#39;</span><span class="p">,</span> <span class="n">log_scale</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><img alt="River transport" src="https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_transport.png" /></p>
+<p>Using provided utility functions, the output of a simulation can be plotted as well.</p>
+<p>Plot the storage, inflow, and outflow of a particular GRanD dam:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy.plotting.plot</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_reservoir</span>
+<span class="n">config_file</span> <span class="o">=</span> <span class="s1">&#39;config.yaml&#39;</span>
+<span class="n">mosart_wm</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">update_until</span><span class="p">()</span>
+
+<span class="n">plot_reservoir</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">mosart_wm</span><span class="p">,</span>
+    <span class="n">grand_id</span><span class="o">=</span><span class="mi">310</span><span class="p">,</span>
+    <span class="n">start</span><span class="o">=</span><span class="s1">&#39;1981-05-01&#39;</span><span class="p">,</span>
+    <span class="n">end</span><span class="o">=</span><span class="s1">&#39;1981-05-31&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><img alt="Grand Coulee" src="https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/grand_coulee_1981_05.png" /></p>
+<p>Plot a particular output variable (as defined in <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code>) over time:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mosartwmpy.plotting.plot</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_variable</span>
+<span class="n">config_file</span> <span class="o">=</span> <span class="s1">&#39;config.yaml&#39;</span>
+<span class="n">mosart_wm</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+<span class="n">mosart_wm</span><span class="o">.</span><span class="n">update_until</span><span class="p">()</span>
+
+<span class="n">plot_variable</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">mosart_wm</span><span class="p">,</span>
+    <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;RIVER_DISCHARGE_OVER_LAND_LIQ&#39;</span><span class="p">,</span>
+    <span class="n">start</span><span class="o">=</span><span class="s1">&#39;1981-05-01&#39;</span><span class="p">,</span>
+    <span class="n">end</span><span class="o">=</span><span class="s1">&#39;1981-05-31&#39;</span><span class="p">,</span>
+    <span class="n">log_scale</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;winter_r&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><img alt="River network no tiles" src="https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_without_tiles_1981_05.png" /></p>
+<p>If <code class="docutils literal notranslate"><span class="pre">cartopy</span></code>, <code class="docutils literal notranslate"><span class="pre">scipy</span></code>, and <code class="docutils literal notranslate"><span class="pre">geoviews</span></code> are installed, tiles can be displayed along with the plot:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot_variable</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">mosart_wm</span><span class="p">,</span>
+    <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;RIVER_DISCHARGE_OVER_LAND_LIQ&#39;</span><span class="p">,</span>
+    <span class="n">start</span><span class="o">=</span><span class="s1">&#39;1981-05-01&#39;</span><span class="p">,</span>
+    <span class="n">end</span><span class="o">=</span><span class="s1">&#39;1981-05-31&#39;</span><span class="p">,</span>
+    <span class="n">log_scale</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;winter_r&#39;</span><span class="p">,</span>
+    <span class="n">tiles</span><span class="o">=</span><span class="s1">&#39;StamenWatercolor&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><img alt="River network with tiles" src="https://github.com/IMMM-SFA/mosartwmpy/raw/main/docs/_static/river_with_tiles_1981_05.png" /></p>
+</section>
+<section id="model-coupling">
+<h1>model coupling<a class="headerlink" href="#model-coupling" title="Link to this heading"></a></h1>
+<p>A common use case for <code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> is to run coupled with output from the Community Land Model (CLM). To see an example of how to drive <code class="docutils literal notranslate"><span class="pre">mosartwmpy</span></code> with runoff from a coupled model, check out the <a class="reference external" href="https://github.com/IMMM-SFA/mosartwmpy/blob/main/notebooks/tutorial.ipynb">Jupyter notebook tutorial</a>!</p>
+</section>
+<section id="testing-and-validation">
+<h1>testing and validation<a class="headerlink" href="#testing-and-validation" title="Link to this heading"></a></h1>
+<p>Before running the tests or validation, make sure to download the “sample_input” and “validation” datasets using the download utility <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mosartwmpy.download</span></code>.</p>
+<p>To execute the tests, run <code class="docutils literal notranslate"><span class="pre">./test.sh</span></code> or <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">unittest</span> <span class="pre">discover</span> <span class="pre">mosartwmpy/tests</span></code> from the repository root.</p>
+<p>To execute the validation, run a model simulation that includes the years 1981 - 1982, note your output directory, and then run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mosartwmpy.validate</span></code> from the repository root. This will ask you for the simulation output directory, think for a moment, and then open a figure with several plots representing the NMAE (Normalized Mean Absolute Error) as a percentage and the spatial sums of several key variables compared between your simulation and the validation scenario. Use these plots to assist you in determining if the changes you have made to the code have caused unintended deviation from the validation scenario. The NMAE should be 0% across time if you have caused no deviations. A non-zero NMAE indicates numerical difference between your simulation and the validation scenario. This might be caused by changes you have made to the code, or alternatively by running a simulation with different configuration or parameters (i.e. larger timestep, fewer iterations, etc). The plots of the spatial sums can assist you in determining what changed and the overall magnitude of the changes.</p>
+<p>If you wish to merge code changes that intentionally cause significant deviation from the validation scenario, please work with the maintainers to create a new validation dataset.</p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="mosartwmpy documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="tutorial.html" class="btn btn-neutral float-right" title="mosartwmpy tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, Battelle Memorial Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
