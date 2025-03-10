@@ -25,7 +25,7 @@ jobs:
           make html
       - name: Commit documentation changes
         run: |
-          cd docs/build/html
+          cd docs/_build/html
           git init
           git add -A
           git config --local user.email "action@github.com"

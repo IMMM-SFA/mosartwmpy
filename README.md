@@ -89,7 +89,7 @@ Currently, demand input is read monthly but will also pad to the closest time in
 Efforts are under way for more robust demand handling.
 
 Dams/reservoirs require four different input files: the physical characteristics, the average monthly flow expected during the simulation period, the average monthly demand expected during the simulation period, and a database mapping each GRanD ID to grid cell IDs allowed to extract water from it.
-These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](/mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
+These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](https://github.com/IMMM-SFA/mosartwmpy/blob/main/mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
 The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: `python -m mosartwmpy.download`.
 
 #### multi-file input
