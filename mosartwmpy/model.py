@@ -201,6 +201,7 @@ class Model(Bmi):
                 # zero supply and demand
                 self.state.grid_cell_supply[:] = 0
                 self.state.grid_cell_unmet_demand[:] = 0
+
             # perform simulation for one timestep
             logging.debug('Solving...')
             update(self.state, self.grid, self.parameters, self.config, self.current_time)

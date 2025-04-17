@@ -42,7 +42,10 @@ def update_output(self):
 
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 0:
-        self.output_buffer = self.output_buffer / self.output_n
+        for output in self.config.get('simulation.output'):
+            if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
+                if output.get('aggregation') == 'mean':
+                    self.output_buffer.loc[:, output.get('name')] = self.output_buffer.loc[:, output.get('name')] / self.output_n
         write_output(self)
         self.output_n = 0
         for output in self.config.get('simulation.output'):

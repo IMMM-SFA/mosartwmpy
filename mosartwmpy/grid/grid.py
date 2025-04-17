@@ -9,7 +9,7 @@ import xarray as xr
 from benedict.dicts import benedict as Benedict
 from numba.core import types
 from numba.typed import Dict
-from xarray import open_dataset
+from xarray import open_dataset, open_dataarray
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from mosartwmpy.config.parameters import Parameters
@@ -63,6 +63,7 @@ class Grid:
     channel_floodplain_width: np.ndarray = np.empty(0)
     total_channel_length: np.ndarray = np.empty(0)
     grid_channel_depth: np.ndarray = np.empty(0)
+    irrigation_first_mask: np.ndarray = np.empty(0)
     
     # Reservoir related properties
     reservoir_id: np.ndarray = np.empty(0)
@@ -126,7 +127,9 @@ class Grid:
             return
         
         # open dataset
-        grid_dataset = open_dataset(config.get('grid.path'))
+        grid_dataset = open_dataset(config.get('grid.path')).sortby([
+            config.get('grid.latitude'), config.get('grid.longitude')
+        ])
     
         # create grid from longitude and latitude dimensions
         self.unique_longitudes = np.array(grid_dataset[config.get('grid.longitude')])
@@ -377,6 +380,15 @@ class Grid:
         # note that reservoir grid is assumed to be the same as the domain grid
         if config.get('water_management.enabled', False):
             load_reservoirs(self, config, parameters)
+
+            # if returnflow is enabled and irrigation first mask file is provided, read it
+            if config.get('water_management.demand.return_flow_enabled', False):
+                if config.get('water_management.demand.irrigation_first_mask_path', None) is not None:
+                    self.irrigation_first_mask = np.array(
+                        open_dataarray(config.get('water_management.demand.irrigation_first_mask_path')).sortby([
+                            config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
+                        ])
+                    ).flatten()
 
     def __getitem__(self, item):
         return getattr(self, item)
