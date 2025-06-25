@@ -46,7 +46,8 @@ def update_output(self):
             if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
                 if output.get('aggregation') == 'mean':
                     self.output_buffer.loc[:, output.get('name')] = self.output_buffer.loc[:, output.get('name')] / self.output_n
-        write_output(self)
+        if self.output_buffer is not None:
+            write_output(self)
         self.output_n = 0
         for output in self.config.get('simulation.output'):
             if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
