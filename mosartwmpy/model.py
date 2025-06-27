@@ -30,6 +30,8 @@ from mosartwmpy.state.state import State
 from mosartwmpy.update.update import update
 from mosartwmpy.utilities.pretty_timer import pretty_timer
 from mosartwmpy.utilities.inherit_docs import inherit_docs
+from ._version import __version__
+
 
 
 @inherit_docs
@@ -87,6 +89,7 @@ class Model(Bmi):
                 datefmt='%m/%d/%Y %I:%M:%S %p',
                 handlers=handlers
             )
+            logging.info(f'mosartwmpy base version v{__version__}.')
             logging.info('Initalizing model...')
             # write config to output directory for posterity
             self.config.to_yaml(filepath=f'{self.config.get("simulation.output_path")}/{self.name}/config.yaml')
