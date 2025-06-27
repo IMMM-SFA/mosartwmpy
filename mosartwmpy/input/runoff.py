@@ -33,7 +33,7 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
 
     runoff = open_dataset(path).sortby([
         config.get('runoff.latitude'), config.get('runoff.longitude')
-    ])
+    ]).fillna(0.0)
 
     # check for non-standard calendar and convert if needed
     if not isinstance(runoff.indexes[config.get('runoff.time')], pd.DatetimeIndex):

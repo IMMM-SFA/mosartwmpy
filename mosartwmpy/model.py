@@ -372,7 +372,7 @@ class Model(Bmi):
         var = next((var for var in IO.inputs + IO.outputs if var.standard_name == name), None)
         if var is None:
             return 1
-        self[var.variable_class][var.variable][:] = src[self.mask]
+        self[var.variable_class][var.variable][:] = np.nan_to_num(src[self.mask])
         return 0
 
     def set_value_at_indices(self, name: str, inds: np.ndarray, src: np.ndarray) -> int:
@@ -380,7 +380,7 @@ class Model(Bmi):
         if var is None:
             return 1
         unmasked = self.unmask(self[var.variable_class][var.variable])
-        unmasked[inds] = src
+        unmasked[inds] = np.nan_to_num(src)
         self[var.variable_class][var.variable][:] = unmasked[self.mask]
         return 0
 
