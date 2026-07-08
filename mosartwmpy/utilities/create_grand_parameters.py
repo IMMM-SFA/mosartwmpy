@@ -388,7 +388,7 @@ def create_grand_parameters(
                         upstream_meanflow = meanflow[upstream_cells.GRID_CELL_INDEX.values]
                         if np.isfinite(istarf_observed_meanflow):
                             match = -1
-                            min_error = np.Inf
+                            min_error = np.inf
                             for i, f in enumerate(upstream_meanflow):
                                 if f == 0:
                                     continue
@@ -403,7 +403,7 @@ def create_grand_parameters(
                             grand_drainage_area = getattr(group.iloc[k], grand_drainage_area_key)
                             upstream_drainage_area = upstream_cells.DRAINAGE_AREA.values
                             match = -1
-                            min_error = np.Inf
+                            min_error = np.inf
                             for i, d in enumerate(upstream_drainage_area):
                                 if upstream_meanflow[i] == 0:
                                     continue

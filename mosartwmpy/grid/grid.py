@@ -238,7 +238,7 @@ class Grid:
                 index = np.argmin(distance)
                 outlet_ids.add(self.outlet_id[index])
             self.mosart_mask = np.where(
-                np.in1d(self.outlet_id, list(outlet_ids)),
+                np.isin(self.outlet_id, list(outlet_ids)),
                 self.mosart_mask,
                 0
             )
@@ -428,7 +428,7 @@ class Grid:
                     unmasked[:] = -9999
                 elif vector.dtype == bool:
                     unmasked[:] = False
-                elif vector.dtype == np.object:
+                elif vector.dtype == object:
                     unmasked[:] = np.nan
                 unmasked[mask] = vector
                 npdf[key] = unmasked

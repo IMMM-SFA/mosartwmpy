@@ -23,7 +23,7 @@ setup(
     description="Python implementation of MOSART-WM: A water routing and management model",
     long_description=readme(),
     long_description_content_type="text/markdown",
-    python_requires=">=3.9,<3.13",
+    python_requires=">=3.10",
     include_package_data=True,
     entry_points={
         "console_scripts": [
@@ -42,8 +42,8 @@ setup(
         "matplotlib>=3.4.3",
         "nc-time-axis>=1.4.0",
         "netCDF4>=1.5.7",
-        "numba>=0.53.1",
-        "numpy>=1.20.3,<2.0",
+        "numba>=0.60",
+        "numpy>=2.0",
         "pandas>=1.3.4",
         "pathvalidate>=2.5.0",
         "psutil>=5.8.0",
