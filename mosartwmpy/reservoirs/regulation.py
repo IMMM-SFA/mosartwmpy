@@ -177,7 +177,11 @@ def extraction_regulated_flow(
                 # assign this grid cell's demand to each available reservoir
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        reservoir_demand[reservoir_id_to_index[r]] = reservoir_demand[reservoir_id_to_index[r]] + grid_cell_unmet_demand[i]
+                        # skip dependencies on reservoirs absent from the grid (an
+                        # orphaned id would otherwise raise a KeyError that parallel
+                        # execution silently swallows, corrupting the iteration)
+                        if r in reservoir_id_to_index:
+                            reservoir_demand[reservoir_id_to_index[r]] = reservoir_demand[reservoir_id_to_index[r]] + grid_cell_unmet_demand[i]
         for r in nb.prange(n_reservoir):
             # ratio of available water to total demand on a reservoir
             if (reservoir_demand[r] > 0.0) and (reservoir_flow_volume[r] > 0.0):
@@ -191,8 +195,10 @@ def extraction_regulated_flow(
                 if grid_id[i] in reservoir_to_grid_map:
                     available_reservoirs = List()
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        if demand_fraction[reservoir_id_to_index[r]] >= 1.0:
-                            available_reservoirs.append(reservoir_id_to_index[r])
+                        # skip orphaned dependencies (see note above)
+                        if r in reservoir_id_to_index:
+                            if demand_fraction[reservoir_id_to_index[r]] >= 1.0:
+                                available_reservoirs.append(reservoir_id_to_index[r])
                     # take equally from each reservoir
                     if len(available_reservoirs) > 0:
                         for r in available_reservoirs:
@@ -205,14 +211,18 @@ def extraction_regulated_flow(
             for i in nb.prange(n):
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[reservoir_id_to_index[r]]
+                        # skip orphaned dependencies (see note above)
+                        if r in reservoir_id_to_index:
+                            sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[reservoir_id_to_index[r]]
 
             if np.any(sum_demand_fraction >= 1.0):
                 # case 2 - provide all water to grid cell prorated from all available reservoirs
                 for i in nb.prange(n):
                     if sum_demand_fraction[i] >= 1.0:
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]] / sum_demand_fraction[i]
+                            # skip orphaned dependencies (see note above)
+                            if r in reservoir_id_to_index:
+                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]] / sum_demand_fraction[i]
                         grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
                         grid_cell_unmet_demand[i] = 0.0
 
@@ -222,9 +232,11 @@ def extraction_regulated_flow(
                     if sum_demand_fraction[i] > 0.0:
                         total_take = 0.0
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            take = min(grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]], grid_cell_unmet_demand[i])
-                            total_take = total_take + take
-                            reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - take
+                            # skip orphaned dependencies (see note above)
+                            if r in reservoir_id_to_index:
+                                take = min(grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]], grid_cell_unmet_demand[i])
+                                total_take = total_take + take
+                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - take
                         grid_cell_supply[i] = grid_cell_supply[i] + total_take
                         grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - total_take
 
