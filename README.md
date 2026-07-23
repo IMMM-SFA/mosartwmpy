@@ -12,7 +12,7 @@ For a quick start, check out the [Jupyter notebook tutorial](https://github.com/
 
 ## getting started
 
-Ensure you have Python v3.9 - v3.12 (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
+Ensure you have Python v3.10 - v3.12 (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
 ```
@@ -49,6 +49,9 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >   demand:
 >     read_from_file: true
 >     path: ./input/demand/demand_1981_05.nc
+>     # optional return-flow mode (off by default); see "return flow" below
+>     # return_flow_enabled: true
+>     # irrigation_first_mask_path: ./input/shared/wmpy_irrigation_first_mask.nc
 >   reservoirs:
 >     enable_istarf: true
 >     parameters:
@@ -98,6 +101,14 @@ To use multi-file demand or runoff input, use year/month/day placeholders in the
 * If your files look like `runoff-1999.nc`, use `runoff-{Y}.nc` as the path
 * If your files look like `runoff-1999-02.nc`, use `runoff-{Y}-{M}.nc` as the path
 * If your files look like `runoff-1999-02-03`, use `runoff-{Y}-{M}-{D}.nc` as the path, but be sure to provide files for leap days as well!
+
+#### return flow
+
+By default demand is provided as a single total-withdrawal field and all supplied water is treated as consumed. Enabling return flow instead routes the unconsumed portion of each withdrawal back into the water system: the met, unconsumed portion of irrigation withdrawal returns to the soil column (hillslope subsurface runoff) and the met, unconsumed portion of nonirrigation withdrawal returns to the channel. Unmet consumptive demand accumulates in per-sector deficit output variables.
+
+To enable it, set `water_management.demand.return_flow_enabled: true` and provide a demand file with four disaggregated fields instead of the single total field: `irrigation_withdrawal`, `irrigation_consumption`, `nonirrigation_withdrawal`, and `nonirrigation_consumption` (the field names are configurable under `water_management.demand`).
+
+`water_management.demand.irrigation_first_mask_path` optionally points at a mask file (e.g. `wmpy_irrigation_first_mask.nc`) whose grid cells marked `1` meet irrigation demand before nonirrigation, and cells marked `0` meet nonirrigation demand first. If no mask is supplied, every cell defaults to nonirrigation-first.
 
 
 ## model output

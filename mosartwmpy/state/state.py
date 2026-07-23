@@ -236,9 +236,13 @@ class State:
         self.irrigation_consumption_deficit: np.ndarray = np.empty(0)
         # unmet consumptive nonirrigation demand over whole timestep [m3]
         self.nonirrigation_consumption_deficit: np.ndarray = np.empty(0)
-        # remaining difference between irrigation withdrawal and consumption water supply [TODO units]
+        # met portion of irrigation withdrawal not consumed, returned to the soil column [m3/s]
+        # (irrigation_fraction_met * (irrigation_withdrawal_rate - irrigation_consumption_rate);
+        # converted to a hillslope_subsurface_runoff flux in update.py)
         self.irrigation_returnflow: np.ndarray = np.empty(0)
-        # remaining difference between nonirrigation withdrawal and consumption water supply [TODO units]
+        # met portion of nonirrigation withdrawal not consumed, returned to the channel [m3/s]
+        # (nonirrigation_fraction_met * (nonirrigation_withdrawal_rate - nonirrigation_consumption_rate);
+        # added to channel_storage in update.py)
         self.nonirrigation_returnflow: np.ndarray = np.empty(0)
         # potential evaporation [mm/s] # TODO this doesn't appear to be initialized anywhere currently
         self.reservoir_potential_evaporation: np.ndarray = np.empty(0)

@@ -29,8 +29,12 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     reservoirs_file.close()
 
     # load reservoir variables
+    # coerce to numpy arrays: under pandas with pyarrow, string columns (e.g. the
+    # reservoir behavior field) come back as an ArrowStringArray rather than an
+    # ndarray, which the mask-trimming loop in model.py would then skip -- leaving
+    # that array at full-grid size and breaking downstream broadcasts.
     for key, value in config.get('water_management.reservoirs.parameters.variables').items():
-        setattr(self, key, reservoirs[value].values)
+        setattr(self, key, np.asarray(reservoirs[value].values))
 
     # correct the fields with different units
     # surface area from km^2 to m^2

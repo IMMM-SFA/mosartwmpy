@@ -381,14 +381,20 @@ class Grid:
         if config.get('water_management.enabled', False):
             load_reservoirs(self, config, parameters)
 
-            # if returnflow is enabled and irrigation first mask file is provided, read it
+            # if returnflow is enabled, build the irrigation-first priority mask
             if config.get('water_management.demand.return_flow_enabled', False):
                 if config.get('water_management.demand.irrigation_first_mask_path', None) is not None:
+                    # read the mask from file: cells > 0 give irrigation withdrawal priority
                     self.irrigation_first_mask = np.array(
                         open_dataarray(config.get('water_management.demand.irrigation_first_mask_path')).sortby([
                             config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
                         ])
                     ).flatten()
+                else:
+                    # no mask supplied: default every cell to nonirrigation-first (mask == 0).
+                    # without this the mask stays size 0 and the update.py returnflow loop
+                    # broadcasts it against full-grid arrays, raising a shape mismatch.
+                    self.irrigation_first_mask = np.zeros_like(self.id, dtype=float)
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -497,7 +503,11 @@ class Grid:
                     if filename.endswith('np.feather'):
                         npdf = pd.read_feather(file)
                         for key in npdf.columns:
-                            setattr(grid, key, npdf[key].values)
+                            # coerce to ndarray: pandas with pyarrow returns extension
+                            # arrays (e.g. ArrowStringArray) for string columns, which
+                            # the mask-trimming loop in model.py skips, leaving the array
+                            # at full-grid size and breaking downstream broadcasts.
+                            setattr(grid, key, np.asarray(npdf[key].values))
                     if filename.endswith('df.nc'):
                         key = filename.split('.')[0]
                         ds = xr.open_dataset(file, engine='h5netcdf')
