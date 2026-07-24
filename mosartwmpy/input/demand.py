@@ -34,9 +34,9 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
         except:
             logging.info(f"Water demand calculation for farmer ABM failed. Defaulting to precalculated values. ")
 
-    path = re.sub('\{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
-    path = re.sub('\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
-    path = re.sub('\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
+    path = re.sub(r'\{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
+    path = re.sub(r'\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
+    path = re.sub(r'\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
 
     try:
         demand = open_dataset(path).sortby([

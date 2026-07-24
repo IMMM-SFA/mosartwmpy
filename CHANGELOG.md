@@ -47,6 +47,8 @@ on `main` was never published; this release supersedes it.
   at full-grid size and breaking downstream broadcasts (e.g. in `istarf_release`). Reservoir
   variables and grid columns loaded from files are now coerced to numpy arrays. This restores
   the core model test suite under the numpy 2 stack.
+- **SyntaxWarning on the multi-file path regexes** in `input/demand.py` (invalid escape sequence
+  `\{` under Python 3.12+) resolved by using raw strings. (#111)
 
 ### Notes
 - The return-flow return-flux scaling in `update.py` (division factors applied when adding
