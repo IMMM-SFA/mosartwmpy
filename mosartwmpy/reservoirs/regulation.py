@@ -8,7 +8,7 @@ from numba.typed import List, Dict
 @nb.jit(
     "void("
         "int64, float64,"
-        "int64[:], float64[:], float64[:], float64[:],"
+        "int64[:], float64[:], float64[:], float64[:], float64[:],"
         "boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64"
     ")",
     nopython=True,
@@ -22,6 +22,7 @@ def regulation(
     reservoir_id,
     reservoir_surface_area,
     reservoir_storage_capacity,
+    reservoir_minimum_storage,
     euler_mask,
     channel_outflow_downstream,
     reservoir_release,
@@ -43,7 +44,7 @@ def regulation(
             evaporation = 1e6 * reservoir_potential_evaporation[i] * delta_t * reservoir_surface_area[i]
 
             minimum_flow = reservoir_runoff_capacity_parameter * reservoir_mean_inflow[i] * delta_t
-            minimum_storage = reservoir_runoff_capacity_parameter * reservoir_storage_capacity[i]
+            minimum_storage = reservoir_minimum_storage[i]
             maximum_storage = reservoir_storage_capacity[i]
 
             has_excess_storage = (inflow_volume + reservoir_storage[i] - outflow_volume - evaporation) >= maximum_storage
