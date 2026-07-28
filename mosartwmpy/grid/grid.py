@@ -523,7 +523,7 @@ class Grid:
         # recreate the numba grid to reservoir map
         if grid.reservoir_dependency_database.size > 0:
             for grid_cell_id, group in grid.reservoir_dependency_database.reset_index().groupby('grid_cell_id'):
-                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
+                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values.copy()
         
         return grid
 

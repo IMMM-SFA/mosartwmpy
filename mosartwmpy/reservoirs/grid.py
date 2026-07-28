@@ -79,7 +79,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         value_type=types.int64[:],
     )
     for grid_cell_id, group in self.reservoir_dependency_database.groupby('grid_cell_id'):
-        self.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
+        self.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values.copy()
 
     # index by grid cell
     self.reservoir_dependency_database = self.reservoir_dependency_database.set_index('grid_cell_id').sort_index()
