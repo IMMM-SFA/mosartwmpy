@@ -34,7 +34,7 @@ def _load_initial_storage(grid: Grid, config: Benedict, default_storage: np.ndar
     """Loads per-reservoir initial storage from an optional file, falling back to default for missing values.
 
     The file (csv or parquet) must contain a CAP_INIT column [million m3] and at least one of:
-    GRAND_ID, GRID_CELL_INDEX, or RES_NAME as a join key. Matching is attempted in that priority order.
+    GRAND_ID or GRID_CELL_INDEX as a join key. Matching is attempted in that priority order.
     Reservoirs not matched in the file use default_storage.
     """
     init_path = config.get('water_management.reservoirs.initial_storage.path')
@@ -68,24 +68,42 @@ def _load_initial_storage(grid: Grid, config: Benedict, default_storage: np.ndar
     for join_key, grid_attr in [
         (res_id_col, 'reservoir_id'),
         (grid_idx_col, 'reservoir_grid_index'),
-        ('RES_NAME', None),
     ]:
         if join_key not in df.columns:
             continue
         grid_vals = getattr(grid, grid_attr, None) if grid_attr else None
         if grid_vals is None:
             continue
-        lookup = df.dropna(subset=[join_key, 'CAP_INIT']).set_index(join_key)['CAP_INIT']
+
+        deduped = df.dropna(subset=[join_key, 'CAP_INIT'])
+        n_dupes = deduped.duplicated(subset=[join_key]).sum()
+        if n_dupes:
+            logger.warning(
+                '%d duplicate "%s" value(s) in initial storage file — keeping last occurrence',
+                n_dupes, join_key,
+            )
+            deduped = deduped.drop_duplicates(subset=[join_key], keep='last')
+
+        lookup = deduped.set_index(join_key)['CAP_INIT']
         matched = pd.Series(grid_vals).map(lookup)
         valid = matched.notna().values
-        if valid.any():
-            storage[valid] = matched[valid].values.astype(np.float64) * 1.0e6
-            missing = (~valid).sum()
-            if missing:
-                logger.info(
-                    '%d reservoir(s) not matched in initial storage file — using default (0.9 * capacity)',
-                    missing,
-                )
+
+        if not valid.any():
+            logger.info(
+                'Identifier column "%s" present but matched no reservoirs — trying next identifier',
+                join_key,
+            )
+            continue
+
+        storage[valid] = matched[valid].values.astype(np.float64) * 1.0e6
+
+        is_reservoir = np.isfinite(np.asarray(grid_vals, dtype=np.float64))
+        missing = int((is_reservoir & ~valid).sum())
+        if missing:
+            logger.info(
+                '%d reservoir(s) not matched in initial storage file — using default (0.9 * capacity)',
+                missing,
+            )
         break
     else:
         logger.warning(

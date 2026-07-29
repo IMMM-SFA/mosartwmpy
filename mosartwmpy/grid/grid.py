@@ -73,6 +73,7 @@ class Grid:
     reservoir_length: np.ndarray = np.empty(0)
     reservoir_surface_area: np.ndarray = np.empty(0)
     reservoir_storage_capacity: np.ndarray = np.empty(0)
+    reservoir_minimum_storage: np.ndarray = np.empty(0)
     reservoir_depth: np.ndarray = np.empty(0)
     reservoir_use_irrigation: np.ndarray = np.empty(0)
     reservoir_use_electricity: np.ndarray = np.empty(0)

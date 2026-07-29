@@ -339,6 +339,8 @@ water_management:
                 reservoir_surface_area: AREA_SKM
                 # storage capacity field name [million m3]
                 reservoir_storage_capacity: CAP_MCM
+                # minimum storage capacity field name [million m3]
+                reservoir_minimum_storage: CAP_MIN
                 # depth field name [m]
                 reservoir_depth: DEPTH_M
                 # use irrigation field name
