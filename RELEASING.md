@@ -1,5 +1,24 @@
 # Releasing mosartwmpy
 
+## Blocking for v1.0.0: publish the sample input data
+
+The reservoir parameter files bundled in the published sample input data predate the
+`CAP_MIN` minimum storage column, so that feature cannot be exercised against the
+downloadable inputs until a new data package is published.
+
+Before tagging v1.0.0:
+
+1. Upload the new sample input package (including reservoir parameter files with `CAP_MIN`)
+   to MSD-LIVE.
+2. Update the `sample_input` URL in `mosartwmpy/data_manifest.yaml` to the new record.
+   It currently points at [`m6pp5-7xt54`](https://data.msdlive.org/records/m6pp5-7xt54)
+   (v0.0.6), which is already behind [`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203)
+   (v0.0.7).
+3. Re-run `python -m mosartwmpy.download` and confirm a fresh run picks up `CAP_MIN`.
+
+Without `CAP_MIN` present the model still runs, falling back to 10% of storage capacity,
+so this blocks feature verification rather than the release itself.
+
 ## Version
 
 The version lives in `mosartwmpy/_version.py` and is read by `setup.py`. Bump it

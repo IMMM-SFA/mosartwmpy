@@ -2,6 +2,7 @@ import click
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from pathlib import Path
 from shapely.geometry import Point
 import xarray as xr
 from scipy.spatial import KDTree
@@ -139,6 +140,12 @@ from scipy.spatial import KDTree
     ),
     prompt='What is the path to a CSV file containing reservoir placement corrections? Leave blank for none'
 )
+@click.option(
+    '--minimum-storage-fraction',
+    default=0.1,
+    type=click.FloatRange(min=0, max=1),
+    help="""Fraction of storage capacity to write as the minimum (dead) storage CAP_MIN."""
+)
 def create_grand_parameters(
         grid_path,
         grand_path,
@@ -168,6 +175,7 @@ def create_grand_parameters(
         dependency_radius_meters=200000,
         corrections_grid_index_key='gindex',
         corrections_grand_id_key='GRAND_ID',
+        minimum_storage_fraction=0.1,
         istarf_key_map=dict(
             GRanD_MEANFLOW_CUMECS='grand_meanflow_cumecs',
             Obs_MEANFLOW_CUMECS='observed_meanflow_cumecs',
@@ -551,12 +559,26 @@ def create_grand_parameters(
         right_on='GRanD_ID',
     )
 
-    # write reservoir parameters to file
-    filtered[
+    # minimum (dead) storage, as a fraction of storage capacity [million m3]
+    # note this deliberately overwrites the GRanD field of the same name, which is a lower bound
+    # estimate of the reported total capacity rather than the dead storage mosartwmpy expects;
+    # adjust individual values afterward where better information is available
+    filtered['CAP_MIN'] = minimum_storage_fraction * filtered['CAP_MCM']
+
+    # write reservoir parameters to file; the model accepts netcdf, parquet, or csv,
+    # chosen here by the extension of the requested output path
+    reservoir_parameters = filtered[
         ['GRAND_ID', 'GRID_CELL_INDEX', 'RES_NAME', 'DAM_NAME', 'RIVER', 'YEAR', 'DAM_HGT_M', 'DAM_LEN_M', 'AREA_SKM',
-         'CAP_MCM', 'DEPTH_M', 'CATCH_SKM', 'USE_IRRI', 'USE_ELEC', 'USE_SUPP', 'USE_FCON', 'USE_RECR', 'USE_NAVI',
-         'USE_FISH', 'USE_PCON', 'USE_OTHR', 'MAIN_USE', 'ORIGINAL_GRID_CELL_INDEX', 'LONG_DD',
-         'LAT_DD'] + list(istarf_key_map.values())].to_xarray().to_netcdf(reservoir_output_path)
+         'CAP_MCM', 'CAP_MIN', 'DEPTH_M', 'CATCH_SKM', 'USE_IRRI', 'USE_ELEC', 'USE_SUPP', 'USE_FCON', 'USE_RECR',
+         'USE_NAVI', 'USE_FISH', 'USE_PCON', 'USE_OTHR', 'MAIN_USE', 'ORIGINAL_GRID_CELL_INDEX', 'LONG_DD',
+         'LAT_DD'] + list(istarf_key_map.values())]
+    reservoir_suffix = Path(reservoir_output_path).suffix.lower()
+    if reservoir_suffix == '.parquet':
+        reservoir_parameters.to_parquet(reservoir_output_path, index=False)
+    elif reservoir_suffix == '.csv':
+        reservoir_parameters.to_csv(reservoir_output_path, index=False)
+    else:
+        reservoir_parameters.to_xarray().to_netcdf(reservoir_output_path)
 
     # write dependency database to file
     dependency_database.to_parquet(dependency_output_path)

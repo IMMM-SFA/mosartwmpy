@@ -325,6 +325,9 @@ water_management:
             path: ./input/reservoirs/reservoirs.nc
             # grid cell index field
             grid_cell_index: GRID_CELL_INDEX
+            # optional minimum (dead) storage field name [million m3]; reservoirs missing a value
+            # here fall back to 0.1 * storage capacity, which was the behavior before this field existed
+            minimum_storage_variable: CAP_MIN
             # variable field names
             variables:
                 # reservoir id field name - typically the GRanD ID
@@ -339,8 +342,6 @@ water_management:
                 reservoir_surface_area: AREA_SKM
                 # storage capacity field name [million m3]
                 reservoir_storage_capacity: CAP_MCM
-                # minimum storage capacity field name [million m3]
-                reservoir_minimum_storage: CAP_MIN
                 # depth field name [m]
                 reservoir_depth: DEPTH_M
                 # use irrigation field name
