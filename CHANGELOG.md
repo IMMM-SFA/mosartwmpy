@@ -26,7 +26,7 @@ on `main` was never published; this release supersedes it.
   `water_management.reservoirs.parameters.minimum_storage_variable`. Reservoirs with no value, and
   files with no such column, fall back to the previous 10% of capacity, so existing input keeps
   working unchanged. Note that ISTARF release rules still derive their normal operating range from
-  storage capacity alone and do not respect `CAP_MIN`. (Dan Broman)
+  storage capacity alone and do not respect `CAP_MIN` (tracked in #124). (Dan Broman)
 - **Reservoir parameter files in Parquet or CSV.** The reservoir parameter file holds static
   per-reservoir values with a single dimension, so netCDF is no longer required; `.parquet` and
   `.csv` are now accepted and selected by file extension, which makes the values easier to inspect
