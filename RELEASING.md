@@ -9,15 +9,28 @@ downloadable inputs until a new data package is published.
 Before tagging v1.0.0:
 
 1. Upload the new sample input package (including reservoir parameter files with `CAP_MIN`)
-   to MSD-LIVE.
+   as a new version of the MSD-LIVE record.
 2. Update the `sample_input` URL in `mosartwmpy/data_manifest.yaml` to the new record.
-   It currently points at [`m6pp5-7xt54`](https://data.msdlive.org/records/m6pp5-7xt54)
-   (v0.0.6), which is already behind [`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203)
-   (v0.0.7).
 3. Re-run `python -m mosartwmpy.download` and confirm a fresh run picks up `CAP_MIN`.
 
 Without `CAP_MIN` present the model still runs, falling back to 10% of storage capacity,
 so this blocks feature verification rather than the release itself.
+
+### Note on the existing records
+
+The manifest points at [`m6pp5-7xt54`](https://data.msdlive.org/records/m6pp5-7xt54) (v0.0.6),
+which is correct: it holds the real 702 MB `mosartwmpy_sample_input_data_1980_1985.zip`.
+The later [`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203) (v0.0.7) contains only a
+12-byte `dummy.txt` placeholder and no data, so it must not be linked from the manifest.
+Publishing the new version is also a chance to give v0.0.7 real content or retract it.
+
+Both records share concept id `kehjf-ap948`. Note that the browser-facing
+`/records/<id>/files/<name>?download=1` URL is hotlink protected and returns 403 to
+non-browser clients; the API path used by the download utility works:
+
+```
+https://data.msdlive.org/api/records/<id>/files/<name>/content
+```
 
 ## Version
 
