@@ -25,6 +25,12 @@ authors:
 - family-names: "Voisin"
   given-names: "Nathalie"
   orcid: "https://orcid.org/0000-0002-6848-449X"
+- family-names: "Son"
+  given-names: "Youngjun"
+  orcid: "https://orcid.org/0000-0001-5128-2499"
+- family-names: "Bracken"
+  given-names: "Cameron"
+  orcid: "https://orcid.org/0000-0003-1917-402X"
 title: "mosartwmpy"
 version: 0.2.7
 date-released: "2022-02-03"
