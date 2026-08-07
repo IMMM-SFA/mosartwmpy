@@ -1,10 +1,17 @@
 {
     "title": "mosartwmpy: A Python implementation of the MOSART-WM coupled hydrologic routing and water management model",
+    "version": "1.0.0",
+    "publication_date": "2026-08-07",
     "creators": [
         {
             "name": "Travis Thurber",
             "affiliation": "Pacific Northwest National Laboratory, Richland, WA., USA",
             "orcid": "0000-0002-4370-9971"
+        },
+        {
+            "name": "Emily Rexer",
+            "affiliation": "Pacific Northwest National Laboratory, Richland, WA., USA",
+            "orcid": "0000-0002-0327-183X"
         },
         {
             "name": "Chris R. Vernon",
@@ -25,6 +32,11 @@
             "name": "Jim Yoon",
             "affiliation": "Pacific Northwest National Laboratory, Richland, WA., USA",
             "orcid": "0000-0002-8025-2587"
+        },
+        {
+            "name": "Daniel Broman",
+            "affiliation": "Pacific Northwest National Laboratory, Richland, WA., USA",
+            "orcid": "0000-0001-8281-3299"
         },
         {
             "name": "Nathalie Voisin",
