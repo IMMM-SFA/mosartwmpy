@@ -57,10 +57,12 @@ on `main` was never published; this release supersedes it.
   operating rule assignments are unchanged from v0.0.6.
 
 ### Fixed
-- **Reservoir regulation numba race condition.** Inner accumulation loops in
-  `reservoirs/regulation.py` that write to shared arrays were running under `nb.prange`,
-  causing data races that could silently corrupt results; those loops are now serial while
-  the confirmed-safe outer loops remain parallel. (Youngjun Son)
+- **Reservoir regulation numba race condition.** Four loops in
+  `reservoirs/regulation.py` accumulate into `reservoir_demand` and `reservoir_flow_volume` at
+  indices shared by many grid cells, since several cells can depend on the same reservoir. Running
+  them under `nb.prange` made those read-modify-write updates race, which could silently corrupt
+  supply and demand. They are now serial; the loops that only touch their own index, and the outer
+  loops, remain parallel. (Youngjun Son)
 - **Flood-control window operator precedence.** A missing set of parentheses in
   `reservoirs/release.py` `storage_targets()` caused the flood-control adjustment to fire for
   nearly all flood-control dams whenever the current month preceded the window end. The
