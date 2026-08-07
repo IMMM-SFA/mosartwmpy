@@ -28,6 +28,8 @@ Download a sample input dataset spanning May 1981 by running the following and s
 python -m mosartwmpy.download
 ```
 
+The datasets are hosted publicly on Zenodo and MSD-LIVE; no account or credentials are required.
+
 Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and a user specified file which can override any of the default settings. Create a `config.yaml` file that defines your simulation (if you chose an alternate download directory in the step above, you will need to update the paths to point at your data):
 
 > `config.yaml`

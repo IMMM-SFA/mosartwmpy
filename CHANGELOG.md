@@ -36,6 +36,14 @@ on `main` was never published; this release supersedes it.
   a Parquet or CSV file with a `CAP_INIT` column (million m<sup>3</sup>) to set starting storage,
   joined on `GRAND_ID` or `GRID_CELL_INDEX`. Values are optional per reservoir; anything unmatched
   falls back to the default 90% of capacity. (Dan Broman)
+- **MSD-LIVE downloads without a plain URL.** Files on MSD-LIVE records created from July 2023
+  onward live in a project owned S3 bucket rather than InvenioRDM's managed storage, so the
+  Invenio file API lists only a placeholder and no fetchable URL exists. `mosartwmpy.download`
+  now recognizes a MSD-LIVE record URL and retrieves those files by requesting anonymous,
+  read only credentials and signing the request with AWS Signature Version 4. No account is
+  required and no new dependency was added. Zenodo hosted datasets are still downloaded
+  directly. A manifest entry for such a record gives the record URL plus an optional
+  `filename`; without it the largest archive in the record is used.
 
 ### Changed
 - **numpy 2 support.** Requires `numpy>=2.0` and `numba>=0.60`; minimum Python raised to 3.10.
@@ -44,6 +52,9 @@ on `main` was never published; this release supersedes it.
 - Input reading fills NaNs more robustly regardless of how the input arrives, and sorts
   grid/runoff/demand datasets by coordinate on open.
 - The model logs its version on startup.
+- The `sample_input` dataset now points at MSD-LIVE v0.0.8 (doi `10.57931/3398687`), whose
+  reservoir parameters carry `CAP_MIN` and are provided as netCDF, Parquet, and CSV. Reservoir
+  operating rule assignments are unchanged from v0.0.6.
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Inner accumulation loops in

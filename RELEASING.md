@@ -1,36 +1,46 @@
 # Releasing mosartwmpy
 
-## Blocking for v1.0.0: publish the sample input data
+## Sample input data on MSD-LIVE
 
-The reservoir parameter files bundled in the published sample input data predate the
-`CAP_MIN` minimum storage column, so that feature cannot be exercised against the
-downloadable inputs until a new data package is published.
+The `sample_input` entry in `mosartwmpy/data_manifest.yaml` points at MSD-LIVE record
+[`m28qs-54544`](https://data.msdlive.org/records/m28qs-54544) (v0.0.8, doi
+`10.57931/3398687`), whose reservoir parameters include the `CAP_MIN` minimum storage
+column and ship as netCDF, Parquet, and CSV.
 
-Before tagging v1.0.0:
+MSD-LIVE stores files in two different backends, which affects how they can be fetched:
 
-1. Upload the new sample input package (including reservoir parameter files with `CAP_MIN`)
-   as a new version of the MSD-LIVE record.
-2. Update the `sample_input` URL in `mosartwmpy/data_manifest.yaml` to the new record.
-3. Re-run `python -m mosartwmpy.download` and confirm a fresh run picks up `CAP_MIN`.
+- Records up to v0.0.6 keep their files in InvenioRDM's managed storage, so
+  `https://data.msdlive.org/api/records/<id>/files/<name>/content` serves a signed
+  redirect that any HTTP client can follow.
+- Records from v0.0.7 (July 2023) onward keep their files in a project owned S3 bucket
+  reached through a per record access point. For these, the Invenio file API lists only a
+  small placeholder file, `/content` returns 404, and **no plain URL exists**.
 
-Without `CAP_MIN` present the model still runs, falling back to 10% of storage capacity,
-so this blocks feature verification rather than the release itself.
+`mosartwmpy/utilities/msdlive.py` handles the second case: it requests anonymous, read
+only AWS credentials and signs requests against the record's access point using
+Signature Version 4. No MSD-LIVE account is needed, and no `boto3` dependency was added,
+since `requests` plus `hmac`/`hashlib` is enough. `download_data` picks the transport
+from the manifest URL, so Zenodo entries are unaffected.
 
-### Note on the existing records
+Two consequences worth knowing:
 
-The manifest points at [`m6pp5-7xt54`](https://data.msdlive.org/records/m6pp5-7xt54) (v0.0.6),
-which is correct: it holds the real 702 MB `mosartwmpy_sample_input_data_1980_1985.zip`.
-The later [`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203) (v0.0.7) contains only a
-12-byte `dummy.txt` placeholder and no data, so it must not be linked from the manifest.
-Publishing the new version is also a chance to give v0.0.7 real content or retract it.
+- A manifest entry for one of these records is the record URL, not a file URL, plus an
+  optional `filename`. Without `filename` the largest `.zip` in the record is used.
+- The credentials endpoint is undocumented. If MSD-LIVE later registers project bucket
+  files with Invenio, or changes that endpoint, this code path can be dropped in favor of
+  a plain URL. `../msdlive-test/notes.md` in the sibling scratch repo has the full
+  investigation and the requests filed with the MSD-LIVE team.
 
-Both records share concept id `kehjf-ap948`. Note that the browser-facing
-`/records/<id>/files/<name>?download=1` URL is hotlink protected and returns 403 to
-non-browser clients; the API path used by the download utility works:
+Publishing a new data version is also a chance to give
+[`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203) (v0.0.7) a DOI-visible fix
+or retract it; it holds real data but has never been reachable through the download
+utility.
 
-```
-https://data.msdlive.org/api/records/<id>/files/<name>/content
-```
+### After publishing a new data version
+
+1. Update `sample_input.url` in `mosartwmpy/data_manifest.yaml` to the new record URL.
+2. Run `python -m mosartwmpy.download`, select `sample_input`, and confirm the reservoir
+   parameter file has the expected columns.
 
 ## Version
 
