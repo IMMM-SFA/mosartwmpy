@@ -20,6 +20,30 @@ on `main` was never published; this release supersedes it.
   irrigation demand before nonirrigation (value `1`) versus nonirrigation first (`0`). Adds
   `irrigation_consumption_deficit` and `nonirrigation_consumption_deficit` output variables.
   See the "return flow" section of the README for configuration.
+- **Per-reservoir minimum storage.** An optional `CAP_MIN` column in the reservoir parameter file
+  (million m<sup>3</sup>, like `CAP_MCM`) sets the minimum storage below which a reservoir will not
+  release, replacing the hardcoded 10% of capacity. The column name is configurable via
+  `water_management.reservoirs.parameters.minimum_storage_variable`. Reservoirs with no value, and
+  files with no such column, fall back to the previous 10% of capacity, so existing input keeps
+  working unchanged. Note that ISTARF release rules still derive their normal operating range from
+  storage capacity alone and do not respect `CAP_MIN` (tracked in #124). (Dan Broman)
+- **Reservoir parameter files in Parquet or CSV.** The reservoir parameter file holds static
+  per-reservoir values with a single dimension, so netCDF is no longer required; `.parquet` and
+  `.csv` are now accepted and selected by file extension, which makes the values easier to inspect
+  and edit. `create_grand_parameters` writes whichever of the three formats the output path names.
+  (Dan Broman)
+- **Optional initial reservoir storage.** `water_management.reservoirs.initial_storage.path` accepts
+  a Parquet or CSV file with a `CAP_INIT` column (million m<sup>3</sup>) to set starting storage,
+  joined on `GRAND_ID` or `GRID_CELL_INDEX`. Values are optional per reservoir; anything unmatched
+  falls back to the default 90% of capacity. (Dan Broman)
+- **MSD-LIVE downloads without a plain URL.** Files on MSD-LIVE records created from July 2023
+  onward live in a project owned S3 bucket rather than InvenioRDM's managed storage, so the
+  Invenio file API lists only a placeholder and no fetchable URL exists. `mosartwmpy.download`
+  now recognizes a MSD-LIVE record URL and retrieves those files by requesting anonymous,
+  read only credentials and signing the request with AWS Signature Version 4. No account is
+  required and no new dependency was added. Zenodo hosted datasets are still downloaded
+  directly. A manifest entry for such a record gives the record URL plus an optional
+  `filename`; without it the largest archive in the record is used.
 
 ### Changed
 - **numpy 2 support.** Requires `numpy>=2.0` and `numba>=0.60`; minimum Python raised to 3.10.
@@ -28,6 +52,9 @@ on `main` was never published; this release supersedes it.
 - Input reading fills NaNs more robustly regardless of how the input arrives, and sorts
   grid/runoff/demand datasets by coordinate on open.
 - The model logs its version on startup.
+- The `sample_input` dataset now points at MSD-LIVE v0.0.8 (doi `10.57931/3398687`), whose
+  reservoir parameters carry `CAP_MIN` and are provided as netCDF, Parquet, and CSV. Reservoir
+  operating rule assignments are unchanged from v0.0.6.
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Inner accumulation loops in
