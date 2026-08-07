@@ -73,6 +73,11 @@ on `main` was never published; this release supersedes it.
   through `benedict`, which needs its `[io]` extra for the parser. Without it, configuring a model
   raised `ExtrasRequireModuleNotFoundError`. The dependency now requests the extra explicitly.
   (Cameron Bracken)
+- **`create_grand_parameters` broken on a clean install.** The console script imports
+  `scipy.spatial.KDTree`, but `scipy` was never declared, so the command failed immediately with
+  `ModuleNotFoundError`. `scipy` is now a dependency, along with `rasterio` and `shapely`, which
+  back the `bil_to_parquet` script and had been arriving only incidentally through `geopandas`.
+  (Cameron Bracken)
 - **Orphaned reservoir dependency guard.** `extraction_regulated_flow()` now guards lookups of
   reservoir IDs that are absent from the current domain's `reservoir_id_to_index`, avoiding a
   `KeyError` (previously silently swallowed under parallel execution). (Cameron Bracken)

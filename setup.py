@@ -55,9 +55,15 @@ setup(
         # the [io] extra supplies the yaml parser; config.py and download_data.py both
         # read yaml through benedict, which raises ExtrasRequireModuleNotFoundError without it
         "python-benedict[io]>=0.24.3",
+        # rasterio and shapely back the bil_to_parquet console script; both arrive with
+        # geopandas today, but that is incidental, so depend on them directly
+        "rasterio>=1.2.0",
         "regex>=2021.10.23",
         "requests>=2.26.0",
         "rioxarray>=0.8.0",
+        # scipy backs the KDTree used by the create_grand_parameters console script
+        "scipy>=1.7.0",
+        "shapely>=1.8.0",
         "tqdm>=4.62.3",
         "xarray>=0.19.0",
     ],
