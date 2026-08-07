@@ -69,6 +69,10 @@ on `main` was never published; this release supersedes it.
   which requires an `h5py` backend, but `h5py` was never declared. Installs that did not happen
   to pull it in transitively failed with `ImportError: No module named 'h5py'` when reading or
   writing a grid file. (Cameron Bracken)
+- **Missing `python-benedict[io]` extra.** Configuration and the data manifest are read as YAML
+  through `benedict`, which needs its `[io]` extra for the parser. Without it, configuring a model
+  raised `ExtrasRequireModuleNotFoundError`. The dependency now requests the extra explicitly.
+  (Cameron Bracken)
 - **Orphaned reservoir dependency guard.** `extraction_regulated_flow()` now guards lookups of
   reservoir IDs that are absent from the current domain's `reservoir_id_to_index`, avoiding a
   `KeyError` (previously silently swallowed under parallel execution). (Cameron Bracken)
