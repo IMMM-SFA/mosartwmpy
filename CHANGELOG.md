@@ -4,7 +4,7 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - unreleased
+## [1.0.0] - 2026-08-07
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
@@ -65,6 +65,10 @@ on `main` was never published; this release supersedes it.
   `reservoirs/release.py` `storage_targets()` caused the flood-control adjustment to fire for
   nearly all flood-control dams whenever the current month preceded the window end. The
   wraparound-window condition now matches the MOSART Fortran reference. (Cameron Bracken)
+- **Missing `h5py` dependency.** Grid serialization in `grid/grid.py` pins `engine='h5netcdf'`,
+  which requires an `h5py` backend, but `h5py` was never declared. Installs that did not happen
+  to pull it in transitively failed with `ImportError: No module named 'h5py'` when reading or
+  writing a grid file. (Cameron Bracken)
 - **Orphaned reservoir dependency guard.** `extraction_regulated_flow()` now guards lookups of
   reservoir IDs that are absent from the current domain's `reservoir_id_to_index`, avoiding a
   `KeyError` (previously silently swallowed under parallel execution). (Cameron Bracken)

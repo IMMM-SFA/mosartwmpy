@@ -38,6 +38,9 @@ setup(
         "dask[complete]>=2021.10.0",
         "geopandas>=0.10.2",
         "h5netcdf>=0.11.0",
+        # h5netcdf needs a backend, and the grid serialization in grid/grid.py pins
+        # engine='h5netcdf'; without this the tests fail in a clean environment
+        "h5py>=3.0",
         "hvplot>=0.7.3",
         "matplotlib>=3.4.3",
         "nc-time-axis>=1.4.0",
