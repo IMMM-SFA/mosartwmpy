@@ -51,13 +51,18 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # capacity from millions m^3 to m^3
     self.reservoir_storage_capacity = self.reservoir_storage_capacity * 1.0e6
 
-    # minimum storage: use CAP_MIN [million m3] from the file when present,
-    # otherwise fall back to reservoir_runoff_capacity_parameter * storage_capacity
+    # minimum storage: use CAP_MIN [million m3] from the file when it gives a usable
+    # value, otherwise fall back to reservoir_runoff_capacity_parameter * storage_capacity.
+    # a non-positive CAP_MIN is treated as missing rather than as a real zero floor: the
+    # published sample data carries CAP_MIN = 0 for a handful of reservoirs, and honoring
+    # that would let them draw down to empty, which is a regression against the historical
+    # 10%-of-capacity floor that applied before this column was read at all.
     cap_min_col = config.get('water_management.reservoirs.parameters.minimum_storage_variable', 'CAP_MIN')
     if cap_min_col in reservoirs.columns and reservoirs[cap_min_col].notna().any():
         cap_min_m3 = np.asarray(reservoirs[cap_min_col].values, dtype=np.float64) * 1.0e6
         fallback = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
-        self.reservoir_minimum_storage = np.where(np.isfinite(cap_min_m3), cap_min_m3, fallback)
+        usable = np.isfinite(cap_min_m3) & (cap_min_m3 > 0)
+        self.reservoir_minimum_storage = np.where(usable, cap_min_m3, fallback)
     else:
         self.reservoir_minimum_storage = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
 

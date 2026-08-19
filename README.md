@@ -125,7 +125,7 @@ Reservoirs will not release water below a minimum (dead) storage. Provide a per-
 >       minimum_storage_variable: CAP_MIN
 > ```
 
-Reservoirs with no value, and files with no such column, fall back to 10% of storage capacity, which was the behavior before this field existed.
+Reservoirs with no value, and files with no such column, fall back to 10% of storage capacity, which was the behavior before this field existed. A `CAP_MIN` of zero or below is treated as no value rather than as a real zero floor, so such a reservoir also gets the 10% default instead of being allowed to draw down to empty.
 Note that ISTARF release rules derive their normal operating range from storage capacity and do not currently respect `CAP_MIN` ([#124](https://github.com/IMMM-SFA/mosartwmpy/issues/124)).
 
 #### initial reservoir storage

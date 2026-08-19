@@ -163,6 +163,46 @@ class ReservoirParametersTest(unittest.TestCase):
             0.25 * capacity[supplied],
         )
 
+    def test_minimum_storage_falls_back_on_non_positive(self):
+        """A CAP_MIN of zero or below is missing data, not a real zero floor.
+
+        The published sample data carries CAP_MIN = 0 for a handful of reservoirs.
+        Honoring that literally would let them draw down to empty, which is a
+        regression against the 10%-of-capacity floor that applied before this
+        column was read.
+        """
+
+        with open_dataset(self.paths_with_cap_min['.nc']) as ds:
+            frame = ds.to_dataframe()
+        on_grid = frame[frame['GRID_CELL_INDEX'].between(0, self.GRID_SIZE - 1)]
+        zeroed_ids = on_grid['GRAND_ID'].values[:3]
+        negative_ids = on_grid['GRAND_ID'].values[3:5]
+        frame.loc[frame['GRAND_ID'].isin(zeroed_ids), 'CAP_MIN'] = 0.0
+        frame.loc[frame['GRAND_ID'].isin(negative_ids), 'CAP_MIN'] = -1.0
+        path = str(Path(self.tmpdir.name) / 'reservoirs_non_positive_cap_min.csv')
+        frame.to_csv(path, index=False)
+
+        grid = self.load(path)
+        capacity = grid.reservoir_storage_capacity
+        expected = Parameters().reservoir_runoff_capacity_parameter
+
+        for label, ids in (('zeroed', zeroed_ids), ('negative', negative_ids)):
+            selected = np.isin(grid.reservoir_id, ids)
+            self.assertGreater(selected.sum(), 0, f'{label} reservoirs are present on the grid')
+            np.testing.assert_allclose(
+                grid.reservoir_minimum_storage[selected],
+                expected * capacity[selected],
+                err_msg=f'{label} CAP_MIN should fall back to the historical default',
+            )
+
+        # reservoirs with a real value are untouched
+        overridden = np.isin(grid.reservoir_id, np.concatenate([zeroed_ids, negative_ids]))
+        supplied = np.isfinite(capacity) & (capacity > 0) & ~overridden
+        np.testing.assert_allclose(
+            grid.reservoir_minimum_storage[supplied],
+            0.25 * capacity[supplied],
+        )
+
     def test_minimum_storage_is_declared_on_grid(self):
         """The field must exist on a grid loaded from cache, which skips load_reservoirs."""
 
