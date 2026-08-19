@@ -4,7 +4,7 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-08-07
+## [1.0.0] - 2026-08-18
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
@@ -55,6 +55,11 @@ on `main` was never published; this release supersedes it.
 - The `sample_input` dataset now points at MSD-LIVE v0.0.8 (doi `10.57931/3398687`), whose
   reservoir parameters carry `CAP_MIN` and are provided as netCDF, Parquet, and CSV. Reservoir
   operating rule assignments are unchanged from v0.0.6.
+- **Docker image rebased.** The `Dockerfile` built `FROM python:3.9-slim-bullseye`, which no
+  longer satisfies `python_requires>=3.10` as of this release, so the image could not be built
+  at all. It now uses `ghcr.io/msd-live/jupyter/python-notebook:latest` (Python 3.11) and
+  installs the published `mosartwmpy` from PyPI rather than the source in the build context;
+  it no longer downloads the sample dataset or sets a command to run the model. (Emily Rexer)
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Four loops in

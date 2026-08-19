@@ -1,7 +1,7 @@
 {
     "title": "mosartwmpy: A Python implementation of the MOSART-WM coupled hydrologic routing and water management model",
     "version": "1.0.0",
-    "publication_date": "2026-08-07",
+    "publication_date": "2026-08-18",
     "creators": [
         {
             "name": "Travis Thurber",

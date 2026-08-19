@@ -47,6 +47,11 @@ utility.
 The version lives in `mosartwmpy/_version.py` and is read by `setup.py`. Bump it
 in a release branch, update `CHANGELOG.md`, and open a PR.
 
+The release date is written in three places that must agree: the `## [x.y.z] - DATE`
+heading in `CHANGELOG.md`, `date-released` in `CITATION.cff`, and `publication_date` in
+`.zenodo.json`. Restamp all three to the day the tag actually lands — if review slips,
+this drifts, and Zenodo will mint a DOI carrying whatever date is in the file.
+
 ## Pre-release dry-run (TestPyPI)
 
 Every PR runs `.github/workflows/testpypi-dryrun.yml`, which builds the sdist and
