@@ -28,8 +28,8 @@ Two consequences worth knowing:
   optional `filename`. Without `filename` the largest `.zip` in the record is used.
 - The credentials endpoint is undocumented. If MSD-LIVE later registers project bucket
   files with Invenio, or changes that endpoint, this code path can be dropped in favor of
-  a plain URL. `../msdlive-test/notes.md` in the sibling scratch repo has the full
-  investigation and the requests filed with the MSD-LIVE team.
+  a plain URL. The behavior was reported to the MSD-LIVE team, along with a request that
+  project bucket files be registered with InvenioRDM so plain-URL downloads work again.
 
 Publishing a new data version is also a chance to give
 [`syt0j-x0203`](https://data.msdlive.org/records/syt0j-x0203) (v0.0.7) a DOI-visible fix
