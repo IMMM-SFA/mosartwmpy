@@ -319,6 +319,25 @@ water_management:
     reservoirs:
         # use improved reservoir schedule module (ISTARF)
         enable_istarf: true
+        # use data-driven reservoir operation model (GDROM); disabled by default
+        enable_gdrom: false
+        # GDROM configuration (only used when enable_gdrom is true)
+        gdrom:
+            # path to directory containing module_conditions/ and modules/ subdirs and reservoir_metadata.csv
+            rules_path: ./input/reservoirs/gdrom
+            # PDSI configuration; required when enable_gdrom is true
+            pdsi:
+                # path to PDSI parquet file; columns: state (full name), date, year, month, pdsi
+                path: ./input/reservoirs/noaa_pdsi_statewide_1970_2025.parquet
+                # pdsi_mode: how PDSI is used at runtime
+                #   timeseries  — use the actual PDSI value for each (state, year, month) in the simulation;
+                #                 the file must cover the full simulation period
+                #   climatology — pre-compute and use mean PDSI per (state, month) over a specified year range;
+                #                 the file must cover climatology_start_year through climatology_end_year
+                mode: timeseries
+                # year range used to compute climatological mean PDSI; only used when mode is 'climatology'
+                climatology_start_year: ~
+                climatology_end_year: ~
         # physical and use type parameters of the reservoirs, typically from GRanD
         parameters:
             # path to the reservoir parameter file; can be absolute or relative to the source code root
@@ -384,6 +403,12 @@ water_management:
                 # currently, if this field holds a value of "generic" for a particular reservoir,
                 # istarf is disabled for that reservoir, any other value in the field enables istarf
                 reservoir_behavior: fit
+                # optional per-reservoir method override column (e.g. RELEASE_METHOD); valid values:
+                #   gdrom    — use GDROM if available, fall back to istarf then generic
+                #   istarf   — use ISTARF if available, fall back to generic
+                #   generic  — always use the generic (Biemans) method
+                # if this column is absent or null for a reservoir, auto-detection applies
+                reservoir_release_method: ~
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
