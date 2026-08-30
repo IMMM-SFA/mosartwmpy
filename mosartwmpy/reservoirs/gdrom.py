@@ -14,10 +14,17 @@ at parse time, so inference operates entirely in SI units matching mosartwmpy st
 PDSI is a required input for the module-condition classifier. It is loaded and
 validated at init via load_pdsi() in reservoirs/grid.py; at runtime the lookup
 grid.pdsi_lookup(state_name, year, month) returns the relevant value.
+
+Three module file formats are supported:
+  Tree   — "if (Var OP thresh) ... then Release: value" (most common)
+  Const  — "Release: value"  (single-line constant; treated as a no-condition leaf)
+  Linear — "Release = a*Inflow + b*Storage + c" (linear regression; Storage optional)
 """
 
 import logging
 import re
+
+from collections import namedtuple
 
 import numpy as np
 
@@ -44,6 +51,22 @@ _VAR_IDX = {"Inflow": 0, "Storage": 1, "DOY": 2, "PDSI": 3}
 
 # Regex for a single condition term: (Variable OP threshold)
 _COND_RE = re.compile(r"\((\w+) (<=|>) ([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\)")
+
+# --------------------------------------------------------------------------- #
+# Linear module representation
+# --------------------------------------------------------------------------- #
+
+# Represents a module stored as a linear regression: Release = a*Inflow + b*Storage + c
+# All coefficients are already in SI units (m³/s for Release, m³/s for Inflow, m³ for
+# Storage) after conversion at parse time.
+_LinearModule = namedtuple('_LinearModule', ['slope_inflow', 'slope_storage', 'intercept'])
+
+# Regex to extract (coefficient, variable) pairs from a linear formula line
+_LINEAR_COEFF_RE = re.compile(
+    r'([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*\*\s*(Inflow|Storage)'
+)
+# Single-line bare constant: "Release: value"
+_CONST_RE = re.compile(r'^Release:\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*$')
 
 
 # --------------------------------------------------------------------------- #
@@ -75,44 +98,90 @@ def _parse_rule_lines(path, is_ct: bool, convert_release: bool = False):
     """
     parsed = []
     terminal_kw = "module" if is_ct else "Release"
-    terminal_pat = re.compile(rf"then {terminal_kw}: ([+-]?\d+(?:\.\d+)?)")
+    terminal_pat = re.compile(rf"then {terminal_kw}: ([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)")
 
     with open(path, "r") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
+        raw_lines = [l.strip() for l in fh if l.strip()]
 
-            # parse terminal value
-            t_match = terminal_pat.search(line)
-            if t_match is None:
-                continue
-            value = float(t_match.group(1))
+    # Bare constant format: single line "Release: value" with no conditions.
+    # Represent as a no-condition leaf; _evaluate_rules always returns the constant.
+    if not is_ct and len(raw_lines) == 1:
+        m = _CONST_RE.match(raw_lines[0])
+        if m:
+            value = float(m.group(1))
             if convert_release:
                 value *= _ACFT_DAY_TO_M3S
+            return [((), value)]
 
-            # parse all conditions
-            conditions = []
-            for m in _COND_RE.finditer(line):
-                var_name, op, threshold_str = m.group(1), m.group(2), m.group(3)
-                var_idx = _VAR_IDX.get(var_name)
-                if var_idx is None:
-                    # unknown variable — skip line rather than silently misroute
-                    conditions = None
-                    break
-                threshold = float(threshold_str)
-                # convert Inflow and Storage thresholds; DOY and PDSI are dimensionless
-                if var_name == "Inflow":
-                    threshold *= _ACFT_DAY_TO_M3S
-                elif var_name == "Storage":
-                    threshold *= _ACFT_TO_M3
-                op_le = (op == "<=")
-                conditions.append((var_idx, op_le, threshold))
+    for line in raw_lines:
+        # parse terminal value
+        t_match = terminal_pat.search(line)
+        if t_match is None:
+            continue
+        value = float(t_match.group(1))
+        if convert_release:
+            value *= _ACFT_DAY_TO_M3S
 
-            if conditions is not None:
-                parsed.append((tuple(conditions), value))
+        # parse all conditions
+        conditions = []
+        for m in _COND_RE.finditer(line):
+            var_name, op, threshold_str = m.group(1), m.group(2), m.group(3)
+            var_idx = _VAR_IDX.get(var_name)
+            if var_idx is None:
+                # unknown variable — skip line rather than silently misroute
+                conditions = None
+                break
+            threshold = float(threshold_str)
+            # convert Inflow and Storage thresholds; DOY and PDSI are dimensionless
+            if var_name == "Inflow":
+                threshold *= _ACFT_DAY_TO_M3S
+            elif var_name == "Storage":
+                threshold *= _ACFT_TO_M3
+            op_le = (op == "<=")
+            conditions.append((var_idx, op_le, threshold))
+
+        if conditions is not None:
+            parsed.append((tuple(conditions), value))
 
     return parsed
+
+
+def _parse_linear_module(path):
+    """Parse a linear-format module file into a _LinearModule.
+
+    Handles: "Release = a*Inflow + b*Storage + c"
+    Storage term is optional; all coefficients may be negative.
+
+    Unit conversion from file units (Inflow/Release in acre-ft/day, Storage in
+    acre-ft) to SI (Inflow/Release in m³/s, Storage in m³):
+      slope_inflow_si  = slope_inflow           (dimensionless ratio)
+      slope_storage_si = slope_storage / 86400  (= _ACFT_DAY_TO_M3S / _ACFT_TO_M3)
+      intercept_si     = intercept * _ACFT_DAY_TO_M3S
+    """
+    with open(path, "r") as fh:
+        line = fh.read().strip()
+
+    rhs = re.sub(r"^Release\s*=\s*", "", line)
+
+    slope_inflow = 0.0
+    slope_storage = 0.0
+    for m in _LINEAR_COEFF_RE.finditer(rhs):
+        coeff = float(m.group(1))
+        if m.group(2) == "Inflow":
+            slope_inflow = coeff
+        else:
+            slope_storage = coeff
+
+    # Intercept: what remains after removing all "coeff * Variable" terms
+    remaining = _LINEAR_COEFF_RE.sub("", rhs)
+    remaining = re.sub(r"[+\s]+", "", remaining)
+    intercept = float(remaining) if remaining else 0.0
+
+    # Convert to SI
+    slope_storage_si = slope_storage * _ACFT_DAY_TO_M3S / _ACFT_TO_M3
+    intercept_si = intercept * _ACFT_DAY_TO_M3S
+
+    return _LinearModule(slope_inflow, slope_storage_si, intercept_si)
 
 
 def load_gdrom_rules(rules_dir, grand_ids):
@@ -150,7 +219,14 @@ def load_gdrom_rules(rules_dir, grand_ids):
             mod_path = mod_dir / f"{gid}_{m_idx}.txt"
             if not mod_path.exists():
                 break
-            modules[m_idx] = _parse_rule_lines(mod_path, is_ct=False, convert_release=True)
+            # Detect format from first line: linear ("Release = ...") vs
+            # tree/constant (handled uniformly by _parse_rule_lines)
+            with open(mod_path) as fh:
+                first_line = fh.readline().strip()
+            if re.match(r"^Release\s*=", first_line):
+                modules[m_idx] = _parse_linear_module(mod_path)
+            else:
+                modules[m_idx] = _parse_rule_lines(mod_path, is_ct=False, convert_release=True)
             m_idx += 1
 
         if not modules:
@@ -222,11 +298,17 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
     if indices.size == 0:
         return
 
+    fallback_counts = grid.gdrom_fallback_counts
+    total_calls = grid.gdrom_total_calls
+
     for i in indices:
         grand_id = int(grid.reservoir_id[i])
+        total_calls[grand_id] = total_calls.get(grand_id, 0) + 1
+
         rules = grid.gdrom_rules.get(grand_id)
         if rules is None:
             # should not happen after init validation, but guard defensively
+            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
             continue
 
         inflow_m3s = float(state.channel_inflow_upstream[i])
@@ -247,6 +329,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                 "(reservoir GRAND_ID=%d); retaining existing release target",
                 state_name, year, month, grand_id,
             )
+            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
             continue
 
         vals = (inflow_m3s, storage_m3, float(doy), float(pdsi))
@@ -265,6 +348,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                     "DOY=%d, PDSI=%.2f); retaining existing release target",
                     grand_id, current_time.date(), inflow_m3s, storage_m3, doy, pdsi,
                 )
+                fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
                 continue
             module_id = int(result)
 
@@ -276,16 +360,28 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                 "retaining existing release target",
                 module_id, grand_id, current_time.date(),
             )
+            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
             continue
 
-        release = _evaluate_rules(module_rules, vals)
-        if release is None:
-            logging.debug(
-                "GDROM: release module %d found no matching branch for "
-                "GRAND_ID=%d on %s; retaining existing release target",
-                module_id, grand_id, current_time.date(),
+        # Linear modules are evaluated directly; tree/const modules use _evaluate_rules
+        if isinstance(module_rules, _LinearModule):
+            release = (
+                module_rules.slope_inflow * inflow_m3s
+                + module_rules.slope_storage * storage_m3
+                + module_rules.intercept
             )
-            continue
+            if release < 0.0:
+                release = 0.0
+        else:
+            release = _evaluate_rules(module_rules, vals)
+            if release is None:
+                logging.debug(
+                    "GDROM: release module %d found no matching branch for "
+                    "GRAND_ID=%d on %s; retaining existing release target",
+                    module_id, grand_id, current_time.date(),
+                )
+                fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+                continue
 
         # release is already in m³/s (converted at parse time)
         state.reservoir_release[i] = release

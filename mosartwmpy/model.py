@@ -266,6 +266,13 @@ class Model(Bmi):
 
     def finalize(self) -> None:
         # simulation is over so free memory, write data, etc
+
+        # rewrite reservoir_methods.csv with runtime GDROM fallback statistics
+        if self.grid is not None and hasattr(self.grid, 'reservoir_resolved_method'):
+            from mosartwmpy.reservoirs.grid import write_final_methods_csv
+            output_dir = Path(self.config.get('simulation.output_path')) / self.config.get('simulation.name', '')
+            write_final_methods_csv(self.grid, output_dir)
+
         for handler in logging.getLogger().handlers:
             handler.close()
         logging.getLogger().handlers.clear()

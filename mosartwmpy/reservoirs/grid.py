@@ -219,22 +219,38 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
     # --- load GDROM rule files and metadata (if enabled) ---
     has_rule_files = np.zeros(n, dtype=bool)
     state_names = np.empty(n, dtype=object)
+    gdrom_category = {}  # {GRAND_ID: Res_R/Res_M/Res_L}; populated if enable_gdrom
 
     if enable_gdrom:
         rules_path = Path(config.get('water_management.reservoirs.gdrom.rules_path'))
         metadata_path = rules_path / 'reservoir_metadata.csv'
+        mod_dir = rules_path / 'modules'
+
+        # probe for module files before committing to error vs. graceful fallback
+        any_module_files = mod_dir.is_dir() and any(mod_dir.glob('*_0.txt'))
 
         if not metadata_path.exists():
-            raise FileNotFoundError(
-                f"GDROM reservoir_metadata.csv not found at {metadata_path}. "
-                f"Stage the GDROM rule files into {rules_path} before enabling enable_gdrom."
+            if any_module_files:
+                raise FileNotFoundError(
+                    f"GDROM reservoir_metadata.csv not found at {metadata_path}, "
+                    f"but module files are present in {mod_dir}. "
+                    f"Stage the complete GDROM dataset before enabling enable_gdrom."
+                )
+            logging.warning(
+                "GDROM is enabled (enable_gdrom: true) but no GDROM files were found at "
+                "%s (reservoir_metadata.csv and module files are both missing). "
+                "Falling back to ISTARF/generic for all reservoirs.",
+                rules_path,
             )
+            enable_gdrom = False
 
-        gdrom_meta = pd.read_csv(metadata_path)[['GRAND_ID', 'ADMIN_UNIT']].dropna()
-        gdrom_meta = gdrom_meta.set_index('GRAND_ID')['ADMIN_UNIT'].to_dict()
+    if enable_gdrom:
+        gdrom_meta_df = pd.read_csv(metadata_path)
+        gdrom_meta = gdrom_meta_df.dropna(subset=['ADMIN_UNIT']).set_index('GRAND_ID')['ADMIN_UNIT'].to_dict()
+        # CATEGORY (Res_R / Res_M / Res_L) keyed by GRAND_ID
+        gdrom_category = gdrom_meta_df.set_index('GRAND_ID')['CATEGORY'].to_dict() if 'CATEGORY' in gdrom_meta_df.columns else {}
 
         # determine which reservoirs in this domain have rule files
-        mod_dir = rules_path / 'modules'
         for i in range(n):
             gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
             if gid <= 0:
@@ -252,6 +268,12 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
             for i in range(n)
             if has_rule_files[i] and np.isfinite(self.reservoir_id[i])
         ]
+        if not eligible_ids:
+            logging.warning(
+                "GDROM is enabled but no module files were found for any reservoir in "
+                "this domain under %s. All reservoirs will use ISTARF or generic release.",
+                mod_dir,
+            )
         from mosartwmpy.reservoirs.gdrom import load_gdrom_rules
         logging.info("GDROM: parsing rule files for %d reservoirs...", len(eligible_ids))
         self.gdrom_rules = load_gdrom_rules(rules_path, eligible_ids)
@@ -338,6 +360,26 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
             else:
                 resolved_methods[i] = 'generic'
 
+    # --- build per-reservoir metadata columns for the CSV ---
+    # GDROM_TYPE: Res_R / Res_M / Res_L for GDROM reservoirs, blank otherwise
+    gdrom_types = np.empty(n, dtype=object)
+    for i in range(n):
+        if uses_gdrom[i]:
+            gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
+            gdrom_types[i] = gdrom_category.get(gid, '')
+        else:
+            gdrom_types[i] = ''
+
+    # ISTARF_FIT: the categorical fit type (full/extrapolated/storage_only) from the
+    # reservoir_behavior column for ISTARF reservoirs, blank otherwise
+    istarf_fits = np.empty(n, dtype=object)
+    for i in range(n):
+        if uses_istarf[i]:
+            v = self.reservoir_behavior[i]
+            istarf_fits[i] = str(v) if pd.notna(v) and str(v).lower() != 'generic' else ''
+        else:
+            istarf_fits[i] = ''
+
     # emit batched fallback warnings
     _warn_fallbacks(resolved_methods, specified_methods, fallback_reasons, self.reservoir_id)
 
@@ -345,7 +387,17 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
     self.uses_istarf = uses_istarf
     self.reservoir_resolved_method = resolved_methods
 
-    # --- write reservoir_methods.csv ---
+    # Store arrays needed for the finalize CSV write
+    self.reservoir_specified_method = specified_methods
+    self.reservoir_fallback_reason = fallback_reasons
+    self.reservoir_gdrom_type = gdrom_types
+    self.reservoir_istarf_fit = istarf_fits
+
+    # Runtime fallback counters; populated by gdrom_release() in gdrom.py
+    self.gdrom_fallback_counts = {}
+    self.gdrom_total_calls = {}
+
+    # --- write reservoir_methods.csv (init version without runtime fallback counts) ---
     # self.reservoir_id is one entry per active cell; filter to actual reservoir cells
     res_mask = np.isfinite(self.reservoir_id.astype(float)) & (self.reservoir_id > 0)
     output_dir = Path(config.get('simulation.output_path')) / config.get('simulation.name', '')
@@ -355,6 +407,9 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
         specified_methods[res_mask],
         resolved_methods[res_mask],
         fallback_reasons[res_mask],
+        gdrom_types[res_mask],
+        istarf_fits[res_mask],
+        include_gdrom_cols=uses_gdrom.any(),
     )
 
 
@@ -546,20 +601,77 @@ def _warn_fallbacks(resolved, specified, reasons, reservoir_ids) -> None:
         )
 
 
-def _write_methods_csv(output_dir: Path, reservoir_ids, specified, resolved, reasons) -> None:
-    """Write reservoir_methods.csv to output_dir."""
+def _write_methods_csv(output_dir: Path, reservoir_ids, specified, resolved, reasons,
+                        gdrom_types=None, istarf_fits=None, include_gdrom_cols=True) -> None:
+    """Write reservoir_methods.csv to output_dir (init version, no runtime fallback counts)."""
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         rows = []
         for i in range(len(reservoir_ids)):
             gid = int(reservoir_ids[i]) if np.isfinite(reservoir_ids[i]) else None
-            rows.append({
+            row = {
                 'GRAND_ID': gid,
                 'SPECIFIED_METHOD': specified[i] if specified[i] is not None else '',
                 'RESOLVED_METHOD': resolved[i],
                 'FALLBACK_REASON': reasons[i] if reasons[i] is not None else '',
-            })
+            }
+            if include_gdrom_cols:
+                row['GDROM_TYPE'] = gdrom_types[i] if gdrom_types is not None else ''
+            row['ISTARF_FIT'] = istarf_fits[i] if istarf_fits is not None else ''
+            rows.append(row)
         pd.DataFrame(rows).to_csv(output_dir / 'reservoir_methods.csv', index=False)
         logging.info("wrote reservoir_methods.csv to %s", output_dir)
     except Exception as exc:
         logging.warning("could not write reservoir_methods.csv: %s", exc)
+
+
+def write_final_methods_csv(grid, output_dir: Path) -> None:
+    """Rewrite reservoir_methods.csv with GDROM runtime fallback statistics.
+
+    Called from model.finalize() after the simulation completes.  Adds
+    GDROM_FALLBACK_COUNT and GDROM_FALLBACK_PCT columns using the counts
+    accumulated by gdrom_release() during the run.
+    """
+    try:
+        res_mask = np.isfinite(grid.reservoir_id.astype(float)) & (grid.reservoir_id > 0)
+        ids       = grid.reservoir_id[res_mask]
+        specified = grid.reservoir_specified_method[res_mask]
+        resolved  = grid.reservoir_resolved_method[res_mask]
+        reasons   = grid.reservoir_fallback_reason[res_mask]
+        gdrom_types  = grid.reservoir_gdrom_type[res_mask]
+        istarf_fits  = grid.reservoir_istarf_fit[res_mask]
+
+        include_gdrom_cols = bool(grid.uses_gdrom.any())
+        fb_counts = grid.gdrom_fallback_counts
+        tot_calls  = grid.gdrom_total_calls
+
+        rows = []
+        for i in range(len(ids)):
+            gid = int(ids[i]) if np.isfinite(ids[i]) else None
+            row = {
+                'GRAND_ID':         gid,
+                'SPECIFIED_METHOD': specified[i] if specified[i] is not None else '',
+                'RESOLVED_METHOD':  resolved[i],
+                'FALLBACK_REASON':  reasons[i] if reasons[i] is not None else '',
+            }
+            if include_gdrom_cols:
+                is_gdrom = (resolved[i] == 'gdrom')
+                if is_gdrom and gid is not None:
+                    fb  = fb_counts.get(gid, 0)
+                    tot = tot_calls.get(gid, 0)
+                    fb_pct = round(100.0 * fb / tot, 1) if tot > 0 else ''
+                else:
+                    fb     = ''
+                    fb_pct = ''
+                row['GDROM_TYPE']           = gdrom_types[i]
+                row['ISTARF_FIT']           = istarf_fits[i]
+                row['GDROM_FALLBACK_COUNT'] = fb
+                row['GDROM_FALLBACK_PCT']   = fb_pct
+            else:
+                row['ISTARF_FIT'] = istarf_fits[i]
+            rows.append(row)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(rows).to_csv(output_dir / 'reservoir_methods.csv', index=False)
+        logging.info("wrote final reservoir_methods.csv (with fallback stats) to %s", output_dir)
+    except Exception as exc:
+        logging.warning("could not write final reservoir_methods.csv: %s", exc)
