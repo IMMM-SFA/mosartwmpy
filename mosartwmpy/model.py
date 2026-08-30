@@ -77,18 +77,27 @@ class Model(Bmi):
             # setup logging and output directories
             Path(f'{self.config.get("simulation.output_path")}/{self.name}/restart_files').mkdir(parents=True, exist_ok=True)
             handlers = []
+            _file_handler = None
+            _stdout_handler = None
             if self.config.get('simulation.log_to_file'):
-                handlers.append(logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log')))
+                _file_handler = logging.FileHandler(Path(f'{self.config.get("simulation.output_path")}/{self.name}/mosartwmpy.log'))
+                handlers.append(_file_handler)
             if self.config.get('simulation.log_to_std_out'):
-                h = logging.StreamHandler(sys.stdout)
-                h.setFormatter(logging.Formatter(""))
-                handlers.append(h)
+                _stdout_handler = logging.StreamHandler(sys.stdout)
+                _stdout_handler.setFormatter(logging.Formatter(""))
+                handlers.append(_stdout_handler)
             logging.basicConfig(
-                level=self.config.get('simulation.log_level', 'INFO'),
+                level=logging.DEBUG,
                 format='%(asctime)s - mosartwmpy: %(message)s',
                 datefmt='%m/%d/%Y %I:%M:%S %p',
                 handlers=handlers
             )
+            # file always captures DEBUG (e.g. per-reservoir GDROM fallback messages);
+            # stdout respects log_level so those stay off the terminal unless log_level: DEBUG
+            if _file_handler is not None:
+                _file_handler.setLevel(logging.DEBUG)
+            if _stdout_handler is not None:
+                _stdout_handler.setLevel(self.config.get('simulation.log_level', 'INFO'))
             logging.info(f'mosartwmpy base version v{__version__}.')
             logging.info('Initalizing model...')
             # write config to output directory for posterity

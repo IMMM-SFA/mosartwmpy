@@ -242,7 +242,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
         try:
             pdsi = grid.pdsi_lookup(state_name, year, month)
         except KeyError:
-            logging.warning(
+            logging.debug(
                 "GDROM: no PDSI value for state '%s' year=%d month=%d "
                 "(reservoir GRAND_ID=%d); retaining existing release target",
                 state_name, year, month, grand_id,
@@ -259,7 +259,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
         else:
             result = _evaluate_rules(ct_rules, vals)
             if result is None:
-                logging.warning(
+                logging.debug(
                     "GDROM: CT classifier found no matching branch for "
                     "GRAND_ID=%d on %s (inflow=%.3f m³/s, storage=%.1f m³, "
                     "DOY=%d, PDSI=%.2f); retaining existing release target",
@@ -271,7 +271,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
         # stage 2: release regressor
         module_rules = rules["modules"].get(module_id)
         if module_rules is None:
-            logging.warning(
+            logging.debug(
                 "GDROM: module %d not found for GRAND_ID=%d on %s; "
                 "retaining existing release target",
                 module_id, grand_id, current_time.date(),
@@ -280,7 +280,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
 
         release = _evaluate_rules(module_rules, vals)
         if release is None:
-            logging.warning(
+            logging.debug(
                 "GDROM: release module %d found no matching branch for "
                 "GRAND_ID=%d on %s; retaining existing release target",
                 module_id, grand_id, current_time.date(),

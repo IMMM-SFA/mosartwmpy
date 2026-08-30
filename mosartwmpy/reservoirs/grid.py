@@ -107,7 +107,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
 
     # resolve per-reservoir release method (produces uses_gdrom, uses_istarf, reservoir_resolved_method)
     # and write reservoir_methods.csv to the output directory
-    _resolve_and_load_gdrom(self, config, reservoir_df, parameters)
+    _resolve_and_load_gdrom(self, config, reservoirs, parameters)
 
 
 def prepare_reservoir_schedule(self, config: Benedict) -> None:
@@ -346,9 +346,15 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
     self.reservoir_resolved_method = resolved_methods
 
     # --- write reservoir_methods.csv ---
+    # self.reservoir_id is one entry per active cell; filter to actual reservoir cells
+    res_mask = np.isfinite(self.reservoir_id.astype(float)) & (self.reservoir_id > 0)
     output_dir = Path(config.get('simulation.output_path')) / config.get('simulation.name', '')
     _write_methods_csv(
-        output_dir, self.reservoir_id, specified_methods, resolved_methods, fallback_reasons
+        output_dir,
+        self.reservoir_id[res_mask],
+        specified_methods[res_mask],
+        resolved_methods[res_mask],
+        fallback_reasons[res_mask],
     )
 
 
@@ -554,6 +560,6 @@ def _write_methods_csv(output_dir: Path, reservoir_ids, specified, resolved, rea
                 'FALLBACK_REASON': reasons[i] if reasons[i] is not None else '',
             })
         pd.DataFrame(rows).to_csv(output_dir / 'reservoir_methods.csv', index=False)
-        logging.info("GDROM: wrote reservoir_methods.csv to %s", output_dir)
+        logging.info("wrote reservoir_methods.csv to %s", output_dir)
     except Exception as exc:
-        logging.warning("GDROM: could not write reservoir_methods.csv: %s", exc)
+        logging.warning("could not write reservoir_methods.csv: %s", exc)
