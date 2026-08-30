@@ -207,7 +207,7 @@ def _resolve_and_load_gdrom(self, config: Benedict, reservoir_df: pd.DataFrame, 
 
     # --- optional per-reservoir method column ---
     method_col_key = config.get(
-        'water_management.reservoirs.parameters.variables.reservoir_release_method', None
+        'water_management.reservoirs.parameters.release_method_variable', None
     )
     if method_col_key and method_col_key in reservoir_df.columns:
         specified_methods = np.asarray(reservoir_df[method_col_key].values, dtype=object)

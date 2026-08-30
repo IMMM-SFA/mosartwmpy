@@ -347,6 +347,12 @@ water_management:
             # optional minimum (dead) storage field name [million m3]; reservoirs missing a value
             # here fall back to 0.1 * storage capacity, which was the behavior before this field existed
             minimum_storage_variable: CAP_MIN
+            # optional per-reservoir method override column (e.g. RELEASE_METHOD); valid values:
+            #   gdrom    — use GDROM if available, fall back to istarf then generic
+            #   istarf   — use ISTARF if available, fall back to generic
+            #   generic  — always use the generic (Biemans) method
+            # if this column is absent or null for a reservoir, auto-detection applies
+            release_method_variable: ~
             # variable field names
             variables:
                 # reservoir id field name - typically the GRanD ID
@@ -403,12 +409,6 @@ water_management:
                 # currently, if this field holds a value of "generic" for a particular reservoir,
                 # istarf is disabled for that reservoir, any other value in the field enables istarf
                 reservoir_behavior: fit
-                # optional per-reservoir method override column (e.g. RELEASE_METHOD); valid values:
-                #   gdrom    — use GDROM if available, fall back to istarf then generic
-                #   istarf   — use ISTARF if available, fall back to generic
-                #   generic  — always use the generic (Biemans) method
-                # if this column is absent or null for a reservoir, auto-detection applies
-                reservoir_release_method: ~
         # database of grid cell indices that can extract from each reservoir
         dependencies:
             # path to the database dependency file; can be absolute or relative to the source code root
