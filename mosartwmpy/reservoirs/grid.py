@@ -189,24 +189,188 @@ def prepare_reservoir_schedule(self, config: Benedict) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# GDROM loading and method resolution
+# Method-specific data initialisation helpers
 # --------------------------------------------------------------------------- #
 
+def _init_gdrom_data(self, config: Benedict, n: int):
+    """Probe GDROM availability and load rule files + PDSI for eligible reservoirs.
+
+    Reads config flags and file paths, validates data presence, then loads
+    reservoir_metadata.csv, PDSI, and all rule files for eligible reservoirs in
+    this domain.  Initialises gdrom_rules, gdrom_fallback_counts,
+    gdrom_total_calls, and pdsi_lookup on the grid.
+
+    Parameters
+    ----------
+    config : Benedict
+    n : int — number of active cells (len(self.reservoir_id))
+
+    Returns
+    -------
+    enable_gdrom : bool — False when data are unavailable (may differ from config flag)
+    has_rule_files : np.ndarray[bool], shape (n,)
+    state_names : np.ndarray[object], shape (n,)
+    gdrom_category : dict — {GRAND_ID (int): category_string}
+    """
+    has_rule_files = np.zeros(n, dtype=bool)
+    state_names = np.empty(n, dtype=object)
+    gdrom_category = {}
+    self.gdrom_rules = {}
+    self.gdrom_fallback_counts = {}
+    self.gdrom_total_calls = {}
+
+    if not config.get('water_management.reservoirs.enable_gdrom', False):
+        return False, has_rule_files, state_names, gdrom_category
+
+    rules_path = Path(config.get('water_management.reservoirs.gdrom.rules_path'))
+    metadata_path = rules_path / 'reservoir_metadata.csv'
+    mod_dir = rules_path / 'modules'
+
+    any_module_files = mod_dir.is_dir() and any(mod_dir.glob('*_0.txt'))
+
+    if not metadata_path.exists():
+        if any_module_files:
+            raise FileNotFoundError(
+                f"GDROM reservoir_metadata.csv not found at {metadata_path}, "
+                f"but module files are present in {mod_dir}. "
+                f"Stage the complete GDROM dataset before enabling enable_gdrom."
+            )
+        logging.warning(
+            "GDROM is enabled (enable_gdrom: true) but no GDROM files were found at "
+            "%s (reservoir_metadata.csv and module files are both missing). "
+            "Falling back to ISTARF/generic for all reservoirs.",
+            rules_path,
+        )
+        return False, has_rule_files, state_names, gdrom_category
+
+    gdrom_meta_df = pd.read_csv(metadata_path)
+    gdrom_meta = gdrom_meta_df.dropna(subset=['ADMIN_UNIT']).set_index('GRAND_ID')['ADMIN_UNIT'].to_dict()
+    gdrom_category = gdrom_meta_df.set_index('GRAND_ID')['CATEGORY'].to_dict() if 'CATEGORY' in gdrom_meta_df.columns else {}
+
+    for i in range(n):
+        gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
+        if gid <= 0:
+            continue
+        if (mod_dir / f"{gid}_0.txt").exists():
+            has_rule_files[i] = True
+            state_names[i] = gdrom_meta.get(gid, None)
+
+    self.pdsi_lookup = _load_pdsi(config, gdrom_meta, has_rule_files, self.reservoir_id)
+
+    eligible_ids = [
+        int(self.reservoir_id[i])
+        for i in range(n)
+        if has_rule_files[i] and np.isfinite(self.reservoir_id[i])
+    ]
+    if not eligible_ids:
+        logging.warning(
+            "GDROM is enabled but no module files were found for any reservoir in "
+            "this domain under %s. All reservoirs will use ISTARF or generic release.",
+            mod_dir,
+        )
+    from mosartwmpy.reservoirs.gdrom import load_gdrom_rules
+    logging.info("GDROM: parsing rule files for %d reservoirs...", len(eligible_ids))
+    self.gdrom_rules = load_gdrom_rules(rules_path, eligible_ids)
+    logging.info("GDROM: rule files loaded.")
+
+    return True, has_rule_files, state_names, gdrom_category
+
+
+def _init_cgdrom_data(self, config: Benedict, n: int):
+    """Probe C-GDROM availability and load parameters for eligible reservoirs.
+
+    Validates required input files (flow statistics and storage curve), probes
+    per-reservoir eligibility, then loads CgdromParams for all eligible reservoirs.
+    Initialises cgdrom_params and cgdrom_prev_release on the grid.
+
+    Both required files must be present together.  If neither is configured a
+    warning is emitted and the method falls back gracefully.  If one file exists
+    but the other does not, a FileNotFoundError is raised (incomplete dataset),
+    mirroring GDROM's handling of partial data.
+
+    Parameters
+    ----------
+    config : Benedict
+    n : int — number of active cells
+
+    Returns
+    -------
+    enable_cgdrom : bool — False when data are unavailable
+    has_cgdrom_stats : np.ndarray[bool], shape (n,)
+    """
+    has_cgdrom_stats = np.zeros(n, dtype=bool)
+    self.cgdrom_params = {}
+    self.cgdrom_prev_release = {}
+
+    if not bool(config.get('water_management.reservoirs.enable_cgdrom', False)):
+        return False, has_cgdrom_stats
+
+    cgdrom_cfg = config.get('water_management.reservoirs.cgdrom', {}) or {}
+    flow_path_cfg  = cgdrom_cfg.get('flow_stats.path')
+    curve_path_cfg = cgdrom_cfg.get('storage_curve.path')
+
+    flow_exists  = bool(flow_path_cfg)  and Path(flow_path_cfg).exists()
+    curve_exists = bool(curve_path_cfg) and Path(curve_path_cfg).exists()
+
+    if not flow_exists and not curve_exists:
+        logging.warning(
+            "C-GDROM is enabled (enable_cgdrom: true) but required input files are "
+            "not configured or do not exist (flow_stats.path and storage_curve.path). "
+            "Falling back to GDROM/ISTARF/generic for all reservoirs.",
+        )
+        return False, has_cgdrom_stats
+
+    if not flow_exists or not curve_exists:
+        missing = flow_path_cfg if not flow_exists else curve_path_cfg
+        present = curve_path_cfg if not flow_exists else flow_path_cfg
+        raise FileNotFoundError(
+            f"C-GDROM has a partial dataset: '{present}' exists but '{missing}' "
+            f"is missing or not configured. "
+            f"Stage the complete C-GDROM dataset before enabling enable_cgdrom."
+        )
+
+    cgdrom_flow_ids = set(
+        pd.read_parquet(flow_path_cfg)['GRAND_ID'].dropna().astype(int).tolist()
+    )
+    for i in range(n):
+        gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
+        if gid > 0 and gid in cgdrom_flow_ids:
+            has_cgdrom_stats[i] = True
+    logging.info(
+        "C-GDROM: found flow statistics for %d of %d reservoirs in this domain.",
+        has_cgdrom_stats.sum(), (self.reservoir_id > 0).sum(),
+    )
+
+    eligible_indices = np.where(has_cgdrom_stats)[0]
+    if eligible_indices.size == 0:
+        logging.warning(
+            "C-GDROM is enabled but no eligible reservoirs were found in this domain "
+            "(no GRanD IDs matched the flow-statistics file). "
+            "All reservoirs will use GDROM/ISTARF/generic release.",
+        )
+        return False, has_cgdrom_stats
+
+    from mosartwmpy.reservoirs.cgdrom import load_cgdrom_params
+    self.cgdrom_params = load_cgdrom_params(
+        config, self.reservoir_id, self.reservoir_storage_capacity, eligible_indices
+    )
+
+    return True, has_cgdrom_stats
+
+
 def _resolve_release_methods(self, config: Benedict, reservoir_df: pd.DataFrame, parameters: Parameters) -> None:
-    """Load GDROM/C-GDROM rules and PDSI, resolve per-reservoir methods, write CSV.
+    """Resolve per-reservoir release methods and write reservoir_methods.csv.
 
     Sets grid.uses_cgdrom, grid.uses_gdrom, grid.uses_istarf,
-    grid.reservoir_resolved_method, grid.cgdrom_params, grid.cgdrom_prev_release,
-    grid.gdrom_rules, grid.reservoir_state_name, and grid.pdsi_lookup.
+    grid.reservoir_resolved_method, and related metadata arrays.
     Writes reservoir_methods.csv to the simulation output directory.
 
     Called once from load_reservoirs() after all other grid attributes are set.
     Priority chain (highest first): C-GDROM → GDROM → ISTARF → generic.
-    Each level is skipped when disabled in config or data are unavailable.
+    Method-specific data loading is delegated to _init_gdrom_data() and
+    _init_cgdrom_data(); this function owns the resolution loop and CSV output.
     """
     n = len(self.reservoir_id)
-    enable_cgdrom = bool(config.get('water_management.reservoirs.enable_cgdrom', False))
-    enable_gdrom  = config.get('water_management.reservoirs.enable_gdrom', False)
     enable_istarf = config.get('water_management.reservoirs.enable_istarf', True)
 
     # --- optional per-reservoir method column ---
@@ -220,95 +384,9 @@ def _resolve_release_methods(self, config: Benedict, reservoir_df: pd.DataFrame,
     else:
         specified_methods = np.array([None] * n, dtype=object)
 
-    # --- load GDROM rule files and metadata (if enabled) ---
-    has_rule_files = np.zeros(n, dtype=bool)
-    state_names = np.empty(n, dtype=object)
-    gdrom_category = {}  # {GRAND_ID: Res_R/Res_M/Res_L}; populated if enable_gdrom
-
-    if enable_gdrom:
-        rules_path = Path(config.get('water_management.reservoirs.gdrom.rules_path'))
-        metadata_path = rules_path / 'reservoir_metadata.csv'
-        mod_dir = rules_path / 'modules'
-
-        # probe for module files before committing to error vs. graceful fallback
-        any_module_files = mod_dir.is_dir() and any(mod_dir.glob('*_0.txt'))
-
-        if not metadata_path.exists():
-            if any_module_files:
-                raise FileNotFoundError(
-                    f"GDROM reservoir_metadata.csv not found at {metadata_path}, "
-                    f"but module files are present in {mod_dir}. "
-                    f"Stage the complete GDROM dataset before enabling enable_gdrom."
-                )
-            logging.warning(
-                "GDROM is enabled (enable_gdrom: true) but no GDROM files were found at "
-                "%s (reservoir_metadata.csv and module files are both missing). "
-                "Falling back to ISTARF/generic for all reservoirs.",
-                rules_path,
-            )
-            enable_gdrom = False
-
-    # --- determine C-GDROM data availability per reservoir ---
-    has_cgdrom_stats = np.zeros(n, dtype=bool)
-
-    if enable_cgdrom:
-        cgdrom_cfg = config.get('water_management.reservoirs.cgdrom', {}) or {}
-        flow_stats_path = cgdrom_cfg.get('flow_stats.path')
-        if not flow_stats_path or not Path(flow_stats_path).exists():
-            logging.warning(
-                "C-GDROM is enabled (enable_cgdrom: true) but "
-                "water_management.reservoirs.cgdrom.flow_stats.path is not set or "
-                "the file does not exist. Falling back to GDROM/ISTARF/generic for all "
-                "reservoirs.",
-            )
-            enable_cgdrom = False
-        else:
-            _cgdrom_flow_ids = set(
-                pd.read_parquet(flow_stats_path)['GRAND_ID'].dropna().astype(int).tolist()
-            )
-            for i in range(n):
-                gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
-                if gid > 0 and gid in _cgdrom_flow_ids:
-                    has_cgdrom_stats[i] = True
-            logging.info(
-                "C-GDROM: found flow statistics for %d of %d reservoirs in this domain.",
-                has_cgdrom_stats.sum(), (self.reservoir_id > 0).sum(),
-            )
-
-    if enable_gdrom:
-        gdrom_meta_df = pd.read_csv(metadata_path)
-        gdrom_meta = gdrom_meta_df.dropna(subset=['ADMIN_UNIT']).set_index('GRAND_ID')['ADMIN_UNIT'].to_dict()
-        # CATEGORY (Res_R / Res_M / Res_L) keyed by GRAND_ID
-        gdrom_category = gdrom_meta_df.set_index('GRAND_ID')['CATEGORY'].to_dict() if 'CATEGORY' in gdrom_meta_df.columns else {}
-
-        # determine which reservoirs in this domain have rule files
-        for i in range(n):
-            gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
-            if gid <= 0:
-                continue
-            if (mod_dir / f"{gid}_0.txt").exists():
-                has_rule_files[i] = True
-                state_names[i] = gdrom_meta.get(gid, None)
-
-        # load and validate PDSI
-        self.pdsi_lookup = _load_pdsi(config, gdrom_meta, has_rule_files, self.reservoir_id)
-
-        # parse rule files for all GDROM-eligible reservoirs
-        eligible_ids = [
-            int(self.reservoir_id[i])
-            for i in range(n)
-            if has_rule_files[i] and np.isfinite(self.reservoir_id[i])
-        ]
-        if not eligible_ids:
-            logging.warning(
-                "GDROM is enabled but no module files were found for any reservoir in "
-                "this domain under %s. All reservoirs will use ISTARF or generic release.",
-                mod_dir,
-            )
-        from mosartwmpy.reservoirs.gdrom import load_gdrom_rules
-        logging.info("GDROM: parsing rule files for %d reservoirs...", len(eligible_ids))
-        self.gdrom_rules = load_gdrom_rules(rules_path, eligible_ids)
-        logging.info("GDROM: rule files loaded.")
+    # --- load method-specific data ---
+    enable_gdrom,  has_rule_files,   state_names, gdrom_category = _init_gdrom_data(self, config, n)
+    enable_cgdrom, has_cgdrom_stats                               = _init_cgdrom_data(self, config, n)
 
     self.reservoir_state_name = state_names
 
@@ -434,17 +512,6 @@ def _resolve_release_methods(self, config: Benedict, reservoir_df: pd.DataFrame,
     # emit batched fallback warnings
     _warn_fallbacks(resolved_methods, specified_methods, fallback_reasons, self.reservoir_id)
 
-    # --- load C-GDROM parameters for resolved C-GDROM reservoirs ---
-    if uses_cgdrom.any():
-        from mosartwmpy.reservoirs.cgdrom import load_cgdrom_params
-        cgdrom_indices = np.where(uses_cgdrom)[0]
-        self.cgdrom_params = load_cgdrom_params(
-            config, self.reservoir_id, self.reservoir_storage_capacity, cgdrom_indices
-        )
-    else:
-        self.cgdrom_params = {}
-    self.cgdrom_prev_release = {}
-
     # CGDROM_TYPE: flood_control / irrigation / general for C-GDROM reservoirs, blank otherwise
     cgdrom_types = np.empty(n, dtype=object)
     for i in range(n):
@@ -465,10 +532,6 @@ def _resolve_release_methods(self, config: Benedict, reservoir_df: pd.DataFrame,
     self.reservoir_cgdrom_type = cgdrom_types
     self.reservoir_gdrom_type  = gdrom_types
     self.reservoir_istarf_fit  = istarf_fits
-
-    # Runtime fallback counters; populated by gdrom_release() in gdrom.py
-    self.gdrom_fallback_counts = {}
-    self.gdrom_total_calls = {}
 
     # --- write reservoir_methods.csv (init version without runtime fallback counts) ---
     # self.reservoir_id is one entry per active cell; filter to actual reservoir cells
