@@ -105,10 +105,15 @@ class Grid:
     reservoir_release_p_one: np.ndarray = np.empty(0)
     reservoir_release_p_two: np.ndarray = np.empty(0)
     reservoir_behavior: np.ndarray = np.empty(0)
-    # GDROM method-resolution arrays (populated at init when water_management is enabled)
+    # Method-resolution arrays (populated at init when water_management is enabled)
+    uses_cgdrom: np.ndarray = np.zeros(0, dtype=bool)
     uses_gdrom: np.ndarray = np.zeros(0, dtype=bool)
     uses_istarf: np.ndarray = np.zeros(0, dtype=bool)
     reservoir_resolved_method: np.ndarray = np.empty(0, dtype=object)
+    # C-GDROM parameter store: dict mapping GRanD ID (int) → CgdromParams; None until loaded
+    cgdrom_params: dict = None
+    # C-GDROM previous-day release tracker for ramping constraints: {grand_id: float (m³/s)}
+    cgdrom_prev_release: dict = None
     # GDROM rule store: dict mapping GRanD ID (int) → parsed RuleSet dict; None until loaded
     gdrom_rules: dict = None
     # per-reservoir US state name (ADMIN_UNIT from GDROM metadata), aligned to active-cell index

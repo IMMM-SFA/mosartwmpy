@@ -8,6 +8,7 @@ from mosartwmpy.state.state import State
 from mosartwmpy.grid.grid import Grid
 from mosartwmpy.reservoirs.istarf import istarf_release
 from mosartwmpy.reservoirs.gdrom import gdrom_release
+from mosartwmpy.reservoirs.cgdrom import cgdrom_release
 
 
 def reservoir_release(state: State, grid: Grid, config: Benedict, parameters: Parameters, current_time: datetime, mask: np.ndarray):
@@ -50,6 +51,15 @@ def reservoir_release(state: State, grid: Grid, config: Benedict, parameters: Pa
         (current_time == datetime(current_time.year, current_time.month, current_time.day, 0, 0, 0))
     ):
         gdrom_release(state, grid, current_time)
+
+    # if C-GDROM is enabled and there are C-GDROM reservoirs, update release targets at start of each
+    # day; fires last so C-GDROM has final say over any earlier daily update for its reservoirs
+    if (
+        config.get('water_management.reservoirs.enable_cgdrom') and
+        grid.uses_cgdrom.any() and
+        (current_time == datetime(current_time.year, current_time.month, current_time.day, 0, 0, 0))
+    ):
+        cgdrom_release(state, grid, current_time)
 
 
 def regulation_release(state, grid, parameters, current_time, mask):

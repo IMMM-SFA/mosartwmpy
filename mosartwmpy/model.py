@@ -92,8 +92,9 @@ class Model(Bmi):
                 datefmt='%m/%d/%Y %I:%M:%S %p',
                 handlers=handlers
             )
-            # file always captures DEBUG (e.g. per-reservoir GDROM fallback messages);
-            # stdout respects log_level so those stay off the terminal unless log_level: DEBUG
+
+            # suppress Numba's internal JIT diagnostics from appearing in the log file
+            logging.getLogger('numba').setLevel(logging.WARNING)
             if _file_handler is not None:
                 _file_handler.setLevel(logging.DEBUG)
             if _stdout_handler is not None:
