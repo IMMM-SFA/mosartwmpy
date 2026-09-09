@@ -216,14 +216,34 @@ class State:
         self.reservoir_month_flood_control_end: np.ndarray = np.empty(0, dtype=np.int64)
         # release [m3/s]
         self.reservoir_release: np.ndarray = np.empty(0)
-        # supply [m3/s]
+        # supply [m3]
         self.grid_cell_supply: np.ndarray = np.empty(0)
         # demand rate [m3/s] (demand0)
         self.grid_cell_demand_rate: np.ndarray = np.empty(0)
+        # irrigation withdrawal demand rate [m3/s]
+        self.irrigation_withdrawal_rate: np.ndarray = np.empty(0)
+        # irrigation consumption demand rate [m3/s]
+        self.irrigation_consumption_rate: np.ndarray = np.empty(0)
+        # nonirrigation withdrawal demand rate [m3/s]
+        self.nonirrigation_withdrawal_rate: np.ndarray = np.empty(0)
+        # nonirrigation consumption demand rate [m3/s]
+        self.nonirrigation_consumption_rate: np.ndarray = np.empty(0)
         # unmet demand volume within sub timestep [m3]
         self.grid_cell_unmet_demand: np.ndarray = np.empty(0)
         # unmet demand over whole timestep [m3]
         self.grid_cell_deficit: np.ndarray = np.empty(0)
+        # unmet consumptive irrigation demand over whole timestep [m3]
+        self.irrigation_consumption_deficit: np.ndarray = np.empty(0)
+        # unmet consumptive nonirrigation demand over whole timestep [m3]
+        self.nonirrigation_consumption_deficit: np.ndarray = np.empty(0)
+        # met portion of irrigation withdrawal not consumed, returned to the soil column [m3/s]
+        # (irrigation_fraction_met * (irrigation_withdrawal_rate - irrigation_consumption_rate);
+        # converted to a hillslope_subsurface_runoff flux in update.py)
+        self.irrigation_returnflow: np.ndarray = np.empty(0)
+        # met portion of nonirrigation withdrawal not consumed, returned to the channel [m3/s]
+        # (nonirrigation_fraction_met * (nonirrigation_withdrawal_rate - nonirrigation_consumption_rate);
+        # added to channel_storage in update.py)
+        self.nonirrigation_returnflow: np.ndarray = np.empty(0)
         # potential evaporation [mm/s] # TODO this doesn't appear to be initialized anywhere currently
         self.reservoir_potential_evaporation: np.ndarray = np.empty(0)
 

@@ -1,7 +1,7 @@
 ## create_grand_parameters.py
 
 This utility method generates the four dam/reservoir related input files expected by `mosartwmpy`:
-* `grand_reservoir_parameters.nc` - dam/reservoir physical and behavioral parameters
+* `grand_reservoir_parameters.nc` - dam/reservoir physical and behavioral parameters (also writable as `.parquet` or `.csv` by changing the output file extension)
 * `grand_average_monthly_flow.parquet` - mean monthly flow across the reservoir during the expected simulation period
 * `grand_average_monthly_demand.parquet` - mean monthly demand on the reservoir's water during the expected simulation period
 * `grand_dependency_database.parquet` - mapping between GRanD ID and grid cell IDs allowed to extract water
@@ -16,6 +16,13 @@ Several datasets are required to perform this operation:
 
 Note that the reservoir parameters and dependency database provided in the tutorial are reasonably robust for a 1/8 degree grid --
 for most use cases it would be sufficient to simply update the mean flow and demand files as appropriate to your simulation.
+
+### minimum storage
+
+The reservoir parameter file includes a `CAP_MIN` column holding the minimum (dead) storage in million m<sup>3</sup>,
+written as `--minimum-storage-fraction` (default `0.1`) times `CAP_MCM`.
+GRanD ships a field of the same name meaning a lower bound estimate of the reported *total* capacity, which is not what
+`mosartwmpy` expects here, so this utility overwrites it. Adjust individual values afterward where better information is available.
 
 Once the necessary data has been collected, run the utility with the `create_grand_parameters` that is installed along with `mosartwmpy`.
 This script will ask for the locations of the datasets and desired output locations.

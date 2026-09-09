@@ -23,7 +23,7 @@ setup(
     description="Python implementation of MOSART-WM: A water routing and management model",
     long_description=readme(),
     long_description_content_type="text/markdown",
-    python_requires=">=3.9,<3.13",
+    python_requires=">=3.10",
     include_package_data=True,
     entry_points={
         "console_scripts": [
@@ -38,21 +38,32 @@ setup(
         "dask[complete]>=2021.10.0",
         "geopandas>=0.10.2",
         "h5netcdf>=0.11.0",
+        # h5netcdf needs a backend, and the grid serialization in grid/grid.py pins
+        # engine='h5netcdf'; without this the tests fail in a clean environment
+        "h5py>=3.0",
         "hvplot>=0.7.3",
         "matplotlib>=3.4.3",
         "nc-time-axis>=1.4.0",
         "netCDF4>=1.5.7",
-        "numba>=0.53.1",
-        "numpy>=1.20.3,<2.0",
+        "numba>=0.60",
+        "numpy>=2.0",
         "pandas>=1.3.4",
         "pathvalidate>=2.5.0",
         "psutil>=5.8.0",
         "pyarrow>=6.0.0",
         "pyomo>=6.2",
-        "python-benedict>=0.24.3",
+        # the [io] extra supplies the yaml parser; config.py and download_data.py both
+        # read yaml through benedict, which raises ExtrasRequireModuleNotFoundError without it
+        "python-benedict[io]>=0.24.3",
+        # rasterio and shapely back the bil_to_parquet console script; both arrive with
+        # geopandas today, but that is incidental, so depend on them directly
+        "rasterio>=1.2.0",
         "regex>=2021.10.23",
         "requests>=2.26.0",
         "rioxarray>=0.8.0",
+        # scipy backs the KDTree used by the create_grand_parameters console script
+        "scipy>=1.7.0",
+        "shapely>=1.8.0",
         "tqdm>=4.62.3",
         "xarray>=0.19.0",
     ],

@@ -12,7 +12,7 @@ For a quick start, check out the [Jupyter notebook tutorial](https://github.com/
 
 ## getting started
 
-Ensure you have Python v3.9 - v3.12 (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
+Ensure you have Python v3.10 - v3.12 (consider using a [virtual environment](https://github.com/pyenv/pyenv), see the docs [here](https://mosartwmpy.readthedocs.io/en/latest/virtualenv.html) for a brief tutorial), then install `mosartwmpy` with:
 ```shell
 pip install mosartwmpy
 ```
@@ -22,11 +22,34 @@ Alternatively, install via conda with:
 conda install -c conda-forge mosartwmpy
 ```
 
+#### installing from source
+
+To work from the latest code, or to make changes of your own, clone the repository and install it:
+
+```shell
+git clone https://github.com/IMMM-SFA/mosartwmpy.git
+cd mosartwmpy
+pip install .
+```
+
+For development, install in editable mode along with the `dev` extras, which add the build, docs, and [pre-commit](https://pre-commit.com) tooling:
+
+```shell
+pip install -e ".[dev]"
+pre-commit install
+```
+
+`pre-commit install` registers the git hooks defined in `.pre-commit-config.yaml`, which run the `ruff` and `black` code formatters before you commit.
+
+An editable install lets you run the tests and validation described under "testing and validation" from the repository root against your working copy.
+
 Download a sample input dataset spanning May 1981 by running the following and selecting option `1` for "tutorial". This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.
 
 ```shell
 python -m mosartwmpy.download
 ```
+
+The datasets are hosted publicly on Zenodo and MSD-LIVE; no account or credentials are required.
 
 Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and a user specified file which can override any of the default settings. Create a `config.yaml` file that defines your simulation (if you chose an alternate download directory in the step above, you will need to update the paths to point at your data):
 
@@ -49,10 +72,17 @@ Settings are defined by the merger of the `mosartwmpy/config_defaults.yaml` and 
 >   demand:
 >     read_from_file: true
 >     path: ./input/demand/demand_1981_05.nc
+>     # optional return-flow mode (off by default); see "return flow" below
+>     # return_flow_enabled: true
+>     # irrigation_first_mask_path: ./input/shared/wmpy_irrigation_first_mask.nc
 >   reservoirs:
 >     enable_istarf: true
 >     parameters:
+>       # netCDF, parquet, or csv; see "reservoir parameter file formats" below
 >       path: ./input/reservoirs/reservoirs.nc
+>     # optional starting storage; see "initial reservoir storage" below
+>     # initial_storage:
+>     #   path: ./input/reservoirs/initial_storage.csv
 >     dependencies:
 >       path: ./input/reservoirs/dependency_database.parquet
 >     streamflow:
@@ -92,12 +122,60 @@ Dams/reservoirs require four different input files: the physical characteristics
 These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](https://github.com/IMMM-SFA/mosartwmpy/blob/main/mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).
 The best way to understand the expected format of the input files is to examine the sample inputs provided by the download utility: `python -m mosartwmpy.download`.
 
+#### reservoir parameter file formats
+
+The reservoir parameter file holds static values with only a reservoir dimension, so it can be provided as netCDF (`.nc`), Parquet (`.parquet`), or CSV (`.csv`).
+The format is chosen from the file extension. Parquet and CSV are easier to inspect and edit by hand:
+
+> ```yaml
+> water_management:
+>   reservoirs:
+>     parameters:
+>       path: ./input/reservoirs/reservoirs.parquet
+> ```
+
+#### minimum reservoir storage
+
+Reservoirs will not release water below a minimum (dead) storage. Provide a per-reservoir value in a `CAP_MIN` column, in million m<sup>3</sup> like `CAP_MCM`:
+
+> ```yaml
+> water_management:
+>   reservoirs:
+>     parameters:
+>       # column holding the minimum storage; defaults to CAP_MIN
+>       minimum_storage_variable: CAP_MIN
+> ```
+
+Reservoirs with no value, and files with no such column, fall back to 10% of storage capacity, which was the behavior before this field existed. A `CAP_MIN` of zero or below is treated as no value rather than as a real zero floor, so such a reservoir also gets the 10% default instead of being allowed to draw down to empty.
+Note that ISTARF release rules derive their normal operating range from storage capacity and do not currently respect `CAP_MIN` ([#124](https://github.com/IMMM-SFA/mosartwmpy/issues/124)).
+
+#### initial reservoir storage
+
+Starting reservoir storage defaults to 90% of capacity. To set it explicitly, point at a Parquet or CSV file with a `CAP_INIT` column in million m<sup>3</sup>, joined on either `GRAND_ID` or `GRID_CELL_INDEX`:
+
+> ```yaml
+> water_management:
+>   reservoirs:
+>     initial_storage:
+>       path: ./input/reservoirs/initial_storage.csv
+> ```
+
+Values are optional per reservoir; any reservoir absent from the file, or with a blank `CAP_INIT`, falls back to 90% of capacity.
+
 #### multi-file input
 
 To use multi-file demand or runoff input, use year/month/day placeholders in the file path options like so:
 * If your files look like `runoff-1999.nc`, use `runoff-{Y}.nc` as the path
 * If your files look like `runoff-1999-02.nc`, use `runoff-{Y}-{M}.nc` as the path
 * If your files look like `runoff-1999-02-03`, use `runoff-{Y}-{M}-{D}.nc` as the path, but be sure to provide files for leap days as well!
+
+#### return flow
+
+By default demand is provided as a single total-withdrawal field and all supplied water is treated as consumed. Enabling return flow instead routes the unconsumed portion of each withdrawal back into the water system: the met, unconsumed portion of irrigation withdrawal returns to the soil column (hillslope subsurface runoff) and the met, unconsumed portion of nonirrigation withdrawal returns to the channel. Unmet consumptive demand accumulates in per-sector deficit output variables.
+
+To enable it, set `water_management.demand.return_flow_enabled: true` and provide a demand file with four disaggregated fields instead of the single total field: `irrigation_withdrawal`, `irrigation_consumption`, `nonirrigation_withdrawal`, and `nonirrigation_consumption` (the field names are configurable under `water_management.demand`).
+
+`water_management.demand.irrigation_first_mask_path` optionally points at a mask file (e.g. `wmpy_irrigation_first_mask.nc`) whose grid cells marked `1` meet irrigation demand before nonirrigation, and cells marked `0` meet nonirrigation demand first. If no mask is supplied, every cell defaults to nonirrigation-first.
 
 
 ## model output

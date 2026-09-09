@@ -27,15 +27,17 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
     # method="pad" means the closest time in the past is selected from the file
 
     path = config.get('runoff.path')
-    path = re.sub('\{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
-    path = re.sub('\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
-    path = re.sub('\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
+    path = re.sub('{(?:Y|y)[^}]*}', current_time.strftime('%Y'), path)
+    path = re.sub('{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
+    path = re.sub('{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
 
-    runoff = open_dataset(path)
+    runoff = open_dataset(path).sortby([
+        config.get('runoff.latitude'), config.get('runoff.longitude')
+    ])
 
     # check for non-standard calendar and convert if needed
     if not isinstance(runoff.indexes[config.get('runoff.time')], pd.DatetimeIndex):
-        runoff[config.get('runoff.time')] = runoff.indexes[config.get('runoff.time')].to_datetimeindex()
+        runoff[config.get('runoff.time')] = runoff.indexes[config.get('runoff.time')].to_datetimeindex(time_unit='ns', unsafe=True)
 
     # check if time index includes current time (with some slack)
     if not (
@@ -50,18 +52,18 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
     }
     
     if config.get('runoff.variables.surface_runoff', None) is not None:
-        state.hillslope_surface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
+        state.hillslope_surface_runoff = 0.001 * grid.land_fraction * grid.area * np.nan_to_num(np.array(
             runoff[config.get('runoff.variables.surface_runoff')].sel(sel, method='pad')
-        ).flatten()[mask]
+        ).flatten()[mask])
     
     if config.get('runoff.variables.subsurface_runoff', None) is not None:
-        state.hillslope_subsurface_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
+        state.hillslope_subsurface_runoff = 0.001 * grid.land_fraction * grid.area * np.nan_to_num(np.array(
             runoff[config.get('runoff.variables.subsurface_runoff')].sel(sel, method='pad')
-        ).flatten()[mask]
+        ).flatten()[mask])
     
     if config.get('runoff.variables.wetland_runoff', None) is not None:
-        state.hillslope_wetland_runoff = 0.001 * grid.land_fraction * grid.area * np.array(
+        state.hillslope_wetland_runoff = 0.001 * grid.land_fraction * grid.area * np.nan_to_num(np.array(
             runoff[config.get('runoff.variables.wetland_runoff')].sel(sel, method='pad')
-        ).flatten()[mask]
+        ).flatten()[mask])
     
     runoff.close()

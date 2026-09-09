@@ -24,6 +24,19 @@ water_management:
   demand:
     read_from_file: true
     path: ./input/demand/demand_1981_05.nc
+    # Optional return-flow mode: routes the unconsumed portion of withdrawals back
+    # into the system (irrigation -> soil column, nonirrigation -> channel). Off by
+    # default. To enable, the demand file must provide the four disaggregated fields
+    # named below instead of a single total-demand field, and you supply a mask that
+    # marks which cells meet irrigation demand first (1) vs nonirrigation first (0).
+    # The tutorial sample dataset does not include these inputs; this block is here
+    # to document the settings.
+    # return_flow_enabled: true
+    # irrigation_first_mask_path: ./input/shared/wmpy_irrigation_first_mask.nc
+    # irrigation_withdrawal: irrigation_withdrawal
+    # nonirrigation_withdrawal: nonirrigation_withdrawal
+    # irrigation_consumption: irrigation_consumption
+    # nonirrigation_consumption: nonirrigation_consumption
   reservoirs:
     parameters:
       path: ./input/reservoirs/reservoirs.nc

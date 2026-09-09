@@ -9,7 +9,7 @@ import xarray as xr
 from benedict.dicts import benedict as Benedict
 from numba.core import types
 from numba.typed import Dict
-from xarray import open_dataset
+from xarray import open_dataset, open_dataarray
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from mosartwmpy.config.parameters import Parameters
@@ -63,6 +63,7 @@ class Grid:
     channel_floodplain_width: np.ndarray = np.empty(0)
     total_channel_length: np.ndarray = np.empty(0)
     grid_channel_depth: np.ndarray = np.empty(0)
+    irrigation_first_mask: np.ndarray = np.empty(0)
     
     # Reservoir related properties
     reservoir_id: np.ndarray = np.empty(0)
@@ -72,6 +73,7 @@ class Grid:
     reservoir_length: np.ndarray = np.empty(0)
     reservoir_surface_area: np.ndarray = np.empty(0)
     reservoir_storage_capacity: np.ndarray = np.empty(0)
+    reservoir_minimum_storage: np.ndarray = np.empty(0)
     reservoir_depth: np.ndarray = np.empty(0)
     reservoir_use_irrigation: np.ndarray = np.empty(0)
     reservoir_use_electricity: np.ndarray = np.empty(0)
@@ -126,7 +128,9 @@ class Grid:
             return
         
         # open dataset
-        grid_dataset = open_dataset(config.get('grid.path'))
+        grid_dataset = open_dataset(config.get('grid.path')).sortby([
+            config.get('grid.latitude'), config.get('grid.longitude')
+        ])
     
         # create grid from longitude and latitude dimensions
         self.unique_longitudes = np.array(grid_dataset[config.get('grid.longitude')])
@@ -235,7 +239,7 @@ class Grid:
                 index = np.argmin(distance)
                 outlet_ids.add(self.outlet_id[index])
             self.mosart_mask = np.where(
-                np.in1d(self.outlet_id, list(outlet_ids)),
+                np.isin(self.outlet_id, list(outlet_ids)),
                 self.mosart_mask,
                 0
             )
@@ -378,6 +382,21 @@ class Grid:
         if config.get('water_management.enabled', False):
             load_reservoirs(self, config, parameters)
 
+            # if returnflow is enabled, build the irrigation-first priority mask
+            if config.get('water_management.demand.return_flow_enabled', False):
+                if config.get('water_management.demand.irrigation_first_mask_path', None) is not None:
+                    # read the mask from file: cells > 0 give irrigation withdrawal priority
+                    self.irrigation_first_mask = np.array(
+                        open_dataarray(config.get('water_management.demand.irrigation_first_mask_path')).sortby([
+                            config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
+                        ])
+                    ).flatten()
+                else:
+                    # no mask supplied: default every cell to nonirrigation-first (mask == 0).
+                    # without this the mask stays size 0 and the update.py returnflow loop
+                    # broadcasts it against full-grid arrays, raising a shape mismatch.
+                    self.irrigation_first_mask = np.zeros_like(self.id, dtype=float)
+
     def __getitem__(self, item):
         return getattr(self, item)
 
@@ -416,7 +435,7 @@ class Grid:
                     unmasked[:] = -9999
                 elif vector.dtype == bool:
                     unmasked[:] = False
-                elif vector.dtype == np.object:
+                elif vector.dtype == object:
                     unmasked[:] = np.nan
                 unmasked[mask] = vector
                 npdf[key] = unmasked
@@ -485,7 +504,11 @@ class Grid:
                     if filename.endswith('np.feather'):
                         npdf = pd.read_feather(file)
                         for key in npdf.columns:
-                            setattr(grid, key, npdf[key].values)
+                            # coerce to ndarray: pandas with pyarrow returns extension
+                            # arrays (e.g. ArrowStringArray) for string columns, which
+                            # the mask-trimming loop in model.py skips, leaving the array
+                            # at full-grid size and breaking downstream broadcasts.
+                            setattr(grid, key, np.asarray(npdf[key].values))
                     if filename.endswith('df.nc'):
                         key = filename.split('.')[0]
                         ds = xr.open_dataset(file, engine='h5netcdf')
@@ -501,7 +524,7 @@ class Grid:
         # recreate the numba grid to reservoir map
         if grid.reservoir_dependency_database.size > 0:
             for grid_cell_id, group in grid.reservoir_dependency_database.reset_index().groupby('grid_cell_id'):
-                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
+                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values.copy()
         
         return grid
 
