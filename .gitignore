@@ -148,3 +148,9 @@ dmypy.json
 .pyre/
 /.vscode
 /testing
+claude.md
+/gdrom_dev
+/spatial_dev
+/preprocess
+/istarf_dev
+/mgmt_model_dev

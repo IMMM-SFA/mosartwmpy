@@ -216,6 +216,17 @@ class State:
         self.reservoir_month_flood_control_end: np.ndarray = np.empty(0, dtype=np.int64)
         # release [m3/s]
         self.reservoir_release: np.ndarray = np.empty(0)
+        # C-GDROM previous-day release for ramping constraints [m3/s]; zero-initialised so
+        # the first day has no ramp applied, then updated each day by cgdrom_release().
+        # Stored in State (not Grid) so it is saved and restored with restart files.
+        self.reservoir_cgdrom_prev_release: np.ndarray = np.empty(0)
+        # GDROM per-cell fallback counter: incremented each day gdrom_release() falls back
+        # to the existing release target for this cell.  Stored in State so it accumulates
+        # correctly across restarts and is serialised with the restart file.
+        self.reservoir_gdrom_fallback_count: np.ndarray = np.empty(0)
+        # GDROM per-cell total-call counter: incremented every time gdrom_release() runs
+        # for this cell; paired with reservoir_gdrom_fallback_count to compute fallback %.
+        self.reservoir_gdrom_total_calls: np.ndarray = np.empty(0)
         # supply [m3]
         self.grid_cell_supply: np.ndarray = np.empty(0)
         # demand rate [m3/s] (demand0)

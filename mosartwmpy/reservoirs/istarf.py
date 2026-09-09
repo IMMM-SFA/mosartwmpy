@@ -17,9 +17,15 @@ def istarf_release(state: State, grid: Grid, current_time: datetime):
     # restrict epiweek to [1, 52]
     epiweek = np.minimum(float(get_epiweek_from_datetime(current_time)), 52.0)
 
-    # boolean array indicating which cells use the istarf rules;
-    # if behavior is "generic", then just keep the monthly generic release value instead
-    uses_istarf = np.array([(x.lower() != 'generic') if pd.notna(x) else False for x in grid.reservoir_behavior])
+    # use the pre-computed eligibility array from init-time method resolution;
+    # fall back to the legacy per-call construction if it was not set (e.g. in tests
+    # that build a Grid without going through the full load_reservoirs path)
+    if grid.uses_istarf.size == len(grid.reservoir_id):
+        uses_istarf = grid.uses_istarf
+    else:
+        uses_istarf = np.array(
+            [(x.lower() != 'generic') if pd.notna(x) else False for x in grid.reservoir_behavior]
+        )
 
     # initialize the release array
     daily_release = np.zeros(len(grid.reservoir_id))

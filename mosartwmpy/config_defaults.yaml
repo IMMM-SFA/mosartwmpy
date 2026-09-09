@@ -319,6 +319,44 @@ water_management:
     reservoirs:
         # use improved reservoir schedule module (ISTARF)
         enable_istarf: true
+        # use data-driven reservoir operation model (GDROM); disabled by default
+        enable_gdrom: false
+        # use conceptual + data-driven reservoir operation model (C-GDROM); disabled by default.
+        # when enabled, C-GDROM takes priority over GDROM/ISTARF/generic for its reservoirs.
+        enable_cgdrom: false
+        # C-GDROM configuration (only used when enable_cgdrom is true)
+        cgdrom:
+            # path to wide-format parquet with inflow percentiles (m³/s); columns:
+            #   GRAND_ID, I99, I80, I50, I30, I10, I_MEAN
+            # generate with: python preprocess/prepare_cgdrom_flow_stats.py
+            flow_stats:
+                path: ./input/reservoirs/cgdrom/quantile_daily_reservoir_flow.parquet
+            # path to CSV with S-curve parameters and storage limits (storage in MCM)
+            storage_curve:
+                path: ./input/reservoirs/cgdrom/cgdrom_storage_curve.csv
+            # optional: FC module coefficients (SI units); overrides General Model for FC reservoirs
+            fc_modules:
+                path: ./input/reservoirs/cgdrom/cgdrom_fc_modules.csv
+            # optional: IRR module constants (m³/s); overrides General Model for irrigation reservoirs
+            irr_modules:
+                path: ./input/reservoirs/cgdrom/cgdrom_irr_modules.csv
+        # GDROM configuration (only used when enable_gdrom is true)
+        gdrom:
+            # path to directory containing module_conditions/ and modules/ subdirs and reservoir_metadata.csv
+            rules_path: ./input/reservoirs/gdrom
+            # PDSI configuration; required when enable_gdrom is true
+            pdsi:
+                # path to PDSI parquet file; columns: state (full name), date, year, month, pdsi
+                path: ./input/reservoirs/noaa_pdsi_statewide_1970_2025.parquet
+                # pdsi_mode: how PDSI is used at runtime
+                #   timeseries  — use the actual PDSI value for each (state, year, month) in the simulation;
+                #                 the file must cover the full simulation period
+                #   climatology — pre-compute and use mean PDSI per (state, month) over a specified year range;
+                #                 the file must cover climatology_start_year through climatology_end_year
+                mode: timeseries
+                # year range used to compute climatological mean PDSI; only used when mode is 'climatology'
+                climatology_start_year: ~
+                climatology_end_year: ~
         # physical and use type parameters of the reservoirs, typically from GRanD
         parameters:
             # path to the reservoir parameter file; can be absolute or relative to the source code root
@@ -328,6 +366,13 @@ water_management:
             # optional minimum (dead) storage field name [million m3]; reservoirs missing a value
             # here fall back to 0.1 * storage capacity, which was the behavior before this field existed
             minimum_storage_variable: CAP_MIN
+            # optional per-reservoir method override column (e.g. RELEASE_METHOD); valid values:
+            #   cgdrom   — use C-GDROM if available, fall back to gdrom/istarf/generic
+            #   gdrom    — use GDROM if available, fall back to istarf then generic
+            #   istarf   — use ISTARF if available, fall back to generic
+            #   generic  — always use the generic (Biemans) method
+            # if this column is absent or null for a reservoir, auto-detection applies
+            release_method_variable: ~
             # variable field names
             variables:
                 # reservoir id field name - typically the GRanD ID
