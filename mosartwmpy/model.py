@@ -272,7 +272,7 @@ class Model(Bmi):
         if self.grid is not None and hasattr(self.grid, 'reservoir_resolved_method'):
             from mosartwmpy.reservoirs.grid import write_final_methods_csv
             output_dir = Path(self.config.get('simulation.output_path')) / self.config.get('simulation.name', '')
-            write_final_methods_csv(self.grid, output_dir)
+            write_final_methods_csv(self.grid, self.state, output_dir)
 
         for handler in logging.getLogger().handlers:
             handler.close()

@@ -197,8 +197,7 @@ def _init_gdrom_data(self, config: Benedict, n: int):
 
     Reads config flags and file paths, validates data presence, then loads
     reservoir_metadata.csv, PDSI, and all rule files for eligible reservoirs in
-    this domain.  Initialises gdrom_rules, gdrom_fallback_counts,
-    gdrom_total_calls, and pdsi_lookup on the grid.
+    this domain.  Initialises gdrom_rules and pdsi_lookup on the grid.
 
     Parameters
     ----------
@@ -216,8 +215,6 @@ def _init_gdrom_data(self, config: Benedict, n: int):
     state_names = np.empty(n, dtype=object)
     gdrom_category = {}
     self.gdrom_rules = {}
-    self.gdrom_fallback_counts = {}
-    self.gdrom_total_calls = {}
 
     if not config.get('water_management.reservoirs.enable_gdrom', False):
         return False, has_rule_files, state_names, gdrom_category
@@ -281,12 +278,16 @@ def _init_cgdrom_data(self, config: Benedict, n: int):
 
     Validates required input files (flow statistics and storage curve), probes
     per-reservoir eligibility, then loads CgdromParams for all eligible reservoirs.
-    Initialises cgdrom_params and cgdrom_prev_release on the grid.
+    Initialises cgdrom_params on the grid.
 
     Both required files must be present together.  If neither is configured a
     warning is emitted and the method falls back gracefully.  If one file exists
     but the other does not, a FileNotFoundError is raised (incomplete dataset),
     mirroring GDROM's handling of partial data.
+
+    Eligibility requires the reservoir to appear in BOTH the flow-statistics and
+    the storage-curve files.  A reservoir present in only one of the two is not
+    eligible; it falls back to the next method in the priority chain.
 
     Parameters
     ----------
@@ -300,7 +301,6 @@ def _init_cgdrom_data(self, config: Benedict, n: int):
     """
     has_cgdrom_stats = np.zeros(n, dtype=bool)
     self.cgdrom_params = {}
-    self.cgdrom_prev_release = {}
 
     if not bool(config.get('water_management.reservoirs.enable_cgdrom', False)):
         return False, has_cgdrom_stats
@@ -332,12 +332,18 @@ def _init_cgdrom_data(self, config: Benedict, n: int):
     cgdrom_flow_ids = set(
         pd.read_parquet(flow_path_cfg)['GRAND_ID'].dropna().astype(int).tolist()
     )
+    cgdrom_curve_ids = set(
+        pd.read_csv(curve_path_cfg)['GRAND_ID'].dropna().astype(int).tolist()
+    )
+    cgdrom_eligible_ids = cgdrom_flow_ids & cgdrom_curve_ids
+
     for i in range(n):
         gid = int(self.reservoir_id[i]) if np.isfinite(self.reservoir_id[i]) else -1
-        if gid > 0 and gid in cgdrom_flow_ids:
+        if gid > 0 and gid in cgdrom_eligible_ids:
             has_cgdrom_stats[i] = True
     logging.info(
-        "C-GDROM: found flow statistics for %d of %d reservoirs in this domain.",
+        "C-GDROM: found flow statistics and storage curve parameters for %d of %d "
+        "reservoirs in this domain.",
         has_cgdrom_stats.sum(), (self.reservoir_id > 0).sum(),
     )
 
@@ -345,7 +351,7 @@ def _init_cgdrom_data(self, config: Benedict, n: int):
     if eligible_indices.size == 0:
         logging.warning(
             "C-GDROM is enabled but no eligible reservoirs were found in this domain "
-            "(no GRanD IDs matched the flow-statistics file). "
+            "(no GRanD IDs matched both the flow-statistics and storage-curve files). "
             "All reservoirs will use GDROM/ISTARF/generic release.",
         )
         return False, has_cgdrom_stats
@@ -768,12 +774,13 @@ def _write_methods_csv(output_dir: Path, reservoir_ids, specified, resolved, rea
         logging.warning("could not write reservoir_methods.csv: %s", exc)
 
 
-def write_final_methods_csv(grid, output_dir: Path) -> None:
+def write_final_methods_csv(grid, state, output_dir: Path) -> None:
     """Rewrite reservoir_methods.csv with GDROM runtime fallback statistics.
 
     Called from model.finalize() after the simulation completes.  Adds
     GDROM_FALLBACK_COUNT and GDROM_FALLBACK_PCT columns using the counts
-    accumulated by gdrom_release() during the run.
+    accumulated by gdrom_release() during the run (stored in
+    state.reservoir_gdrom_fallback_count and state.reservoir_gdrom_total_calls).
     """
     try:
         res_mask = np.isfinite(grid.reservoir_id.astype(float)) & (grid.reservoir_id > 0)
@@ -787,8 +794,8 @@ def write_final_methods_csv(grid, output_dir: Path) -> None:
 
         include_cgdrom_cols = bool(grid.uses_cgdrom.any())
         include_gdrom_cols  = bool(grid.uses_gdrom.any())
-        fb_counts = grid.gdrom_fallback_counts
-        tot_calls = grid.gdrom_total_calls
+        fallback_counts_arr = state.reservoir_gdrom_fallback_count[res_mask]
+        total_calls_arr     = state.reservoir_gdrom_total_calls[res_mask]
 
         rows = []
         for i in range(len(ids)):
@@ -804,8 +811,8 @@ def write_final_methods_csv(grid, output_dir: Path) -> None:
             if include_gdrom_cols:
                 is_gdrom = (resolved[i] == 'gdrom')
                 if is_gdrom and gid is not None:
-                    fb  = fb_counts.get(gid, 0)
-                    tot = tot_calls.get(gid, 0)
+                    fb  = int(fallback_counts_arr[i])
+                    tot = int(total_calls_arr[i])
                     fb_pct = round(100.0 * fb / tot, 1) if tot > 0 else ''
                 else:
                     fb     = ''

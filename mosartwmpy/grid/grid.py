@@ -112,8 +112,6 @@ class Grid:
     reservoir_resolved_method: np.ndarray = np.empty(0, dtype=object)
     # C-GDROM parameter store: dict mapping GRanD ID (int) → CgdromParams; None until loaded
     cgdrom_params: dict = None
-    # C-GDROM previous-day release tracker for ramping constraints: {grand_id: float (m³/s)}
-    cgdrom_prev_release: dict = None
     # GDROM rule store: dict mapping GRanD ID (int) → parsed RuleSet dict; None until loaded
     gdrom_rules: dict = None
     # per-reservoir US state name (ADMIN_UNIT from GDROM metadata), aligned to active-cell index

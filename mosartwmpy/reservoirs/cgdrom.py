@@ -512,8 +512,9 @@ def load_cgdrom_params(config, reservoir_ids: np.ndarray,
     n_requested = len(list(cgdrom_indices))
     if n_loaded < n_requested:
         logging.warning(
-            "C-GDROM: loaded params for %d of %d requested reservoirs "
-            "(missing flow stats or curve params for %d).",
+            "C-GDROM: loaded params for %d of %d eligible reservoirs; "
+            "%d had no valid GRAND_ID or were missing curve rows "
+            "(eligibility should have been filtered at init — check _init_cgdrom_data).",
             n_loaded, n_requested, n_requested - n_loaded,
         )
     else:
@@ -542,9 +543,11 @@ def cgdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
     Writes only to cells where grid.uses_cgdrom is True, giving C-GDROM final
     say over any earlier daily update.
 
-    Previous-day release is tracked in grid.cgdrom_prev_release for the per-reservoir
-    ramping constraints (p.alpha upward, p.beta downward; defaults 2 / 0.5).
-    On the first call for a reservoir (or after a restart) rt0 = 0 → ramping is skipped.
+    Previous-day release is tracked in state.reservoir_cgdrom_prev_release for the
+    per-reservoir ramping constraints (p.alpha upward, p.beta downward; defaults 2 / 0.5).
+    That array is zero-initialised at model start, so the first call has rt0 = 0 and ramp
+    constraints are skipped.  Because it lives in State it is saved and restored with
+    restart files, so a restarted run produces the same ramp behaviour as a continuous one.
     """
     # Clamp leap-year DOY 366 to 365; CGDROM params are on a 365-day calendar.
     doy = min(current_time.timetuple().tm_yday, 365)
@@ -563,7 +566,7 @@ def cgdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
         it  = float(state.channel_inflow_upstream[i])
         it  = max(it, 0.0)
         st0 = float(state.reservoir_storage[i])
-        rt0 = grid.cgdrom_prev_release.get(grand_id, 0.0)
+        rt0 = float(state.reservoir_cgdrom_prev_release[i])
 
         # DOY-indexed typical storage (0-indexed array, DOY 1 → index 0)
         s_ty = float(p.sty[doy - 1])
@@ -576,4 +579,4 @@ def cgdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
             rt = _predict_general_daily(p, it, st0, rt0, s_ty)
 
         state.reservoir_release[i] = rt
-        grid.cgdrom_prev_release[grand_id] = rt
+        state.reservoir_cgdrom_prev_release[i] = rt

@@ -4,6 +4,58 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-09-09
+
+### Added
+
+Two new reservoir release methods were added to the model, GDROM and C+GDROM. These
+methods can be used in place of the generic and ISTARF methods. An optional parameter
+can be added to the reservoir file to specify which method is desired. The model
+now outputs a reservoir method file that documents which reservoir release method
+was used for each reservoir - providing method as tracking as the model has a default
+fallback behavior if the data required for a specified method is unavailable.
+
+- **GDROM — Generic Data-driven Reservoir Operation Model** (opt-in, off by default).
+  When `water_management.reservoirs.enable_gdrom: true`, reservoirs with GDROM rule
+  files use a two-stage inference pipeline: a CART module-condition classifier selects
+  an operating module, and a Decision Tree regressor computes the daily release target.
+  Three rule-file formats are supported: tree, single-line constant, and linear
+  regression (`Release = a*Inflow + b*Storage + c`). PDSI (Palmer Drought Severity
+  Index) is a required input; the file and time-series or climatology mode are
+  configured via `water_management.reservoirs.gdrom.pdsi`. Rule files are parsed
+  once at model init and all thresholds are converted to SI units (m³, m³/s).
+  GDROM sits in the method-priority chain above ISTARF/generic and below C-GDROM.
+  References: Li et al. (2024) *Water Resources Research*; GDROM v2.0.0 dataset
+  (doi: 10.57931/*).
+
+- **C-GDROM — Conceptual + Generic Data-driven Reservoir Operation Model**
+  (opt-in, off by default).  When `water_management.reservoirs.enable_cgdrom: true`,
+  C-GDROM takes final priority for its reservoirs (above GDROM/ISTARF/generic).
+  Three per-reservoir operation tiers are supported, resolved automatically from
+  available calibration data:
+  - *General* — no calibration; empirical S-curve + inflow-percentile thresholds.
+  - *Flood control* — calibrated linear modules for up to 127 demonstration reservoirs.
+  - *Irrigation* — calibrated seasonal constant releases for up to 64 demonstration
+    reservoirs.
+  A 365-element typical-storage curve (S_ty) is pre-computed at init from four-piece
+  S-curve parameters. Inflow percentile statistics (I10/I30/I50/I80/I99) and daily
+  ramping constraints (α upward / β downward) are loaded at init; storage and inflow
+  are read each day at runtime. Required inputs: a flow-statistics parquet
+  (`cgdrom.flow_stats.path`) and a storage-curve CSV (`cgdrom.storage_curve.path`).
+  Optional FC and irrigation module CSVs enable the calibrated tiers.
+  References: Zhao et al. (2025) C-GDROM; github.com/fzfz12138/C-GDROM.
+
+- **Per-reservoir method override column.**  An optional column in the reservoir
+  parameter file (key `water_management.reservoirs.parameters.release_method_variable`)
+  lets individual reservoirs pin a method (`cgdrom`, `gdrom`, `istarf`, or `generic`).
+  Reservoirs without a value use auto-detection (priority chain C-GDROM > GDROM >
+  ISTARF > generic).  A `reservoir_methods.csv` is written to the simulation output
+  directory at init and updated with GDROM runtime fallback statistics at finalization.
+
+- **Reservoir method output file.** A reservoir method csv is now written to the output
+directory containing the reservoir method used for each reservoir.  
+
+
 ## [1.0.0] - 2026-08-18
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir

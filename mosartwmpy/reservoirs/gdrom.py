@@ -298,17 +298,14 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
     if indices.size == 0:
         return
 
-    fallback_counts = grid.gdrom_fallback_counts
-    total_calls = grid.gdrom_total_calls
-
     for i in indices:
         grand_id = int(grid.reservoir_id[i])
-        total_calls[grand_id] = total_calls.get(grand_id, 0) + 1
+        state.reservoir_gdrom_total_calls[i] += 1
 
         rules = grid.gdrom_rules.get(grand_id)
         if rules is None:
             # should not happen after init validation, but guard defensively
-            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+            state.reservoir_gdrom_fallback_count[i] += 1
             continue
 
         inflow_m3s = float(state.channel_inflow_upstream[i])
@@ -329,7 +326,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                 "(reservoir GRAND_ID=%d); retaining existing release target",
                 state_name, year, month, grand_id,
             )
-            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+            state.reservoir_gdrom_fallback_count[i] += 1
             continue
 
         vals = (inflow_m3s, storage_m3, float(doy), float(pdsi))
@@ -348,7 +345,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                     "DOY=%d, PDSI=%.2f); retaining existing release target",
                     grand_id, current_time.date(), inflow_m3s, storage_m3, doy, pdsi,
                 )
-                fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+                state.reservoir_gdrom_fallback_count[i] += 1
                 continue
             module_id = int(result)
 
@@ -360,7 +357,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                 "retaining existing release target",
                 module_id, grand_id, current_time.date(),
             )
-            fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+            state.reservoir_gdrom_fallback_count[i] += 1
             continue
 
         # Linear modules are evaluated directly; tree/const modules use _evaluate_rules
@@ -380,7 +377,7 @@ def gdrom_release(state: State, grid: Grid, current_time: datetime) -> None:
                     "GRAND_ID=%d on %s; retaining existing release target",
                     module_id, grand_id, current_time.date(),
                 )
-                fallback_counts[grand_id] = fallback_counts.get(grand_id, 0) + 1
+                state.reservoir_gdrom_fallback_count[i] += 1
                 continue
 
         # release is already in m³/s (converted at parse time)
