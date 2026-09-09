@@ -22,6 +22,27 @@ Alternatively, install via conda with:
 conda install -c conda-forge mosartwmpy
 ```
 
+#### installing from source
+
+To work from the latest code, or to make changes of your own, clone the repository and install it:
+
+```shell
+git clone https://github.com/IMMM-SFA/mosartwmpy.git
+cd mosartwmpy
+pip install .
+```
+
+For development, install in editable mode along with the `dev` extras, which add the build, docs, and [pre-commit](https://pre-commit.com) tooling:
+
+```shell
+pip install -e ".[dev]"
+pre-commit install
+```
+
+`pre-commit install` registers the git hooks defined in `.pre-commit-config.yaml`, which run the `ruff` and `black` code formatters before you commit.
+
+An editable install lets you run the tests and validation described under "testing and validation" from the repository root against your working copy.
+
 Download a sample input dataset spanning May 1981 by running the following and selecting option `1` for "tutorial". This will download and unpack the inputs to your current directory. Optionally specify a path to download and extract to instead of the current directory.
 
 ```shell
