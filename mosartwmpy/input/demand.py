@@ -67,7 +67,7 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
             )
 
     if config.get('water_management.demand.return_flow_enabled', False):
-        
+
         state.irrigation_withdrawal_rate = np.array(demand[
             config.get('water_management.demand.irrigation_withdrawal')
         ].sel({config.get('water_management.demand.time'): current_time}, method='pad').fillna(0), dtype=np.float64).flatten()[mask]
