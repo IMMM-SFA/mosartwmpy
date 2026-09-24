@@ -44,42 +44,62 @@ simulation:
           name: QSUR_LIQ
           long_name: Surface runoff
           units: m3/s
+          aggregation: mean
         - variable: hillslope_subsurface_runoff
           name: QSUB_LIQ
           long_name: Subsurface runoff
           units: m3/s
+          aggregation: mean
         - variable: storage
           name: STORAGE_LIQ
           long_name: Mosart liquid storage
           units: m3
+          aggregation: mean
         - variable: runoff_land
           name: RIVER_DISCHARGE_OVER_LAND_LIQ
           long_name: Mosart river basin flow (same as channel_outflow)
           units: m3/s
+          aggregation: mean
         - variable: channel_inflow_upstream
           name: channel_inflow
           long_name: Mosart main channel inflow to grid cell
           units: m3/s
+          aggregation: mean
         - variable: runoff_land
           name: channel_outflow
           long_name: Mosart main channel outflow from grid cell
           units: m3/s
+          aggregation: mean
         - variable: reservoir_storage
           name: WRM_STORAGE
           long_name: Mosart storage in reservoir
           units: m3
+          aggregation: mean
         - variable: grid_cell_supply
           name: WRM_SUPPLY
           long_name: Mosart reservoir supply to grid cell
           units: m3/s
+          aggregation: mean
         - variable: grid_cell_demand_rate
           name: WRM_DEMAND
           long_name: Mosart demand reqeusted by grid cell
           units: m3/s
+          aggregation: mean
         - variable: grid_cell_deficit
           name: WRM_DEFICIT
           long_name: Mosart unmet demand at grid cell
           units: m3
+          aggregation: sum
+        - variable: irrigation_consumption_deficit
+          name: irrigation_consumption_deficit_m3
+          long_name: unmet consumptive irrigation demand at grid cell
+          units: m3
+          aggregation: sum
+        - variable: nonirrigation_consumption_deficit
+          name: nonirrigation_consumption_deficit_m3
+          long_name: unmet consumptive nonirrigation demand at grid cell
+          units: m3
+          aggregation: sum
     # non time dependent fields to include in the output
     # note that latitude and longitude are automatically included as 'lat' and 'lon'
     grid_output:
@@ -275,22 +295,26 @@ water_management:
         read_from_file: true
         # path to the demand file; can be absolute or relative to the source code root
         path: ./input/demand/RCP8.5_GCAM_water_demand_1980_1985.nc
+        # flag to enable or disable return flow; requires demand to be disaggregated into irrigation vs non-irrigation and withdrawal vs consumption for each
+        return_flow_enabled: false
+        # path to a mask file to determine where irrigation demand should be met first (value 1); if not set and where value is 0, nonirrigation demand will be met first (only used if return flow is enabled)
+        irrigation_first_mask_path: ~
         # longitude field name
         longitude: lon
         # latitude field name
         latitude: lat
         # time field name
         time: time
-        # demand field name # TODO support the different demand types using the flags
-        # todo: change to be consistent with other variable names: total_demand
+        # total demand field name; only used if return_flow_enabled is false
         demand: totalDemand
-        # TODO these modules aren't available yet
-        # flag to enable or disable groundwater
-        groundwater_enabled: false
-        # flag to enable or disable return flow
-        return_flow_enabled: false
-        # flag to enable or disable the tracking of irrigation vs non irrigation demand
-        total_demand_enabled: false
+        # irrigation demand withdrawal field name; only used if return_flow_enabled is true
+        irrigation_withdrawal: irrigation_withdrawal
+        # nonirrigation demand withdrawal field name; only used if return_flow_enabled is true
+        nonirrigation_withdrawal: nonirrigation_withdrawal
+        # irrigation demand consumption field name; only used if return_flow_enabled is true
+        irrigation_consumption: irrigation_consumption
+        # nonirrigation demand consumption field name; only used if return_flow_enabled is true
+        nonirrigation_consumption: nonirrigation_consumption
     # reservoir settings
     reservoirs:
         # use improved reservoir schedule module (ISTARF)
@@ -301,6 +325,9 @@ water_management:
             path: ./input/reservoirs/reservoirs.nc
             # grid cell index field
             grid_cell_index: GRID_CELL_INDEX
+            # optional minimum (dead) storage field name [million m3]; reservoirs missing a value
+            # here fall back to 0.1 * storage capacity, which was the behavior before this field existed
+            minimum_storage_variable: CAP_MIN
             # variable field names
             variables:
                 # reservoir id field name - typically the GRanD ID
@@ -381,6 +408,10 @@ water_management:
                 streamflow_month_index: MONTH_INDEX
                 # mean streamflow for month
                 streamflow: MEAN_FLOW
+        # optional initial reservoir storage file (csv or parquet); columns: GRAND_ID, GRID_CELL_INDEX, RES_NAME (identifiers), CAP_INIT (initial storage [million m3])
+        # if absent or path is null, defaults to 0.9 * storage capacity; missing values within the file also fall back to the default
+        initial_storage:
+            path: ~
         # database of monthly mean demand for each reservoir
         demand:
           # path to the demand file; can be absolute or relative to the source code root

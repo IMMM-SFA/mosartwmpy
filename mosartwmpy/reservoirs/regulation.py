@@ -8,7 +8,7 @@ from numba.typed import List, Dict
 @nb.jit(
     "void("
         "int64, float64,"
-        "int64[:], float64[:], float64[:], float64[:],"
+        "int64[:], float64[:], float64[:], float64[:], float64[:],"
         "boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64"
     ")",
     nopython=True,
@@ -22,6 +22,7 @@ def regulation(
     reservoir_id,
     reservoir_surface_area,
     reservoir_storage_capacity,
+    reservoir_minimum_storage,
     euler_mask,
     channel_outflow_downstream,
     reservoir_release,
@@ -32,7 +33,7 @@ def regulation(
 ):
     """Regulates the flow across the reservoirs."""
 
-    for i in nb.prange(n):
+    for i in nb.prange(n): # seems okay with numba
 
         if euler_mask[i] and (mosart_mask[i] > 0) and np.isfinite(reservoir_id[i]):
 
@@ -43,7 +44,7 @@ def regulation(
             evaporation = 1e6 * reservoir_potential_evaporation[i] * delta_t * reservoir_surface_area[i]
 
             minimum_flow = reservoir_runoff_capacity_parameter * reservoir_mean_inflow[i] * delta_t
-            minimum_storage = reservoir_runoff_capacity_parameter * reservoir_storage_capacity[i]
+            minimum_storage = reservoir_minimum_storage[i]
             maximum_storage = reservoir_storage_capacity[i]
 
             has_excess_storage = (inflow_volume + reservoir_storage[i] - outflow_volume - evaporation) >= maximum_storage
@@ -157,7 +158,7 @@ def extraction_regulated_flow(
             reservoir_id_to_index[int(reservoir_id[i])] = counter
             counter = counter + 1
 
-    for i in nb.prange(n):
+    for i in nb.prange(n): # seems okay with numba
         outflow_before_regulation[i] = -channel_outflow_downstream[i]
         channel_flow[i] = channel_flow[i] + channel_outflow_downstream[i]
 
@@ -172,13 +173,18 @@ def extraction_regulated_flow(
         reservoir_demand = np.full(n_reservoir, 0.0)
         # ratio of available water to total potential demand on a reservoir
         demand_fraction = np.full(n_reservoir, 0.0)
-        for i in nb.prange(n):
+#        for i in nb.prange(n):
+        for i in np.arange(n): # seems triggering a race condition with numba
             if grid_cell_unmet_demand[i] > 0:
                 # assign this grid cell's demand to each available reservoir
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        reservoir_demand[reservoir_id_to_index[r]] = reservoir_demand[reservoir_id_to_index[r]] + grid_cell_unmet_demand[i]
-        for r in nb.prange(n_reservoir):
+                        # skip dependencies on reservoirs absent from the grid (an
+                        # orphaned id would otherwise raise a KeyError that parallel
+                        # execution silently swallows, corrupting the iteration)
+                        if r in reservoir_id_to_index:
+                            reservoir_demand[reservoir_id_to_index[r]] = reservoir_demand[reservoir_id_to_index[r]] + grid_cell_unmet_demand[i]
+        for r in nb.prange(n_reservoir): # seems okay with numba
             # ratio of available water to total demand on a reservoir
             if (reservoir_demand[r] > 0.0) and (reservoir_flow_volume[r] > 0.0):
                 demand_fraction[r] = reservoir_flow_volume[r] / reservoir_demand[r]
@@ -187,12 +193,15 @@ def extraction_regulated_flow(
 
         if np.max(demand_fraction) >= 1.0:
             # case 1 - provide all water to grid cell split from all available reservoirs with demand_fraction > 1
-            for i in nb.prange(n):
+#            for i in nb.prange(n):
+            for i in np.arange(n): # seems triggering a race condition with numba
                 if grid_id[i] in reservoir_to_grid_map:
                     available_reservoirs = List()
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        if demand_fraction[reservoir_id_to_index[r]] >= 1.0:
-                            available_reservoirs.append(reservoir_id_to_index[r])
+                        # skip orphaned dependencies (see note above)
+                        if r in reservoir_id_to_index:
+                            if demand_fraction[reservoir_id_to_index[r]] >= 1.0:
+                                available_reservoirs.append(reservoir_id_to_index[r])
                     # take equally from each reservoir
                     if len(available_reservoirs) > 0:
                         for r in available_reservoirs:
@@ -202,33 +211,42 @@ def extraction_regulated_flow(
 
         else:
             sum_demand_fraction = np.full(n, 0.0)
-            for i in nb.prange(n):
+#            for i in nb.prange(n):
+            for i in np.arange(n): # not using numba right now, but needs to test (not covered by sample test run)
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[reservoir_id_to_index[r]]
+                        # skip orphaned dependencies (see note above)
+                        if r in reservoir_id_to_index:
+                            sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[reservoir_id_to_index[r]]
 
             if np.any(sum_demand_fraction >= 1.0):
                 # case 2 - provide all water to grid cell prorated from all available reservoirs
-                for i in nb.prange(n):
+#                for i in nb.prange(n):
+                for i in np.arange(n): # not using numba right now, but needs to test (not covered by sample test run)
                     if sum_demand_fraction[i] >= 1.0:
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]] / sum_demand_fraction[i]
+                            # skip orphaned dependencies (see note above)
+                            if r in reservoir_id_to_index:
+                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]] / sum_demand_fraction[i]
                         grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
                         grid_cell_unmet_demand[i] = 0.0
 
             else:
                 # case 3 - provide fraction of water to grid cell prorated from all available reservoirs
-                for i in nb.prange(n):
+#                for i in nb.prange(n):
+                for i in np.arange(n): # not using numba right now, but need to test (not covered by sample test run)
                     if sum_demand_fraction[i] > 0.0:
                         total_take = 0.0
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            take = min(grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]], grid_cell_unmet_demand[i])
-                            total_take = total_take + take
-                            reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - take
+                            # skip orphaned dependencies (see note above)
+                            if r in reservoir_id_to_index:
+                                take = min(grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]], grid_cell_unmet_demand[i])
+                                total_take = total_take + take
+                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - take
                         grid_cell_supply[i] = grid_cell_supply[i] + total_take
                         grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - total_take
 
-    for i in nb.prange(n):
+    for i in nb.prange(n): # seems okay with numba
         has_reservoir = np.isfinite(reservoir_id[i])
         if has_reservoir:
             # add the residual flow volume back to channel

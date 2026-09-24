@@ -4,6 +4,7 @@ import xarray as xr
 
 from numba.core import types
 from numba.typed import Dict
+from pathlib import Path
 from xarray import concat, open_dataset, DataArray
 from benedict.dicts import benedict as Benedict
 
@@ -18,25 +19,52 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         parameters (Parameters): the model parameters
     """
 
-    # reservoir parameter file
-    reservoirs_file = open_dataset(config.get('water_management.reservoirs.parameters.path'))
+    # reservoir parameter file — supports .nc (netCDF), .parquet, or .csv
+    reservoir_path = config.get('water_management.reservoirs.parameters.path')
+    suffix = Path(reservoir_path).suffix.lower()
+    if suffix in ('.parquet',):
+        reservoir_df = pd.read_parquet(reservoir_path)
+    elif suffix in ('.csv',):
+        reservoir_df = pd.read_csv(reservoir_path)
+    else:
+        reservoirs_file = open_dataset(reservoir_path)
+        reservoir_df = reservoirs_file.to_dataframe()
+        reservoirs_file.close()
     reservoirs = pd.DataFrame(index=self.id).merge(
-        reservoirs_file.to_dataframe(),
+        reservoir_df,
         how='left',
         left_index=True,
         right_on=config.get('water_management.reservoirs.parameters.grid_cell_index'),
     )
-    reservoirs_file.close()
 
     # load reservoir variables
+    # coerce to numpy arrays: under pandas with pyarrow, string columns (e.g. the
+    # reservoir behavior field) come back as an ArrowStringArray rather than an
+    # ndarray, which the mask-trimming loop in model.py would then skip -- leaving
+    # that array at full-grid size and breaking downstream broadcasts.
     for key, value in config.get('water_management.reservoirs.parameters.variables').items():
-        setattr(self, key, reservoirs[value].values)
+        setattr(self, key, np.asarray(reservoirs[value].values))
 
     # correct the fields with different units
     # surface area from km^2 to m^2
     self.reservoir_surface_area = self.reservoir_surface_area * 1.0e6
     # capacity from millions m^3 to m^3
     self.reservoir_storage_capacity = self.reservoir_storage_capacity * 1.0e6
+
+    # minimum storage: use CAP_MIN [million m3] from the file when it gives a usable
+    # value, otherwise fall back to reservoir_runoff_capacity_parameter * storage_capacity.
+    # a non-positive CAP_MIN is treated as missing rather than as a real zero floor: the
+    # published sample data carries CAP_MIN = 0 for a handful of reservoirs, and honoring
+    # that would let them draw down to empty, which is a regression against the historical
+    # 10%-of-capacity floor that applied before this column was read at all.
+    cap_min_col = config.get('water_management.reservoirs.parameters.minimum_storage_variable', 'CAP_MIN')
+    if cap_min_col in reservoirs.columns and reservoirs[cap_min_col].notna().any():
+        cap_min_m3 = np.asarray(reservoirs[cap_min_col].values, dtype=np.float64) * 1.0e6
+        fallback = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
+        usable = np.isfinite(cap_min_m3) & (cap_min_m3 > 0)
+        self.reservoir_minimum_storage = np.where(usable, cap_min_m3, fallback)
+    else:
+        self.reservoir_minimum_storage = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
 
     # reservoir dependency database file
     self.reservoir_dependency_database = pd.read_parquet(
@@ -56,7 +84,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         value_type=types.int64[:],
     )
     for grid_cell_id, group in self.reservoir_dependency_database.groupby('grid_cell_id'):
-        self.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
+        self.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values.copy()
 
     # index by grid cell
     self.reservoir_dependency_database = self.reservoir_dependency_database.set_index('grid_cell_id').sort_index()

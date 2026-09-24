@@ -12,6 +12,7 @@ from mosartwmpy.state.state import State
 from mosartwmpy.hillslope.routing import hillslope_routing
 from mosartwmpy.main_channel.irrigation import main_channel_irrigation
 from mosartwmpy.main_channel.routing import main_channel_routing
+from mosartwmpy.main_channel.state import update_main_channel_state
 from mosartwmpy.reservoirs.regulation import extraction_regulated_flow, regulation
 from mosartwmpy.subnetwork.irrigation import subnetwork_irrigation
 from mosartwmpy.subnetwork.routing import subnetwork_routing
@@ -54,6 +55,8 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
         state.delta_storage_land,
         state.delta_storage_ocean,
         state.grid_cell_deficit,
+        state.irrigation_consumption_deficit,
+        state.nonirrigation_consumption_deficit,
         state.storage,
         state.channel_storage,
         state.hillslope_wetland_runoff,
@@ -62,6 +65,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
         parameters.flood_threshold,
         parameters.river_depth_minimum,
     )
+
     # send the direct water to outlet
     state.direct[:] = pd.DataFrame(grid.id, columns=['id']).merge(
         pd.DataFrame(state.direct, columns=['direct']).join(
@@ -71,8 +75,29 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
         left_on='id',
         right_index=True
     ).direct.fillna(0.0).values
+
     subcycle_delta_t = config.get('simulation.timestep') / config.get('simulation.subcycles')
+
+    return_flow_enabled = config.get('water_management.demand.return_flow_enabled', False)
+
     for _ in np.arange(config.get('simulation.subcycles')):
+
+        # if returnflow enabled, add the soil column returnflow to this subcycle's runoff
+        if return_flow_enabled:
+            # m3/s -> m/s; dividing by land_fraction cancels the drainage_fraction factor
+            # that hillslope_routing applies on the way to the subnetwork (both come from
+            # the grid `frac` field), so the full return flow volume is delivered.
+            # This is a per-subcycle array rather than an update of the state: the runoff
+            # forcing is a rate that `_prepare` sets once per timestep, so folding return
+            # flow into it would compound it across the subcycles, and in the coupled path
+            # `model.update` hands that same array straight back to the caller.
+            subcycle_subsurface_runoff = state.hillslope_subsurface_runoff + (
+                state.irrigation_returnflow / (grid.area * grid.land_fraction)
+            )
+            state.irrigation_returnflow[:] = 0.0
+        else:
+            subcycle_subsurface_runoff = state.hillslope_subsurface_runoff
+
         _subcycle(
             n,
             config.get('water_management.enabled', False),
@@ -89,7 +114,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
             state.hillslope_storage,
             state.hillslope_surface_runoff,
             state.hillslope_delta_storage,
-            state.hillslope_subsurface_runoff,
+            subcycle_subsurface_runoff,
             state.subnetwork_lateral_inflow,
             state.channel_flow,
             state.channel_outflow_downstream_previous_timestep,
@@ -100,6 +125,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
             state.grid_cell_demand_rate,
             parameters.tiny_value,
         )
+
         for __ in np.arange(config.get('simulation.routing_iterations')):
             if config.get('water_management.enabled', False):
                 subnetwork_irrigation(
@@ -195,7 +221,9 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
                 parameters.tiny_value,
                 parameters.kinematic_wave_parameter,
             )
+
             if config.get('water_management.enabled', False):
+
                 main_channel_irrigation(
                     n,
                     grid.mosart_mask,
@@ -218,6 +246,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
                     parameters.irrigation_extraction_parameter,
                     parameters.irrigation_extraction_maximum_fraction,
                 )
+
                 regulation(
                     n,
                     subcycle_delta_t / config.get('simulation.routing_iterations'),
@@ -225,6 +254,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
                     grid.reservoir_id,
                     grid.reservoir_surface_area,
                     grid.reservoir_storage_capacity,
+                    grid.reservoir_minimum_storage,
                     state.euler_mask,
                     state.channel_outflow_downstream,
                     state.reservoir_release,
@@ -245,6 +275,35 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
                 mask,
                 state.channel_flow - state.channel_outflow_downstream,
                 state.channel_flow
+            )
+
+        # if returnflow enabled, update channel returnflow
+        if return_flow_enabled:
+            # m3/s -> m3 of water returned over this subcycle
+            state.channel_storage = state.channel_storage + (
+                state.nonirrigation_returnflow * subcycle_delta_t
+            )
+            state.nonirrigation_returnflow[:] = 0.0
+            # bring the derived channel geometry back in sync with the new storage, the
+            # same way main_channel_irrigation does after it withdraws; otherwise the
+            # next kinematic wave evaluation routes on a stale cross section, and the
+            # end of timestep state is left inconsistent with its own storage
+            _update_channel_geometry(
+                n,
+                grid.mosart_mask,
+                state.euler_mask,
+                grid.channel_length,
+                grid.grid_channel_depth,
+                grid.channel_width,
+                grid.channel_floodplain_width,
+                state.channel_storage,
+                state.channel_cross_section_area,
+                state.channel_depth,
+                state.channel_wetness_perimeter,
+                state.channel_hydraulic_radii,
+                parameters.tiny_value,
+                parameters.slope_1_def,
+                parameters.inverse_sin_atan_slope_1_def,
             )
 
         _average_over_routing_iterations(
@@ -275,6 +334,80 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
                 parameters.reservoir_supply_iterations,
                 parameters.reservoir_flow_volume_ratio,
             )
+
+            # update returnflows and disaggregate supply/demand/deficit types, if enabled
+            if return_flow_enabled:
+
+                incremental_supply = state.grid_cell_demand_rate * subcycle_delta_t - state.grid_cell_unmet_demand
+
+                # initialize fractions based on priority mask
+                irrigation_fraction_met = np.clip(np.where(
+                    grid.irrigation_first_mask > 0,
+                    np.where(
+                        state.irrigation_withdrawal_rate > 0,
+                        (incremental_supply) / (state.irrigation_withdrawal_rate * subcycle_delta_t),
+                        1.0
+                    ),
+                    0.0
+                ), 0.0, 1.0)
+                nonirrigation_fraction_met = np.clip(np.where(
+                    grid.irrigation_first_mask == 0,
+                    np.where(
+                        state.nonirrigation_withdrawal_rate > 0,
+                        (incremental_supply) / (state.nonirrigation_withdrawal_rate * subcycle_delta_t),
+                        1.0
+                    ),
+                    0.0
+                ), 0.0, 1.0)
+
+                # remaining supply after priority fulfillment
+                remaining_supply = np.where(
+                    grid.irrigation_first_mask > 0,
+                    np.where(
+                        irrigation_fraction_met < 1.0,
+                        0.0,
+                        incremental_supply - (state.irrigation_withdrawal_rate * subcycle_delta_t)
+                    ),
+                    np.where(
+                        nonirrigation_fraction_met < 1.0,
+                        0.0,
+                        incremental_supply - (state.nonirrigation_withdrawal_rate * subcycle_delta_t)
+                    )
+                )
+
+                # update fractions based on the remaining supply
+                irrigation_fraction_met = np.clip(np.where(
+                    grid.irrigation_first_mask > 0,
+                    irrigation_fraction_met,
+                    np.where(
+                        state.irrigation_withdrawal_rate > 0,
+                        remaining_supply / (state.irrigation_withdrawal_rate * subcycle_delta_t),
+                        1.0
+                    )
+                ), 0.0, 1.0)
+                nonirrigation_fraction_met = np.clip(np.where(
+                    grid.irrigation_first_mask == 0,
+                    nonirrigation_fraction_met,
+                    np.where(
+                        state.nonirrigation_withdrawal_rate > 0,
+                        remaining_supply / (state.nonirrigation_withdrawal_rate * subcycle_delta_t),
+                        1.0
+                    )
+                ), 0.0, 1.0)
+
+                # update the consumption deficit
+                state.irrigation_consumption_deficit = state.irrigation_consumption_deficit + (
+                    (1.0 - irrigation_fraction_met) * (state.irrigation_consumption_rate * subcycle_delta_t)
+                )
+                state.nonirrigation_consumption_deficit = state.nonirrigation_consumption_deficit + (
+                    (1.0 - nonirrigation_fraction_met) * (state.nonirrigation_consumption_rate * subcycle_delta_t)
+                )
+
+                # update the returnflows
+                state.irrigation_returnflow = irrigation_fraction_met * (state.irrigation_withdrawal_rate - state.irrigation_consumption_rate)
+                state.nonirrigation_returnflow = nonirrigation_fraction_met * (state.nonirrigation_withdrawal_rate - state.nonirrigation_consumption_rate)
+
+                del incremental_supply, remaining_supply
 
         _accumulate_flow_field(
             n,
@@ -333,7 +466,7 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
         "int64, boolean, int64, int64[:], int64[:], float64[:], float64[:], float64[:], float64[:],"
         "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
         "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
-        " float64[:], float64, float64"
+        "float64[:], float64[:], float64[:], float64, float64"
     ")",
     parallel=True,
     nopython=True,
@@ -364,6 +497,8 @@ def _prepare(
     delta_storage_land,
     delta_storage_ocean,
     grid_cell_deficit,
+    irrigation_consumption_deficit,
+    nonirrigation_consumption_deficit,
     storage,
     channel_storage,
     hillslope_wetland_runoff,
@@ -391,6 +526,8 @@ def _prepare(
         delta_storage_ocean[i] = 0.0
         if water_management_enabled:
             grid_cell_deficit[i] = 0.0
+            irrigation_consumption_deficit[i] = 0.0
+            nonirrigation_consumption_deficit[i] = 0.0
 
         ###
         ### flood
@@ -520,6 +657,60 @@ def _subcycle(
         # get the demand volume for this substep
         if water_management_enabled:
             grid_cell_unmet_demand[i] = grid_cell_demand_rate[i] * delta_t
+
+
+@nb.jit(
+    "void("
+        "int64, int64[:], boolean[:],"
+        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:],"
+        "float64[:], float64[:], float64[:], float64, float64, float64"
+    ")",
+    parallel=True,
+    nopython=True,
+    nogil=True,
+    cache=True,
+)
+def _update_channel_geometry(
+    n,
+    mosart_mask,
+    euler_mask,
+    channel_length,
+    grid_channel_depth,
+    channel_width,
+    channel_floodplain_width,
+    channel_storage,
+    channel_cross_section_area,
+    channel_depth,
+    channel_wetness_perimeter,
+    channel_hydraulic_radii,
+    tiny_value,
+    slope_1_def,
+    inverse_sin_atan_slope_1_def,
+):
+    """Recomputes the derived main channel geometry from the current channel storage.
+
+    `update_main_channel_state` is normally reached from inside the routing loop; this
+    wrapper applies it across the grid after channel storage is modified outside that
+    loop. The cell gate matches `main_channel_routing`.
+    """
+    for i in nb.prange(n):
+        if ~euler_mask[i] or ~(mosart_mask[i] > 0):
+            continue
+        update_main_channel_state(
+            i,
+            channel_length,
+            grid_channel_depth,
+            channel_width,
+            channel_floodplain_width,
+            channel_storage,
+            channel_cross_section_area,
+            channel_depth,
+            channel_wetness_perimeter,
+            channel_hydraulic_radii,
+            tiny_value,
+            slope_1_def,
+            inverse_sin_atan_slope_1_def,
+        )
 
 
 @nb.jit(
