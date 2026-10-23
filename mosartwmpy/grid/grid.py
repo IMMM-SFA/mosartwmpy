@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -22,7 +23,15 @@ np.seterr(all='ignore')
 
 class Grid:
     """Class to store grid related values that are constant throughout a simulation."""
-    
+
+    # schema version written to grid cache files by `to_files` and read back by `from_files`;
+    # bump it whenever a per-cell array that the model reads is added, so older caches are detected
+    CACHE_VERSION: int = 1
+    # version of the cache file this instance was loaded from; 0 means the cache predates versioning
+    cache_version: int = 0
+    # ndarray attributes that are not indexed by grid cell
+    NON_CELL_ARRAYS = ('unique_longitudes', 'unique_latitudes')
+
     # initialize all properties
     id: np.ndarray = np.empty(0)
     nldas_id: np.ndarray = np.empty(0)
@@ -400,6 +409,50 @@ class Grid:
     def __getitem__(self, item):
         return getattr(self, item)
 
+    def validate(self, n: int, config: Benedict, parameters: Parameters) -> None:
+        """Checks that every per-cell array the model reads has one value per active grid cell.
+
+        A grid cache written by an older mosartwmpy lacks the arrays added since, and `from_files`
+        leaves those at their size-0 class default. The numba kernels do no bounds checking, so
+        they would read past the end of such an array silently. Arrays with a well defined
+        historical value are filled in with a warning; anything else is an error asking the user
+        to rebuild the cache.
+
+        Args:
+            n (int): the number of active grid cells, i.e. the size the arrays were trimmed to
+            config (Benedict): the model configuration
+            parameters (Parameters): the model parameters
+        """
+
+        water_management = config.get('water_management.enabled', False)
+        return_flow = water_management and config.get('water_management.demand.return_flow_enabled', False)
+        for key in [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]:
+            if key in self.NON_CELL_ARRAYS:
+                continue
+            size = getattr(self, key).size
+            if size == n:
+                continue
+            if size == 0:
+                # arrays that are legitimately empty because their feature is off
+                if key.startswith('reservoir_') and not water_management:
+                    continue
+                if key == 'irrigation_first_mask' and not return_flow:
+                    continue
+                # before this array existed, every reservoir's minimum storage was this product
+                if key == 'reservoir_minimum_storage' and self.reservoir_storage_capacity.size == n:
+                    logging.warning(
+                        f'Grid cache (version {self.cache_version}) has no `reservoir_minimum_storage`; falling back to '
+                        f'{parameters.reservoir_runoff_capacity_parameter} * reservoir_storage_capacity for every reservoir. '
+                        f'Rebuild the grid cache to use the minimum storage from the reservoir parameter file.'
+                    )
+                    self.reservoir_minimum_storage = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
+                    continue
+            raise ValueError(
+                f'Grid array `{key}` has {size} values but the grid has {n} active cells (cache version '
+                f'{self.cache_version}, current {self.CACHE_VERSION}); the grid cache predates this attribute, '
+                f'rebuild the grid cache from the domain file with `Grid(config, parameters).to_files(...)`.'
+            )
+
     def to_files(self, path: str, mask: np.ndarray) -> None:
         """Builds a dataframe from all the grid values.
         
@@ -422,7 +475,8 @@ class Grid:
         for key in special:
             keys.remove(key)
             to_pickle[key] = getattr(self, key)
-        
+        to_pickle['cache_version'] = Grid.CACHE_VERSION
+
         # handle numpy arrrays
         npdf = pd.DataFrame()
         for key in [key for key in keys if isinstance(getattr(self, key), np.ndarray)]:
@@ -520,6 +574,19 @@ class Grid:
                         ds = xr.open_dataarray(file, engine='h5netcdf').load()
                         setattr(grid, key, ds)
                         ds.close()
+
+        # a cache written before an array was added leaves that array at its size-0 class default;
+        # `Grid.validate` (called from Model.initialize) decides whether that is recoverable
+        if grid.cache_version < Grid.CACHE_VERSION:
+            missing = [
+                key for key in dir(grid)
+                if isinstance(getattr(grid, key), np.ndarray) and getattr(grid, key).size == 0 and key not in Grid.NON_CELL_ARRAYS
+            ]
+            logging.warning(
+                f'Grid cache `{path}` was written by an older mosartwmpy (cache version {grid.cache_version}, '
+                f'current {Grid.CACHE_VERSION}) and does not contain: {", ".join(missing)}. '
+                f'Rebuild the grid cache from the domain file to include them.'
+            )
 
         # recreate the numba grid to reservoir map
         if grid.reservoir_dependency_database.size > 0:

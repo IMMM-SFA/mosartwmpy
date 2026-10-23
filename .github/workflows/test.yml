@@ -48,3 +48,29 @@ jobs:
         if: failure()  # This step will only run if any previous step fails
         run: |
           echo "Build or tests failed. Please check the logs."
+
+  bounds-check:
+    # the numba kernels do no bounds checking in normal operation, so an undersized array is read
+    # past its end silently; this job runs the suite once with bounds checking compiled in
+    name: Numba bounds checking on Python 3.12
+    runs-on: ubuntu-latest
+    env:
+      NUMBA_BOUNDSCHECK: '1'
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@master
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install pytest
+
+      - name: Test with bounds checking
+        run: |
+          pytest
