@@ -36,6 +36,8 @@ def load_runoff(state: State, grid: Grid, config: Benedict, current_time: dateti
     ])
 
     # check for non-standard calendar and convert if needed
+    # unsafe=True silences the calendar-mismatch warning: mapping noleap/360_day dates onto the
+    # standard calendar is intended, and the time selection below pads to the nearest earlier date
     if not isinstance(runoff.indexes[config.get('runoff.time')], pd.DatetimeIndex):
         runoff[config.get('runoff.time')] = runoff.indexes[config.get('runoff.time')].to_datetimeindex(time_unit='ns', unsafe=True)
 
