@@ -1,4 +1,7 @@
 import io
+import logging
+import sys
+import tracemalloc
 import unittest
 import zipfile
 
@@ -6,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from mosartwmpy.utilities import msdlive
+from mosartwmpy.utilities import download_data, msdlive
 from mosartwmpy.utilities.download_data import InstallSupplement
 
 
@@ -48,12 +51,14 @@ class FakeResponse:
         self._content = content
         self.status_code = status_code
         self.headers = {'content-length': str(len(content))}
+        self.chunk_sizes = []
 
     def raise_for_status(self):
         if self.status_code >= 400:
             raise AssertionError(f'status {self.status_code}')
 
     def iter_content(self, chunk_size=1):
+        self.chunk_sizes.append(chunk_size)
         for i in range(0, len(self._content), chunk_size):
             yield self._content[i:i + chunk_size]
 
@@ -228,6 +233,53 @@ class DownloadRoutingTest(unittest.TestCase):
                 supplement.fetch()
             get.assert_called_once()
             self.assertTrue((Path(tmpdir) / 'input' / 'hello.txt').is_file())
+
+
+class UnpackTest(unittest.TestCase):
+    """The archive is streamed to disk in large chunks, not buffered in memory."""
+
+    MEMBER_SIZE = 32 * 1024 * 1024
+
+    @classmethod
+    def large_zip_bytes(cls):
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, 'w', compression=zipfile.ZIP_STORED) as zipped:
+            zipped.writestr('input/payload.bin', bytes(cls.MEMBER_SIZE))
+        return stream.getvalue()
+
+    def fetch_plain(self, response, tmpdir):
+        supplement = InstallSupplement(url='https://zenodo.org/record/1/files/a.zip?download=1', destination=tmpdir)
+        with patch('mosartwmpy.utilities.download_data.requests.get', return_value=response):
+            supplement.fetch()
+
+    def test_peak_memory_stays_far_below_the_archive_size(self):
+        response = FakeResponse(content=self.large_zip_bytes())
+        with TemporaryDirectory() as tmpdir:
+            tracemalloc.start()
+            try:
+                self.fetch_plain(response, tmpdir)
+                _, peak = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+            self.assertEqual((Path(tmpdir) / 'input' / 'payload.bin').stat().st_size, self.MEMBER_SIZE)
+        # buffering the archive in memory peaks at about the archive size; streaming peaks at a few chunks
+        self.assertLess(peak, self.MEMBER_SIZE / 4, f'peak traced memory {peak / 2**20:.1f} MB for a {self.MEMBER_SIZE / 2**20:.0f} MB archive')
+
+    def test_plain_download_reads_one_mebibyte_chunks(self):
+        response = FakeResponse(content=DownloadRoutingTest.zip_bytes())
+        with TemporaryDirectory() as tmpdir:
+            self.fetch_plain(response, tmpdir)
+        self.assertEqual(response.chunk_sizes, [download_data.CHUNK_SIZE])
+        self.assertEqual(download_data.CHUNK_SIZE, 1024 * 1024)
+
+    def test_corrupt_archive_raises_and_releases_the_logger(self):
+        response = FakeResponse(content=b'<html>not a zip</html>')
+        with TemporaryDirectory() as tmpdir:
+            with self.assertRaises(zipfile.BadZipFile):
+                self.fetch_plain(response, tmpdir)
+        # the stdout handler InstallSupplement attaches must not survive a failed download
+        stdout_handlers = [h for h in logging.getLogger().handlers if getattr(h, 'stream', None) is sys.stdout]
+        self.assertEqual(stdout_handlers, [], 'the download handler is removed on failure')
 
 
 if __name__ == '__main__':
