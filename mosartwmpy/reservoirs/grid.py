@@ -10,6 +10,37 @@ from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
 
+# file formats accepted for the reservoir parameter file, by extension; shared with the writer in
+# utilities/create_grand_parameters.py so the two cannot drift apart
+RESERVOIR_PARAMETER_FORMATS = {
+    '.nc': 'netcdf',
+    '.nc4': 'netcdf',
+    '.parquet': 'parquet',
+    '.csv': 'csv',
+}
+
+
+def reservoir_parameter_format(path: str) -> str:
+    """Determines the reservoir parameter file format from the path's extension.
+
+    Args:
+        path (str): path of a reservoir parameter file to read or write
+
+    Returns:
+        str: one of 'netcdf', 'parquet' or 'csv'
+
+    Raises:
+        ValueError: if the extension is not a supported format
+    """
+
+    suffix = Path(path).suffix.lower()
+    if suffix not in RESERVOIR_PARAMETER_FORMATS:
+        raise ValueError(
+            f'Unsupported reservoir parameter file `{path}`: the extension `{suffix}` is not one of '
+            f'{", ".join(sorted(RESERVOIR_PARAMETER_FORMATS))}.'
+        )
+    return RESERVOIR_PARAMETER_FORMATS[suffix]
+
 
 def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     """Loads the reservoir information from file onto the grid.
@@ -21,15 +52,28 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
 
     # reservoir parameter file — supports .nc (netCDF), .parquet, or .csv
     reservoir_path = config.get('water_management.reservoirs.parameters.path')
-    suffix = Path(reservoir_path).suffix.lower()
-    if suffix in ('.parquet',):
+    file_format = reservoir_parameter_format(reservoir_path)
+    if file_format == 'parquet':
         reservoir_df = pd.read_parquet(reservoir_path)
-    elif suffix in ('.csv',):
+    elif file_format == 'csv':
         reservoir_df = pd.read_csv(reservoir_path)
     else:
         reservoirs_file = open_dataset(reservoir_path)
         reservoir_df = reservoirs_file.to_dataframe()
         reservoirs_file.close()
+
+    # every configured column must be present before the merge and the attribute loop below
+    # dereference them, so a renamed column is reported with the file and the config keys
+    grid_cell_index = config.get('water_management.reservoirs.parameters.grid_cell_index')
+    variables = config.get('water_management.reservoirs.parameters.variables')
+    required = dict.fromkeys([grid_cell_index] + list(variables.values()))
+    missing = [column for column in required if column not in reservoir_df.columns]
+    if missing:
+        raise KeyError(
+            f'Reservoir parameter file `{reservoir_path}` has no column(s) {missing}; check the '
+            f'`water_management.reservoirs.parameters` field names in the configuration.'
+        )
+
     reservoirs = pd.DataFrame(index=self.id).merge(
         reservoir_df,
         how='left',
