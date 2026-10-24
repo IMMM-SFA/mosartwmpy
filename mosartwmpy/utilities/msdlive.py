@@ -86,6 +86,13 @@ def get_anonymous_credentials(credentials_url: str = CREDENTIALS_URL) -> dict:
     for key in ('region', 'accountId', 'credentials'):
         if key not in payload:
             raise KeyError(f'MSD-LIVE credentials response is missing "{key}".')
+    # the nested keys are dereferenced while signing every request; check them here so a
+    # malformed response is reported as such rather than as a bare KeyError deep in the signer
+    if not isinstance(payload['credentials'], dict):
+        raise KeyError('MSD-LIVE credentials response has no "credentials" object.')
+    for key in ('accessKeyId', 'secretKey', 'sessionToken'):
+        if key not in payload['credentials']:
+            raise KeyError(f'MSD-LIVE credentials response is missing "credentials.{key}".')
     return payload
 
 
@@ -216,18 +223,30 @@ def list_record_files(record_id: str, credentials: dict = None) -> list:
         response = _signed_request(credentials, record_id, query=query)
         response.raise_for_status()
 
-        tree = ElementTree.fromstring(response.text)
+        # parse the raw bytes so the XML declaration governs the decoding, and turn every
+        # malformed response into a ValueError that names the record, which the caller logs
+        try:
+            tree = ElementTree.fromstring(response.content)
+        except ElementTree.ParseError as e:
+            raise ValueError(f'Unexpected listing response from MSD-LIVE record {record_id}: {e}.') from e
         for contents in tree.findall('s3:Contents', S3_NAMESPACE):
-            key = contents.find('s3:Key', S3_NAMESPACE).text
-            size = int(contents.find('s3:Size', S3_NAMESPACE).text)
-            files.append({'key': key, 'size': size})
+            key = contents.findtext('s3:Key', namespaces=S3_NAMESPACE)
+            size = contents.findtext('s3:Size', namespaces=S3_NAMESPACE)
+            if key is None or size is None or not size.strip().isdigit():
+                entry = ElementTree.tostring(contents, encoding='unicode').strip()
+                raise ValueError(f'Unexpected listing entry from MSD-LIVE record {record_id}, expected Key and Size: {entry}')
+            files.append({'key': key, 'size': int(size)})
 
-        truncated = tree.find('s3:IsTruncated', S3_NAMESPACE)
-        if truncated is not None and truncated.text == 'true':
-            token = tree.find('s3:NextContinuationToken', S3_NAMESPACE)
-            continuation_token = token.text if token is not None else None
-            if continuation_token:
-                continue
+        if tree.findtext('s3:IsTruncated', namespaces=S3_NAMESPACE) == 'true':
+            continuation_token = tree.findtext('s3:NextContinuationToken', namespaces=S3_NAMESPACE)
+            if not continuation_token:
+                # returning here would hand back a silently partial listing, and the eventual
+                # "record has no file named ..." error would blame the record instead
+                raise ValueError(
+                    f'Listing of MSD-LIVE record {record_id} is truncated but carries no continuation token; '
+                    f'the file list would be incomplete.'
+                )
+            continue
         break
 
     return sorted(files, key=lambda f: f['size'], reverse=True)
