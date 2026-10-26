@@ -10,6 +10,15 @@ First release since v0.6.2. Consolidates the numpy 2 migration, two validated re
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
 on `main` was never published; this release supersedes it.
 
+**Rebuild any grid cache written before this release and re-run.** Grid caches saved with
+`Grid.to_files` before 1.0.0 lack the `reservoir_minimum_storage` array that the reservoir
+regulation kernel now reads. Until the fix in this release (#143), the 1.0.0 development code
+read past the end of that empty array with no error and no log message, so reservoir
+operations in any run that reused such a cache were wrong: on the packaged test fixture 1,498
+cells differ after 8 steps, by up to 299 m<sup>3</sup>/s in channel outflow and
+2.27e7 m<sup>3</sup> in reservoir storage. Rebuild the cache from the domain file and re-run.
+Caches are now versioned and checked when the model initializes.
+
 ### Added
 - **Return flow** (opt-in, off by default). When `water_management.demand.return_flow_enabled`
   is set, the unconsumed portion of met withdrawals is routed back into the water system:
@@ -63,6 +72,28 @@ on `main` was never published; this release supersedes it.
   at all. It now uses `ghcr.io/msd-live/jupyter/python-notebook:latest` (Python 3.11) and
   installs the published `mosartwmpy` from PyPI rather than the source in the build context;
   it no longer downloads the sample dataset or sets a command to run the model. (Emily Rexer)
+- **Output `aggregation` defaults to `mean`.** Each `simulation.output` entry accepts an
+  `aggregation` of `mean` or `sum`; a missing key now means `mean`, which is how every output was
+  written before the key existed, and any other value is rejected when the model initializes. The
+  default configuration is unaffected, since all of its entries carry the key; only user configs
+  that supply their own `simulation.output` list are affected, and for them this restores daily
+  averages in place of daily sums. (#129)
+- **xarray floor raised to 2025.1.2**, the release that added the `time_unit` keyword the input
+  loaders use when converting `noleap` and `360_day` calendars. The demand loader now converts
+  calendars the same way as the runoff loader. (#131)
+- **Misconfigured initial storage file is an error.** When
+  `water_management.reservoirs.initial_storage.path` is set, a missing file, an unsupported
+  extension, a file without `CAP_INIT`, or a file with neither `GRAND_ID` nor `GRID_CELL_INDEX`
+  raises instead of logging a warning and running on 90% of capacity. A null path still means no
+  file, and reservoirs absent from the file still take the default. `RES_NAME` is no longer
+  documented as an identifier column, since it was never joined on. (#135, #136)
+- **Regulated flow about three times faster.** `extraction_regulated_flow` resolves dependency
+  reservoir ids through a dense array instead of a numba typed dictionary, removing roughly 70%
+  of the kernel's time (about 60% of a 20-thread timestep) with bit-identical results. (#144)
+- **Downloads stream to disk.** `mosartwmpy.download` writes the archive to a temporary file and
+  extracts from it instead of holding the whole archive in memory, and reads 1 MiB chunks on both
+  transports; peak memory for the 702 MB sample archive drops from roughly the archive size to a
+  few megabytes. (#141)
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Four loops in
@@ -99,6 +130,37 @@ on `main` was never published; this release supersedes it.
   the core model test suite under the numpy 2 stack.
 - **SyntaxWarning on the multi-file path regexes** in `input/demand.py` (invalid escape sequence
   `\{` under Python 3.12+) resolved by using raw strings. (#111)
+- **Grid caches are versioned and validated.** `Grid.to_files` writes a cache schema version and
+  `Grid.from_files` warns when it loads an older cache. `Model.initialize` checks that every
+  per-cell array the kernels read has one value per active cell: a missing
+  `reservoir_minimum_storage` is restored to its historical tenth of storage capacity with a
+  warning, and any other missing array is an error asking for the cache to be rebuilt. Previously
+  the regulation kernel read past the end of the empty array silently (see the notice at the top
+  of this release). The test suite now also runs under `NUMBA_BOUNDSCHECK=1` in CI, which catches
+  this class of defect outright. (#143)
+- **Return flow in cells with zero land fraction.** The irrigation return flow flux divided by
+  area times land fraction, which is 0 / 0 in an active cell with no land and, with numpy errors
+  ignored process-wide, a silent NaN in hillslope, subnetwork and channel storage. The flux is now
+  zero where there is no land area. Latent on the published CONUS grid, where every active cell
+  has a land fraction of 1. (#132)
+- **Irrigation-first mask shape is checked at grid load.** A mask on a different grid used to pass
+  grid construction and fail on the first timestep with a broadcast error that did not name the
+  file; it now raises at load naming the file and both cell counts. (#133)
+- **Demand file open errors are typed and logged.** The demand loader no longer wraps the file open
+  in a bare `except` that called `sys.exit`, which reported a wrong coordinate name as an
+  unopenable file, swallowed Ctrl-C, and bypassed the failed-timestep log entry in `Model.update`
+  before terminating a BMI host process. A missing file raises `FileNotFoundError`, an unreadable
+  one `PermissionError`, a file that is not netCDF `ValueError`, all naming the path, and a wrong
+  coordinate name raises its own `KeyError`. (#138)
+- **Reservoir parameter file type and columns are validated.** A file extension other than
+  `.nc`, `.nc4`, `.parquet` or `.csv` raises naming the file and the supported extensions instead
+  of falling through to the netCDF reader, and a file missing the grid cell index column or any
+  configured variable column raises naming the file and the columns. `create_grand_parameters`
+  refuses an unsupported output extension before doing any work. (#134)
+- **MSD-LIVE responses are validated.** Credentials missing a nested key, listing entries without a
+  key or size, malformed listing XML, and a truncated listing without a continuation token each
+  raise a typed error naming the problem, where before they surfaced as bare `KeyError`,
+  `AttributeError` or `ParseError`, or as a silently partial file list. (#142)
 
 ### Notes
 - The return-flow return-flux scaling in `update.py` (division factors applied when adding
