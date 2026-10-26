@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import shutil
 import unittest
 import yaml
 
@@ -13,7 +14,7 @@ from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
-from mosartwmpy.reservoirs.grid import load_reservoirs
+from mosartwmpy.reservoirs.grid import load_reservoirs, reservoir_parameter_format
 from mosartwmpy.reservoirs.state import _load_initial_storage
 
 
@@ -207,6 +208,48 @@ class ReservoirParametersTest(unittest.TestCase):
         """The field must exist on a grid loaded from cache, which skips load_reservoirs."""
 
         self.assertTrue(hasattr(Grid(empty=True), 'reservoir_minimum_storage'))
+
+    def test_unsupported_extension_raises_naming_the_file(self):
+        """A typo in the extension must not fall through to the netCDF reader."""
+
+        path = str(Path(self.tmpdir.name) / 'reservoirs.parqet')
+        shutil.copyfile(self.paths_with_cap_min['.parquet'], path)
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        message = str(context.exception)
+        self.assertIn(path, message)
+        for suffix in ('.nc', '.parquet', '.csv'):
+            self.assertIn(suffix, message)
+
+    def test_missing_grid_cell_index_column_raises_naming_the_file(self):
+        frame = pd.read_csv(self.paths_with_cap_min['.csv']).rename(columns={'GRID_CELL_INDEX': 'CELL'})
+        path = str(Path(self.tmpdir.name) / 'reservoirs_no_grid_cell_index.csv')
+        frame.to_csv(path, index=False)
+        with self.assertRaises(KeyError) as context:
+            self.load(path)
+        # the raw message, since str() of a KeyError repr-escapes the backslashes in a Windows path
+        message = context.exception.args[0]
+        self.assertIn(path, message)
+        self.assertIn('GRID_CELL_INDEX', message)
+
+    def test_missing_variable_column_raises_naming_the_file(self):
+        frame = pd.read_csv(self.paths_with_cap_min['.csv']).rename(columns={'CAP_MCM': 'CAPACITY'})
+        path = str(Path(self.tmpdir.name) / 'reservoirs_no_cap_mcm.csv')
+        frame.to_csv(path, index=False)
+        with self.assertRaises(KeyError) as context:
+            self.load(path)
+        message = context.exception.args[0]
+        self.assertIn(path, message)
+        self.assertIn('CAP_MCM', message)
+
+    def test_writer_format_refuses_unknown_extensions(self):
+        """create_grand_parameters shares this dispatch, so it can no longer write netCDF bytes to out.xlsx."""
+
+        for path, expected in (('reservoirs.nc', 'netcdf'), ('reservoirs.parquet', 'parquet'), ('reservoirs.CSV', 'csv')):
+            self.assertEqual(reservoir_parameter_format(path), expected)
+        with self.assertRaises(ValueError) as context:
+            reservoir_parameter_format('reservoirs.xlsx')
+        self.assertIn('.xlsx', str(context.exception))
 
 
 class InitialStorageTest(unittest.TestCase):

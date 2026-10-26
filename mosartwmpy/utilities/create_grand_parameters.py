@@ -7,6 +7,8 @@ from shapely.geometry import Point
 import xarray as xr
 from scipy.spatial import KDTree
 
+from mosartwmpy.reservoirs.grid import reservoir_parameter_format
+
 
 @click.command()
 @click.option(
@@ -204,6 +206,10 @@ def create_grand_parameters(
 ):
     """Create a reservoir parameter file based on an input grid file, an input GRanD dams file, and an input
        ISTARF parameter file."""
+
+    # refuse an output extension the model cannot read before doing the work, rather than
+    # writing netCDF bytes under an arbitrary name at the end
+    reservoir_output_format = reservoir_parameter_format(reservoir_output_path)
 
     # read the files
     domain = xr.open_dataset(grid_path)
@@ -572,10 +578,9 @@ def create_grand_parameters(
          'CAP_MCM', 'CAP_MIN', 'DEPTH_M', 'CATCH_SKM', 'USE_IRRI', 'USE_ELEC', 'USE_SUPP', 'USE_FCON', 'USE_RECR',
          'USE_NAVI', 'USE_FISH', 'USE_PCON', 'USE_OTHR', 'MAIN_USE', 'ORIGINAL_GRID_CELL_INDEX', 'LONG_DD',
          'LAT_DD'] + list(istarf_key_map.values())]
-    reservoir_suffix = Path(reservoir_output_path).suffix.lower()
-    if reservoir_suffix == '.parquet':
+    if reservoir_output_format == 'parquet':
         reservoir_parameters.to_parquet(reservoir_output_path, index=False)
-    elif reservoir_suffix == '.csv':
+    elif reservoir_output_format == 'csv':
         reservoir_parameters.to_csv(reservoir_output_path, index=False)
     else:
         reservoir_parameters.to_xarray().to_netcdf(reservoir_output_path)
