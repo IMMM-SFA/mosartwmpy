@@ -91,8 +91,12 @@ def update(state: State, grid: Grid, parameters: Parameters, config: Benedict, c
             # forcing is a rate that `_prepare` sets once per timestep, so folding return
             # flow into it would compound it across the subcycles, and in the coupled path
             # `model.update` hands that same array straight back to the caller.
-            subcycle_subsurface_runoff = state.hillslope_subsurface_runoff + (
-                state.irrigation_returnflow / (grid.area * grid.land_fraction)
+            # An active cell can have land_fraction == 0 (mosart_mask only looks at flow
+            # direction), which would make this 0 / 0 and, with numpy errors ignored, a silent
+            # NaN; such a cell has no land to return water to, so its flux is zero.
+            land_area = grid.area * grid.land_fraction
+            subcycle_subsurface_runoff = state.hillslope_subsurface_runoff + np.divide(
+                state.irrigation_returnflow, land_area, out=np.zeros_like(land_area), where=land_area > 0
             )
             state.irrigation_returnflow[:] = 0.0
         else:

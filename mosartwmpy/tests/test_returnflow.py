@@ -112,6 +112,31 @@ class ReturnFlowTest(unittest.TestCase):
             "nonirrigation consumption deficit is non-negative",
         )
 
+    def test_zero_land_fraction_cell_stays_finite(self):
+        """An active cell with land_fraction == 0 must not turn the return flow flux into NaN.
+
+        `mosart_mask > 0` does not imply `land_fraction > 0`, and numpy errors are ignored
+        process-wide, so an unguarded `irrigation_returnflow / (area * land_fraction)` is a
+        silent NaN that propagates into hillslope, subnetwork and channel storage. The packaged
+        grid has `land_fraction == 1` in every active cell, so zeros are injected here.
+        """
+        grid = self.model.grid
+        original = grid.land_fraction.copy()
+        self.addCleanup(np.copyto, grid.land_fraction, original)
+
+        # spread the injected cells across the domain, avoiding the 21 cells whose NaN
+        # channel_slope already makes their storage non-finite on the packaged grid
+        candidates = np.nonzero(np.isfinite(grid.channel_slope))[0]
+        targets = candidates[np.linspace(0, candidates.size - 1, 5).astype(int)]
+        grid.land_fraction[targets] = 0.0
+
+        self.model.update()
+
+        # np.isfinite rather than assert_allclose, which treats NaN == NaN
+        for name in ('hillslope_storage', 'subnetwork_storage', 'storage', 'channel_storage'):
+            values = getattr(self.model.state, name)[targets]
+            self.assertTrue(np.isfinite(values).all(), f"{name} is finite in zero land fraction cells")
+
     # -- conversion regression tests ------------------------------------------------
     #
     # The two return flow conversions are inline in `update`, so they are pinned here by
