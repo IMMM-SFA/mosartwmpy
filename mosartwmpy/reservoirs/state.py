@@ -73,8 +73,8 @@ def _load_initial_storage(grid: Grid, config: Benedict, default_storage: np.ndar
     ]
     if not identifiers:
         raise ValueError(
-            f'Reservoir initial storage file `{init_path}` has no usable identifier column '
-            f'({res_id_col}, {grid_idx_col}, RES_NAME).'
+            f'Reservoir initial storage file `{init_path}` has no usable identifier column; '
+            f'expected `{res_id_col}` or `{grid_idx_col}`.'
         )
 
     storage = default_storage.copy()

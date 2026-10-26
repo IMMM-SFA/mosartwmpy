@@ -292,11 +292,17 @@ class InitialStorageTest(unittest.TestCase):
         self.assertIn('CAP_INIT', str(context.exception))
         self.assertIn(path, str(context.exception))
 
-    def test_no_identifier_column_raises(self):
-        path = self.write(pd.DataFrame({'NAME': ['Hoover'], 'CAP_INIT': [50.0]}))
+    def test_no_identifier_column_raises_naming_the_accepted_columns(self):
+        """RES_NAME is a GRanD column but not a join key here; the message must list only what is accepted."""
+
+        path = self.write(pd.DataFrame({'RES_NAME': ['Hoover'], 'CAP_INIT': [50.0]}))
         with self.assertRaises(ValueError) as context:
             self.load(path)
-        self.assertIn(path, str(context.exception))
+        message = str(context.exception)
+        self.assertIn(path, message)
+        self.assertIn('GRAND_ID', message)
+        self.assertIn('GRID_CELL_INDEX', message)
+        self.assertNotIn('RES_NAME', message)
 
     def test_unsupported_format_raises(self):
         path = str(Path(self.tmpdir.name) / 'initial_storage.txt')
