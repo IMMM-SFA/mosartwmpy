@@ -393,18 +393,40 @@ class Grid:
 
             # if returnflow is enabled, build the irrigation-first priority mask
             if config.get('water_management.demand.return_flow_enabled', False):
-                if config.get('water_management.demand.irrigation_first_mask_path', None) is not None:
-                    # read the mask from file: cells > 0 give irrigation withdrawal priority
-                    self.irrigation_first_mask = np.array(
-                        open_dataarray(config.get('water_management.demand.irrigation_first_mask_path')).sortby([
-                            config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
-                        ])
-                    ).flatten()
-                else:
-                    # no mask supplied: default every cell to nonirrigation-first (mask == 0).
-                    # without this the mask stays size 0 and the update.py returnflow loop
-                    # broadcasts it against full-grid arrays, raising a shape mismatch.
-                    self.irrigation_first_mask = np.zeros_like(self.id, dtype=float)
+                self.load_irrigation_first_mask(config)
+
+    def load_irrigation_first_mask(self, config: Benedict) -> None:
+        """Loads the irrigation-first priority mask used by return flow, or defaults it to nonirrigation-first.
+
+        Args:
+            config (Benedict): the model configuration
+        """
+
+        mask_path = config.get('water_management.demand.irrigation_first_mask_path', None)
+        if mask_path is None:
+            # no mask supplied: default every cell to nonirrigation-first (mask == 0).
+            # without this the mask stays size 0 and the update.py returnflow loop
+            # broadcasts it against full-grid arrays, raising a shape mismatch.
+            self.irrigation_first_mask = np.zeros_like(self.id, dtype=float)
+            return
+
+        # read the mask from file: cells > 0 give irrigation withdrawal priority
+        with open_dataarray(mask_path) as mask_array:
+            mask = np.array(
+                mask_array.sortby([
+                    config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
+                ])
+            ).flatten()
+
+        # a mask on a different grid flattens to a different size; left unchecked it would pass
+        # the size-gated trim in Model.initialize and only fail on the first timestep, with a
+        # broadcast error that does not name the file
+        if mask.size != self.id.size:
+            raise ValueError(
+                f'Irrigation-first mask `{mask_path}` has {mask.size} cells but the grid has {self.id.size}; '
+                f'the mask must be on the model grid.'
+            )
+        self.irrigation_first_mask = mask
 
     def __getitem__(self, item):
         return getattr(self, item)
