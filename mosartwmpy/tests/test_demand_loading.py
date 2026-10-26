@@ -1,5 +1,8 @@
 import importlib.resources
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from mosartwmpy import Model
 from mosartwmpy.grid.grid import Grid
@@ -46,6 +49,28 @@ class DemandLoadingTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError) as context:
             self.load()
         self.assertIn(missing, str(context.exception))
+
+    def test_unreadable_file_keeps_permission_error(self):
+        """An OSError subclass other than a missing file must not be reported as a missing file."""
+
+        with patch('mosartwmpy.input.demand.open_dataset', side_effect=PermissionError(13, 'Permission denied')):
+            with self.assertRaises(PermissionError) as context:
+                self.load()
+        self.assertNotIsInstance(context.exception, FileNotFoundError)
+        self.assertIn(self.DEMAND_FILE, str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, PermissionError)
+
+    def test_corrupt_file_raises_value_error_naming_the_path(self):
+        """A file xarray cannot read as netCDF raises ValueError, which must carry the path."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corrupt = str(Path(tmpdir) / 'corrupt.nc')
+            Path(corrupt).write_bytes(b'this is not a netcdf file')
+            self.set_config('water_management.demand.path', corrupt)
+            with self.assertRaises(ValueError) as context:
+                self.load()
+        self.assertIn(corrupt, str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, ValueError)
 
     def test_wrong_coordinate_name_raises_key_error_naming_it(self):
         self.set_config('water_management.demand.latitude', 'latitude')
