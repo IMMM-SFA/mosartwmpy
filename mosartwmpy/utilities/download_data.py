@@ -1,10 +1,10 @@
-import io
 import logging
 import os
 from pathlib import Path
 import importlib.resources
 import requests
 import sys
+import tempfile
 from tqdm import tqdm
 import zipfile
 
@@ -17,6 +17,10 @@ from mosartwmpy.utilities.msdlive import (
     open_record_file_stream,
     record_id_from_url,
 )
+
+# bytes read from the network per chunk on either transport; 1 MiB keeps the progress bar to a few
+# hundred updates for the 700 MB sample archive rather than the 175,000 that 4 KiB chunks produced
+CHUNK_SIZE = 1024 * 1024
 
 
 def download_data(dataset: str, destination: str = None, manifest: str = str(importlib.resources.files('mosartwmpy').joinpath('data_manifest.yaml'))) -> None:
@@ -119,7 +123,7 @@ class InstallSupplement:
             logging.info(f"Downloading example data from {self.url}")
             r = requests.get(self.url, stream=True)
             self._unpack(
-                chunks=r.iter_content(chunk_size=4096),
+                chunks=r.iter_content(chunk_size=CHUNK_SIZE),
                 total=int(r.headers.get('content-length', 0)),
                 description=self.url,
             )
@@ -147,7 +151,7 @@ class InstallSupplement:
             response = open_record_file_stream(record_id, archive['key'], credentials=credentials)
 
             self._unpack(
-                chunks=response.iter_content(chunk_size=1024 * 1024),
+                chunks=response.iter_content(chunk_size=CHUNK_SIZE),
                 total=archive['size'],
                 description=archive['key'].rsplit('/', 1)[-1],
             )
@@ -159,7 +163,11 @@ class InstallSupplement:
             raise
 
     def _unpack(self, chunks, total, description):
-        """Buffer a zip archive from an iterator of chunks and extract it to the destination.
+        """Stream a zip archive from an iterator of chunks to a temporary file and extract it to the destination.
+
+        The archive is spooled to disk rather than held in memory: the sample data archive is
+        about 700 MB, and buffering it in memory needed heap roughly equal to the archive plus
+        its largest member.
 
         Args:
             chunks (iterable): iterator yielding bytes of the archive
@@ -167,23 +175,28 @@ class InstallSupplement:
             description (str): label for the progress bar
         """
 
-        with io.BytesIO() as stream:
-            with tqdm.wrapattr(
-                stream,
-                'write',
-                file=sys.stdout,
-                miniters=1,
-                desc=description,
-                total=total,
-            ) as file:
-                for chunk in chunks:
-                    file.write(chunk)
-            with zipfile.ZipFile(stream) as zipped:
-                # extract each file in the zipped dir to the project
-                for f in zipped.namelist():
-                    logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
-                    zipped.extract(f, self.destination)
+        try:
+            with tempfile.TemporaryFile() as stream:
+                with tqdm.wrapattr(
+                    stream,
+                    'write',
+                    file=sys.stdout,
+                    miniters=1,
+                    desc=description,
+                    total=total,
+                ) as file:
+                    for chunk in chunks:
+                        file.write(chunk)
+                stream.seek(0)
+                with zipfile.ZipFile(stream) as zipped:
+                    # extract each file in the zipped dir to the project
+                    for f in zipped.namelist():
+                        logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
+                        zipped.extract(f, self.destination)
 
-        logging.info("Download and install complete.")
+            logging.info("Download and install complete.")
 
-        self.close_logger()
+        finally:
+            # the temporary file is removed by its context manager; this releases the logging
+            # handler whether or not the download and extraction succeeded
+            self.close_logger()
