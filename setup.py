@@ -65,7 +65,8 @@ setup(
         "scipy>=1.7.0",
         "shapely>=1.8.0",
         "tqdm>=4.62.3",
-        "xarray>=0.19.0",
+        # the input loaders call CFTimeIndex.to_datetimeindex(time_unit=...), added in 2025.1.2
+        "xarray>=2025.1.2",
     ],
     extras_require={
         "dev": [

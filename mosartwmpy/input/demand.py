@@ -56,8 +56,10 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
 
     if config.get('water_management.demand.time', None) in demand:
         # check for non-standard calendar and convert if needed
+        # unsafe=True silences the calendar-mismatch warning: mapping noleap/360_day dates onto the
+        # standard calendar is intended, and the time selection below pads to the nearest earlier date
         if not isinstance(demand.indexes[config.get('water_management.demand.time')], pd.DatetimeIndex):
-            demand[config.get('water_management.demand.time')] = demand.indexes[config.get('water_management.demand.time')].to_datetimeindex()
+            demand[config.get('water_management.demand.time')] = demand.indexes[config.get('water_management.demand.time')].to_datetimeindex(time_unit='ns', unsafe=True)
         # check if time index includes current time (with some slack on the end)
         if not (
             demand[config.get('water_management.demand.time')].values.min() <= np.datetime64(current_time) <= (demand[config.get('water_management.demand.time')].values.max() + np.timedelta64(31, 'D'))
