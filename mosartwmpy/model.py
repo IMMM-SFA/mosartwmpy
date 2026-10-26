@@ -164,6 +164,14 @@ class Model(Bmi):
             if getattr(self.state, key).size == n:
                 setattr(self.state, key, getattr(self.state, key)[self.mask])
 
+        # check that every grid array the kernels read is sized to the active cells;
+        # a grid loaded from a cache written by an older version may lack some
+        try:
+            self.grid.validate(int(self.mask.sum()), self.config, self.parameters)
+        except Exception as e:
+            logging.exception('Failed to validate grid; see below for stacktrace.')
+            raise e
+
         # setup output file averaging
         try:
             initialize_output(self)
