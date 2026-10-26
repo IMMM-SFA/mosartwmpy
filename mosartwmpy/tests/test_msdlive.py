@@ -62,6 +62,10 @@ class FakeResponse:
         for i in range(0, len(self._content), chunk_size):
             yield self._content[i:i + chunk_size]
 
+    @property
+    def content(self):
+        return self._content or self.text.encode('utf-8')
+
 
 class RecordUrlTest(unittest.TestCase):
     """Test recognizing MSD-LIVE record urls."""
