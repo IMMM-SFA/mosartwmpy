@@ -163,6 +163,12 @@ Caches are now versioned and checked when the model initializes.
   before terminating a BMI host process. A missing file raises `FileNotFoundError`, an unreadable
   one `PermissionError`, a file that is not netCDF `ValueError`, all naming the path, and a wrong
   coordinate name raises its own `KeyError`. (#138)
+- **Return flow demand files are validated.** With return flow enabled, a demand file missing one of
+  the four disaggregated variables, or lacking a time axis, is rejected with a message naming the
+  variable, the config key that controls it and the file, instead of a bare xarray `KeyError`. A
+  cell whose consumption exceeds its withdrawal, which made the return flow negative and removed
+  water from the soil column and channel unchecked, now has its consumption clipped to the
+  withdrawal, with a warning giving the number of cells and the largest excess. (#137)
 - **Reservoir parameter file type and columns are validated.** A file extension other than
   `.nc`, `.nc4`, `.parquet` or `.csv` raises naming the file and the supported extensions instead
   of falling through to the netCDF reader, and a file missing the grid cell index column or any

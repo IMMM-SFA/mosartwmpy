@@ -100,21 +100,54 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
 
     if config.get('water_management.demand.return_flow_enabled', False):
 
-        state.irrigation_withdrawal_rate = np.array(demand[
-            config.get('water_management.demand.irrigation_withdrawal')
-        ].sel({config.get('water_management.demand.time'): current_time}, method='pad').fillna(0), dtype=np.float64).flatten()[mask]
+        time_key = config.get('water_management.demand.time')
+        # the four disaggregated variables, keyed by the config entry that names each of them
+        variables = {
+            key: config.get(f'water_management.demand.{key}')
+            for key in ('irrigation_withdrawal', 'irrigation_consumption', 'nonirrigation_withdrawal', 'nonirrigation_consumption')
+        }
 
-        state.irrigation_consumption_rate = np.array(demand[
-            config.get('water_management.demand.irrigation_consumption')
-        ].sel({config.get('water_management.demand.time'): current_time}, method='pad').fillna(0), dtype=np.float64).flatten()[mask]
+        # validate before reading, so a misnamed variable or a 2-D file is reported with the config
+        # key that controls it rather than as a bare KeyError from xarray
+        missing = [
+            f'`{name}` (config key `water_management.demand.{key}`)'
+            for key, name in variables.items() if name not in demand.data_vars
+        ]
+        if missing:
+            raise ValueError(
+                f'Return flow demand file {path} has no variable(s) {", ".join(missing)}; return flow requires demand '
+                f'disaggregated into irrigation and nonirrigation withdrawal and consumption.'
+            )
+        if time_key not in demand:
+            raise ValueError(
+                f'Return flow demand file {path} has no `{time_key}` coordinate (config key `water_management.demand.time`); '
+                f'return flow demand must have a time axis.'
+            )
 
-        state.nonirrigation_withdrawal_rate = np.array(demand[
-            config.get('water_management.demand.nonirrigation_withdrawal')
-        ].sel({config.get('water_management.demand.time'): current_time}, method='pad').fillna(0), dtype=np.float64).flatten()[mask]
+        def read(key):
+            return np.array(
+                demand[variables[key]].sel({time_key: current_time}, method='pad').fillna(0), dtype=np.float64
+            ).flatten()[mask]
 
-        state.nonirrigation_consumption_rate = np.array(demand[
-            config.get('water_management.demand.nonirrigation_consumption')
-        ].sel({config.get('water_management.demand.time'): current_time}, method='pad').fillna(0), dtype=np.float64).flatten()[mask]
+        state.irrigation_withdrawal_rate = read('irrigation_withdrawal')
+        state.irrigation_consumption_rate = read('irrigation_consumption')
+        state.nonirrigation_withdrawal_rate = read('nonirrigation_withdrawal')
+        state.nonirrigation_consumption_rate = read('nonirrigation_consumption')
+
+        # consumption cannot exceed withdrawal: their difference is the return flow, which would
+        # otherwise be negative and be removed from the soil column and the channel without a check.
+        # clip to withdrawal and say so, rather than run on physically impossible input
+        for use in ('irrigation', 'nonirrigation'):
+            withdrawal = getattr(state, f'{use}_withdrawal_rate')
+            consumption = getattr(state, f'{use}_consumption_rate')
+            excess = consumption - withdrawal
+            over = excess > 0
+            if over.any():
+                logging.warning(
+                    f'{int(over.sum())} cell(s) in demand file {path} have {use} consumption above withdrawal '
+                    f'(largest excess {excess[over].max():.4g} m3/s); consumption clipped to withdrawal in those cells.'
+                )
+                setattr(state, f'{use}_consumption_rate', np.minimum(consumption, withdrawal))
 
         state.grid_cell_demand_rate = state.irrigation_withdrawal_rate + state.nonirrigation_withdrawal_rate
 
