@@ -281,9 +281,98 @@ class UnpackTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             with self.assertRaises(zipfile.BadZipFile):
                 self.fetch_plain(response, tmpdir)
-        # the stdout handler InstallSupplement attaches must not survive a failed download
-        stdout_handlers = [h for h in logging.getLogger().handlers if getattr(h, 'stream', None) is sys.stdout]
-        self.assertEqual(stdout_handlers, [], 'the download handler is removed on failure')
+        # no stdout handler InstallSupplement attaches may survive a failed download, on any logger
+        for logger in (logging.getLogger(), download_data.logger):
+            stdout_handlers = [h for h in logger.handlers if getattr(h, 'stream', None) is sys.stdout]
+            self.assertEqual(stdout_handlers, [], 'the download handler is removed on failure')
+
+    def test_spools_the_archive_into_the_destination_directory(self):
+        """TMPDIR on compute nodes is often small or RAM-backed; the destination is known to have room."""
+
+        response = FakeResponse(content=DownloadRoutingTest.zip_bytes())
+        calls = []
+        original = download_data.tempfile.TemporaryFile
+
+        def recording(*args, **kwargs):
+            calls.append(kwargs.get('dir'))
+            return original(*args, **kwargs)
+
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(download_data.tempfile, 'TemporaryFile', side_effect=recording):
+                self.fetch_plain(response, tmpdir)
+            self.assertEqual(calls, [tmpdir])
+            self.assertTrue((Path(tmpdir) / 'input' / 'hello.txt').is_file())
+
+
+class LoggerTest(unittest.TestCase):
+    """InstallSupplement never adds to or removes from the root logger.
+
+    A notebook or coupled driver that downloads data in the same process as a running model
+    must keep the model's log handlers; a failed download must not leak a handler per attempt.
+    """
+
+    URL = 'https://zenodo.org/record/1/files/a.zip?download=1'
+
+    def setUp(self):
+        self.root = logging.getLogger()
+        self.module_logger = download_data.logger
+        self.root_handlers_before = list(self.root.handlers)
+        self.module_handlers_before = list(self.module_logger.handlers)
+        # stand in for a running model's log file handler
+        self.model_handler = logging.StreamHandler(io.StringIO())
+        self.root.addHandler(self.model_handler)
+        self.addCleanup(self.root.removeHandler, self.model_handler)
+
+    def fetch(self, response):
+        with TemporaryDirectory() as tmpdir:
+            supplement = InstallSupplement(url=self.URL, destination=tmpdir)
+            with patch('mosartwmpy.utilities.download_data.requests.get', return_value=response):
+                supplement.fetch()
+
+    def test_root_handler_survives_a_successful_download(self):
+        self.fetch(FakeResponse(content=DownloadRoutingTest.zip_bytes()))
+        self.assertIn(self.model_handler, self.root.handlers)
+        self.assertEqual(self.root.handlers, self.root_handlers_before + [self.model_handler])
+        self.assertEqual(self.module_logger.handlers, self.module_handlers_before)
+
+    def test_failed_downloads_add_no_handlers(self):
+        for _ in range(2):
+            with self.assertRaises(zipfile.BadZipFile):
+                self.fetch(FakeResponse(content=b'<html>not a zip</html>'))
+        self.assertEqual(self.root.handlers, self.root_handlers_before + [self.model_handler])
+        self.assertEqual(self.module_logger.handlers, self.module_handlers_before)
+
+    def test_messages_reach_the_existing_root_handler(self):
+        """With logging already configured, progress propagates to the host's handlers at the host's level."""
+
+        # a running model configures the root logger at INFO; the module logger must not override
+        # the host's level either way, so set it here as the model would
+        level_before = self.root.level
+        self.root.setLevel(logging.INFO)
+        self.addCleanup(self.root.setLevel, level_before)
+        self.fetch(FakeResponse(content=DownloadRoutingTest.zip_bytes()))
+        self.assertIn('Download and install complete.', self.model_handler.stream.getvalue())
+
+    def test_unconfigured_logging_prints_to_stdout_for_the_duration(self):
+        """Standalone use (the download CLI) still prints progress, through a handler on the module logger."""
+
+        # make the process look unconfigured: no root handlers at all, restored afterwards
+        self.root.removeHandler(self.model_handler)
+        saved = list(self.root.handlers)
+        for handler in saved:
+            self.root.removeHandler(handler)
+        self.addCleanup(lambda: [self.root.addHandler(h) for h in saved])
+
+        with TemporaryDirectory() as tmpdir:
+            supplement = InstallSupplement(url=self.URL, destination=tmpdir)
+            attached = [h for h in self.module_logger.handlers if h not in self.module_handlers_before]
+            self.assertEqual(len(attached), 1, 'one stdout handler is attached to the module logger')
+            self.assertIs(attached[0].stream, sys.stdout)
+            self.assertEqual(self.root.handlers, [], 'the root logger is still untouched')
+            with patch('mosartwmpy.utilities.download_data.requests.get', return_value=FakeResponse(content=DownloadRoutingTest.zip_bytes())):
+                supplement.fetch()
+        self.assertEqual(self.module_logger.handlers, self.module_handlers_before, 'the handler is removed after the download')
+        self.assertEqual(self.root.handlers, [])
 
 
 if __name__ == '__main__':

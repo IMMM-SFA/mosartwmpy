@@ -157,6 +157,15 @@ Caches are now versioned and checked when the model initializes.
   of falling through to the netCDF reader, and a file missing the grid cell index column or any
   configured variable column raises naming the file and the columns. `create_grand_parameters`
   refuses an unsupported output extension before doing any work. (#134)
+- **The download utility leaves the root logger alone.** `InstallSupplement` added a stdout handler
+  to the root logger on every instantiation and, when done, removed every root handler and shut
+  logging down, so a notebook or coupled driver downloading data next to a running model lost the
+  model's log file, and a failed download leaked a handler per attempt. It now logs through its
+  own module logger: with logging already configured, messages propagate to the existing handlers;
+  with nothing configured, as in `python -m mosartwmpy.download`, a stdout handler is attached to
+  the module logger for the duration of the download. The downloaded archive is also spooled into
+  the destination directory rather than the system temporary directory, which on compute nodes is
+  often small or RAM-backed. (#140)
 - **MSD-LIVE responses are validated.** Credentials missing a nested key, listing entries without a
   key or size, malformed listing XML, and a truncated listing without a continuation token each
   raise a typed error naming the problem, where before they surfaced as bare `KeyError`,

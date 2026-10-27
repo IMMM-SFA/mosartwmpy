@@ -22,6 +22,13 @@ from mosartwmpy.utilities.msdlive import (
 # hundred updates for the 700 MB sample archive rather than the 175,000 that 4 KiB chunks produced
 CHUNK_SIZE = 1024 * 1024
 
+# this module logs through its own logger and never adds to or removes from the root logger: the
+# download runs inside notebooks and coupled drivers whose root handlers (a model's log file, for
+# instance) must survive it. when nothing has configured logging at all, as in the standalone
+# `mosartwmpy.download` CLI, InstallSupplement attaches a stdout handler to this logger for the
+# duration of the download so progress is still printed.
+logger = logging.getLogger(__name__)
+
 
 def download_data(dataset: str, destination: str = None, manifest: str = str(importlib.resources.files('mosartwmpy').joinpath('data_manifest.yaml'))) -> None:
     """Convenience wrapper for the InstallSupplement class.
@@ -60,36 +67,36 @@ class InstallSupplement:
 
     def __init__(self, url, destination, filename=None):
 
+        self.console_handler = None
         self.initialize_logger()
         self.destination = self.valid_directory(destination)
         self.url = url
         self.filename = filename
 
     def initialize_logger(self):
-        """Initialize logger to stdout."""
+        """Print progress to stdout when nothing else has configured logging.
 
-        # initialize logger
-        logger = logging.getLogger()
+        If the process already has logging configured (a root handler exists, as it does once a
+        model is running or a notebook has set up logging), messages simply propagate to those
+        handlers and nothing is added. Otherwise a stdout handler is attached to this module's
+        logger, not to the root logger, and removed again by `close_logger`.
+        """
+
+        if logging.getLogger().hasHandlers():
+            return
         logger.setLevel(logging.INFO)
+        self.console_handler = logging.StreamHandler(sys.stdout)
+        self.console_handler.setLevel(logging.INFO)
+        self.console_handler.setFormatter(logging.Formatter(""))
+        logger.addHandler(self.console_handler)
 
-        # logger console handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(logging.Formatter(""))
-        logger.addHandler(console_handler)
+    def close_logger(self):
+        """Remove the stdout handler this instance attached, if any; other handlers are left alone."""
 
-    @staticmethod
-    def close_logger():
-        """Shutdown logger."""
-
-        # Remove logging handlers
-        logger = logging.getLogger()
-
-        for handler in logger.handlers[:]:
-            handler.close()
-            logger.removeHandler(handler)
-
-        logging.shutdown()
+        if self.console_handler is not None:
+            logger.removeHandler(self.console_handler)
+            self.console_handler.close()
+            self.console_handler = None
 
     def valid_directory(self, directory):
         """Ensure the provided directory exists."""
@@ -98,7 +105,7 @@ class InstallSupplement:
             return directory
         else:
             msg = f"The write directory provided by the user does not exist: {directory}"
-            logging.exception(msg)
+            logger.error(msg)
             self.close_logger()
             raise NotADirectoryError(msg)
 
@@ -120,7 +127,7 @@ class InstallSupplement:
 
         # retrieve content from URL
         try:
-            logging.info(f"Downloading example data from {self.url}")
+            logger.info(f"Downloading example data from {self.url}")
             r = requests.get(self.url, stream=True)
             self._unpack(
                 chunks=r.iter_content(chunk_size=CHUNK_SIZE),
@@ -130,7 +137,7 @@ class InstallSupplement:
 
         except requests.exceptions.MissingSchema:
             msg = f"Unable to download data from {self.url}"
-            logging.exception(msg)
+            logger.exception(msg)
             self.close_logger()
             raise
 
@@ -144,7 +151,7 @@ class InstallSupplement:
 
         try:
             record_id = record_id_from_url(self.url)
-            logging.info(f"Downloading example data from MSD-LIVE record {record_id}")
+            logger.info(f"Downloading example data from MSD-LIVE record {record_id}")
 
             credentials = get_anonymous_credentials()
             archive = find_archive(record_id, filename=self.filename, credentials=credentials)
@@ -158,7 +165,7 @@ class InstallSupplement:
 
         except (requests.exceptions.RequestException, FileNotFoundError, ValueError, KeyError):
             msg = f"Unable to download data from {self.url}"
-            logging.exception(msg)
+            logger.exception(msg)
             self.close_logger()
             raise
 
@@ -176,7 +183,10 @@ class InstallSupplement:
         """
 
         try:
-            with tempfile.TemporaryFile() as stream:
+            # spool into the destination directory rather than the system temporary directory:
+            # TMPDIR on compute nodes is often a small scratch or RAM-backed tmpfs, while the
+            # destination is already known to hold room for the extracted data
+            with tempfile.TemporaryFile(dir=self.destination) as stream:
                 with tqdm.wrapattr(
                     stream,
                     'write',
@@ -191,12 +201,12 @@ class InstallSupplement:
                 with zipfile.ZipFile(stream) as zipped:
                     # extract each file in the zipped dir to the project
                     for f in zipped.namelist():
-                        logging.info("Unzipped: {}".format(os.path.join(self.destination, f)))
+                        logger.info("Unzipped: {}".format(os.path.join(self.destination, f)))
                         zipped.extract(f, self.destination)
 
-            logging.info("Download and install complete.")
+            logger.info("Download and install complete.")
 
         finally:
-            # the temporary file is removed by its context manager; this releases the logging
-            # handler whether or not the download and extraction succeeded
+            # the temporary file is removed by its context manager; this releases the stdout
+            # handler, if one was attached, whether or not the download and extraction succeeded
             self.close_logger()
