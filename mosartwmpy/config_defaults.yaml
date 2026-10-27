@@ -408,8 +408,9 @@ water_management:
                 streamflow_month_index: MONTH_INDEX
                 # mean streamflow for month
                 streamflow: MEAN_FLOW
-        # optional initial reservoir storage file (csv or parquet); columns: GRAND_ID, GRID_CELL_INDEX, RES_NAME (identifiers), CAP_INIT (initial storage [million m3])
-        # if absent or path is null, defaults to 0.9 * storage capacity; missing values within the file also fall back to the default
+        # optional initial reservoir storage file (csv or parquet); columns: GRAND_ID or GRID_CELL_INDEX (identifiers, tried in that order), CAP_INIT (initial storage [million m3])
+        # if the path is null, defaults to 0.9 * storage capacity; a path that is set must exist and be readable;
+        # missing values within the file fall back to the default
         initial_storage:
             path: ~
         # database of monthly mean demand for each reservoir

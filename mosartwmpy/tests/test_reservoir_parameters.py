@@ -289,9 +289,13 @@ class InitialStorageTest(unittest.TestCase):
     def test_no_path_returns_default(self):
         self.assertIs(_load_initial_storage(self.grid, self.make_config(None), self.default), self.default)
 
-    def test_missing_file_returns_default(self):
+    def test_missing_file_raises(self):
+        """A configured path that does not exist is an error, as for the reservoir parameter file."""
+
         path = str(Path(self.tmpdir.name) / 'absent.csv')
-        np.testing.assert_array_equal(self.load(path), self.default)
+        with self.assertRaises(FileNotFoundError) as context:
+            self.load(path)
+        self.assertIn(path, str(context.exception))
 
     def test_matches_on_reservoir_id(self):
         """CAP_INIT is in million m3 and applies only to matched reservoirs."""
@@ -317,18 +321,39 @@ class InitialStorageTest(unittest.TestCase):
         path = self.write(pd.DataFrame({'GRAND_ID': [7, 7], 'CAP_INIT': [50.0, 60.0]}))
         np.testing.assert_allclose(self.load(path), [1.0e6, 60.0e6, 3.0e6, 4.0e6])
 
-    def test_no_overlap_returns_default(self):
+    def test_no_overlap_returns_default_with_a_warning(self):
+        """Identifiers that name no reservoir on this grid are data, not misconfiguration."""
+
         path = self.write(pd.DataFrame({'GRAND_ID': [999], 'CAP_INIT': [77.0]}))
-        np.testing.assert_array_equal(self.load(path), self.default)
+        with self.assertLogs('mosartwmpy.reservoirs.state', level='WARNING'):
+            np.testing.assert_array_equal(self.load(path), self.default)
 
-    def test_missing_cap_init_column_returns_default(self):
+    def test_missing_cap_init_column_raises(self):
         path = self.write(pd.DataFrame({'GRAND_ID': [7], 'STORAGE': [50.0]}))
-        np.testing.assert_array_equal(self.load(path), self.default)
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        self.assertIn('CAP_INIT', str(context.exception))
+        self.assertIn(path, str(context.exception))
 
-    def test_unsupported_format_returns_default(self):
+    def test_no_identifier_column_raises_naming_the_accepted_columns(self):
+        """RES_NAME is a GRanD column but not a join key here; the message must list only what is accepted."""
+
+        path = self.write(pd.DataFrame({'RES_NAME': ['Hoover'], 'CAP_INIT': [50.0]}))
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        message = str(context.exception)
+        self.assertIn(path, message)
+        self.assertIn('GRAND_ID', message)
+        self.assertIn('GRID_CELL_INDEX', message)
+        self.assertNotIn('RES_NAME', message)
+
+    def test_unsupported_format_raises(self):
         path = str(Path(self.tmpdir.name) / 'initial_storage.txt')
         Path(path).write_text('GRAND_ID,CAP_INIT\n7,50.0\n')
-        np.testing.assert_array_equal(self.load(path), self.default)
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        self.assertIn('.txt', str(context.exception))
+        self.assertIn(path, str(context.exception))
 
     def test_does_not_mutate_default(self):
         """The caller's default array must not be modified in place."""
