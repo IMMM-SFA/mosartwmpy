@@ -4,7 +4,6 @@ import logging
 import numpy as np
 import pandas as pd
 import regex as re
-import sys
 from xarray import open_dataset
 
 from mosartwmpy.farmer_abm.farmer_abm import FarmerABM
@@ -38,12 +37,19 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     path = re.sub(r'\{(?:M|m)[^}]*}', current_time.strftime('%m'), path)
     path = re.sub(r'\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
 
+    # raise rather than exit: this runs inside a BMI host process, and a typed error with the cause
+    # chained lets Model.update log the failure and the caller tell a missing file from a bad name.
+    # the original type is kept (FileNotFoundError, PermissionError, or the ValueError xarray raises
+    # for a file it cannot read as netCDF), since that is what a caller branches on; the message
+    # adds the path and the chained cause keeps the detail
     try:
-        demand = open_dataset(path).sortby([
-            config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
-        ])
-    except:
-        sys.exit(f"Unable to open demand file: {path} ")
+        demand = open_dataset(path)
+    except (OSError, ValueError) as e:
+        raise type(e)(f'Unable to open demand file: {path}') from e
+    # outside the try so a wrong coordinate name surfaces as its own KeyError naming the coordinate
+    demand = demand.sortby([
+        config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
+    ])
 
     # If returnflow is enabled, demand will have four facets:
     #  - irrigation withdrawal
