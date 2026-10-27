@@ -1,10 +1,70 @@
+import datetime
 import importlib.resources
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
+import yaml
 
 from mosartwmpy import Model
 from mosartwmpy.grid.grid import Grid
+
+
+class RegulatedFlowReferenceTest(unittest.TestCase):
+    """The water-management state after one simulated day on the packaged fixture is pinned.
+
+    `tests/regulated_flow_reference.npz` holds supply, deficit, channel outflow and reservoir
+    storage after 8 steps of 3 h with the default configuration, written by
+    `extraction_regulated_flow` as it stood when the dense index landed (#144), which was
+    bit-identical to the typed-dict kernel before it. A change to the regulated flow kernels
+    that alters results fails here instead of passing a suite that only checks the model runs.
+    Regenerate the file only for an intended, understood result change
+    (`.nino/regenerate_regulated_flow_reference.py` holds the recipe: this test's configuration,
+    eight steps, `np.savez_compressed`).
+    """
+
+    TESTS = importlib.resources.files('mosartwmpy').joinpath('tests')
+    REFERENCE_FILE = str(TESTS.joinpath('regulated_flow_reference.npz'))
+
+    def test_one_day_matches_the_stored_reference(self):
+        reference = np.load(self.REFERENCE_FILE)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                'simulation': {
+                    'name': 'regulated_flow_reference',
+                    'start_date': datetime.date(1981, 1, 1),
+                    'end_date': datetime.date(1981, 1, 31),
+                    'output_path': tmpdir,
+                    'log_to_std_out': False,
+                    'log_to_file': False,
+                },
+                'runoff': {'path': str(self.TESTS.joinpath('runoff_1981_01_01.nc'))},
+                'water_management': {
+                    'demand': {'path': str(self.TESTS.joinpath('demand_1981_01_01.nc')), 'farmer_abm': {'enabled': False}},
+                    'reservoirs': {
+                        'parameters': {'path': str(self.TESTS.joinpath('reservoirs.nc'))},
+                        'dependencies': {'path': str(self.TESTS.joinpath('dependency_database.parquet'))},
+                        'streamflow': {'path': str(self.TESTS.joinpath('mean_flow.parquet'))},
+                        'demand': {'path': str(self.TESTS.joinpath('mean_demand.parquet'))},
+                    },
+                },
+            }
+            path = Path(tmpdir) / 'config.yaml'
+            path.write_text(yaml.safe_dump(config))
+            model = Model()
+            model.initialize(str(path), grid=Grid.from_files(str(self.TESTS.joinpath('grid.zip'))))
+            for _ in range(int(reference['steps'])):
+                model.update()
+            model.finalize()
+
+        for name in ('grid_cell_supply', 'grid_cell_deficit', 'channel_outflow_downstream', 'reservoir_storage'):
+            # a tight relative tolerance rather than bit equality, to allow for fused multiply-add
+            # differences between CPUs while still catching any real change in the arithmetic
+            np.testing.assert_allclose(
+                getattr(model.state, name), reference[name], rtol=1e-9, atol=0.0, equal_nan=True,
+                err_msg=f'{name} after {int(reference["steps"])} steps differs from the stored reference',
+            )
 
 
 class RegulatedFlowTest(unittest.TestCase):

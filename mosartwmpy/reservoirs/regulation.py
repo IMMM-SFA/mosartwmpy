@@ -1,8 +1,6 @@
 import numba as nb
 import numpy as np
 
-from numba.typed import List
-
 
 @nb.jit(
     "void("
@@ -164,33 +162,44 @@ def extraction_regulated_flow(
             reservoir_id_to_index[int(reservoir_id[i])] = counter
             counter = counter + 1
 
-    for i in nb.prange(n): # seems okay with numba
+    # the per-cell loops here and at the end only write their own cell and their own reservoir's
+    # slot, so they are safe to run in parallel
+    for i in nb.prange(n):
         outflow_before_regulation[i] = -channel_outflow_downstream[i]
         channel_flow[i] = channel_flow[i] + channel_outflow_downstream[i]
 
-        has_reservoir = np.isfinite(reservoir_id[i])
+        if np.isfinite(reservoir_id[i]):
+            own = reservoir_id_to_index[int(reservoir_id[i])]
+            reservoir_flow_volume[own] = -(reservoir_flow_volume_ratio * delta_t * channel_outflow_downstream[i])
+            channel_outflow_downstream[i] = channel_outflow_downstream[i] + reservoir_flow_volume[own] / delta_t
 
-        if has_reservoir:
-            reservoir_flow_volume[reservoir_id_to_index[int(reservoir_id[i])]] = -(reservoir_flow_volume_ratio * delta_t * channel_outflow_downstream[i])
-            channel_outflow_downstream[i] = channel_outflow_downstream[i] + reservoir_flow_volume[reservoir_id_to_index[int(reservoir_id[i])]] / delta_t
+    # the dependency loops below accumulate into reservoir_demand and reservoir_flow_volume at
+    # indices shared by many cells, so they must stay serial: under prange those read-modify-write
+    # updates race and silently corrupt supply. to keep the serial loops cheap, the dense index is
+    # looked up once per dependency, and the reservoirs able to supply a cell in case 1 are collected
+    # in one array sized to the largest dependency list instead of a typed list allocated per cell.
+    # dependency ids outside [0, max_id] or mapping to -1 are reservoirs absent from the grid (the
+    # sample dependency database has one) and are skipped.
+    max_fan_out = 1
+    for dependencies in reservoir_to_grid_map.values():
+        max_fan_out = max(max_fan_out, len(dependencies))
+    available_reservoirs = np.empty(max_fan_out, dtype=np.int64)
 
-    for _ in np.arange(reservoir_supply_iterations):
+    for _ in range(reservoir_supply_iterations):
         # total potential water demand on a reservoir
         reservoir_demand = np.full(n_reservoir, 0.0)
         # ratio of available water to total potential demand on a reservoir
         demand_fraction = np.full(n_reservoir, 0.0)
-#        for i in nb.prange(n):
-        for i in np.arange(n): # seems triggering a race condition with numba
+        for i in range(n):
             if grid_cell_unmet_demand[i] > 0:
                 # assign this grid cell's demand to each available reservoir
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        # skip dependencies on reservoirs absent from the grid (an
-                        # orphaned id would otherwise raise a KeyError that parallel
-                        # execution silently swallows, corrupting the iteration)
-                        if 0 <= r <= max_id and reservoir_id_to_index[r] >= 0:
-                            reservoir_demand[reservoir_id_to_index[r]] = reservoir_demand[reservoir_id_to_index[r]] + grid_cell_unmet_demand[i]
-        for r in nb.prange(n_reservoir): # seems okay with numba
+                        if 0 <= r <= max_id:
+                            idx = reservoir_id_to_index[r]
+                            if idx >= 0:
+                                reservoir_demand[idx] = reservoir_demand[idx] + grid_cell_unmet_demand[i]
+        for r in nb.prange(n_reservoir):
             # ratio of available water to total demand on a reservoir
             if (reservoir_demand[r] > 0.0) and (reservoir_flow_volume[r] > 0.0):
                 demand_fraction[r] = reservoir_flow_volume[r] / reservoir_demand[r]
@@ -199,62 +208,62 @@ def extraction_regulated_flow(
 
         if np.max(demand_fraction) >= 1.0:
             # case 1 - provide all water to grid cell split from all available reservoirs with demand_fraction > 1
-#            for i in nb.prange(n):
-            for i in np.arange(n): # seems triggering a race condition with numba
+            for i in range(n):
                 if grid_id[i] in reservoir_to_grid_map:
-                    available_reservoirs = List()
+                    count = 0
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        # skip orphaned dependencies (see note above)
-                        if 0 <= r <= max_id and reservoir_id_to_index[r] >= 0:
-                            if demand_fraction[reservoir_id_to_index[r]] >= 1.0:
-                                available_reservoirs.append(reservoir_id_to_index[r])
+                        if 0 <= r <= max_id:
+                            idx = reservoir_id_to_index[r]
+                            if idx >= 0 and demand_fraction[idx] >= 1.0:
+                                available_reservoirs[count] = idx
+                                count = count + 1
                     # take equally from each reservoir
-                    if len(available_reservoirs) > 0:
-                        for r in available_reservoirs:
-                            reservoir_flow_volume[r] = reservoir_flow_volume[r] - grid_cell_unmet_demand[i] / float(len(available_reservoirs))
+                    if count > 0:
+                        for k in range(count):
+                            idx = available_reservoirs[k]
+                            reservoir_flow_volume[idx] = reservoir_flow_volume[idx] - grid_cell_unmet_demand[i] / float(count)
                         grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
                         grid_cell_unmet_demand[i] = 0.0
 
         else:
             sum_demand_fraction = np.full(n, 0.0)
-#            for i in nb.prange(n):
-            for i in np.arange(n): # not using numba right now, but needs to test (not covered by sample test run)
+            for i in range(n):
                 if grid_id[i] in reservoir_to_grid_map:
                     for r in reservoir_to_grid_map[grid_id[i]]:
-                        # skip orphaned dependencies (see note above)
-                        if 0 <= r <= max_id and reservoir_id_to_index[r] >= 0:
-                            sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[reservoir_id_to_index[r]]
+                        if 0 <= r <= max_id:
+                            idx = reservoir_id_to_index[r]
+                            if idx >= 0:
+                                sum_demand_fraction[i] = sum_demand_fraction[i] + demand_fraction[idx]
 
             if np.any(sum_demand_fraction >= 1.0):
                 # case 2 - provide all water to grid cell prorated from all available reservoirs
-#                for i in nb.prange(n):
-                for i in np.arange(n): # not using numba right now, but needs to test (not covered by sample test run)
+                for i in range(n):
                     if sum_demand_fraction[i] >= 1.0:
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            # skip orphaned dependencies (see note above)
-                            if 0 <= r <= max_id and reservoir_id_to_index[r] >= 0:
-                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]] / sum_demand_fraction[i]
+                            if 0 <= r <= max_id:
+                                idx = reservoir_id_to_index[r]
+                                if idx >= 0:
+                                    reservoir_flow_volume[idx] = reservoir_flow_volume[idx] - grid_cell_unmet_demand[i] * demand_fraction[idx] / sum_demand_fraction[i]
                         grid_cell_supply[i] = grid_cell_supply[i] + grid_cell_unmet_demand[i]
                         grid_cell_unmet_demand[i] = 0.0
 
             else:
                 # case 3 - provide fraction of water to grid cell prorated from all available reservoirs
-#                for i in nb.prange(n):
-                for i in np.arange(n): # not using numba right now, but need to test (not covered by sample test run)
+                for i in range(n):
                     if sum_demand_fraction[i] > 0.0:
                         total_take = 0.0
                         for r in reservoir_to_grid_map[grid_id[i]]:
-                            # skip orphaned dependencies (see note above)
-                            if 0 <= r <= max_id and reservoir_id_to_index[r] >= 0:
-                                take = min(grid_cell_unmet_demand[i] * demand_fraction[reservoir_id_to_index[r]], grid_cell_unmet_demand[i])
-                                total_take = total_take + take
-                                reservoir_flow_volume[reservoir_id_to_index[r]] = reservoir_flow_volume[reservoir_id_to_index[r]] - take
+                            if 0 <= r <= max_id:
+                                idx = reservoir_id_to_index[r]
+                                if idx >= 0:
+                                    take = min(grid_cell_unmet_demand[i] * demand_fraction[idx], grid_cell_unmet_demand[i])
+                                    total_take = total_take + take
+                                    reservoir_flow_volume[idx] = reservoir_flow_volume[idx] - take
                         grid_cell_supply[i] = grid_cell_supply[i] + total_take
                         grid_cell_unmet_demand[i] = grid_cell_unmet_demand[i] - total_take
 
-    for i in nb.prange(n): # seems okay with numba
-        has_reservoir = np.isfinite(reservoir_id[i])
-        if has_reservoir:
+    for i in nb.prange(n):
+        if np.isfinite(reservoir_id[i]):
             # add the residual flow volume back to channel
             channel_outflow_downstream[i] = channel_outflow_downstream[i] - reservoir_flow_volume[reservoir_id_to_index[int(reservoir_id[i])]] / delta_t
         outflow_after_regulation[i] = -channel_outflow_downstream[i]
