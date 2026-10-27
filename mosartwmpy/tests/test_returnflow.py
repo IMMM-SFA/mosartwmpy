@@ -1,3 +1,4 @@
+import datetime
 import inspect
 import numpy as np
 import tempfile
@@ -7,6 +8,7 @@ import importlib.resources
 from pathlib import Path
 
 import xarray as xr
+import yaml
 
 import mosartwmpy.update.update as update_module
 from mosartwmpy import Model
@@ -25,11 +27,11 @@ class ReturnFlowTest(unittest.TestCase):
     Exercises the disaggregated-demand loader (input/demand.py) and the
     per-subcycle return-flow accounting (update.py) with return flow enabled
     and no irrigation-first mask file supplied. The packaged test grid is
-    loaded via ``Grid.from_files`` (which bypasses ``Grid.__init__``), so the
-    serialized ``irrigation_first_mask`` is empty; we set it to a full-grid
-    zeros array here, which is exactly what the ``Grid.__init__`` fallback
-    produces for a freshly built grid when no mask path is configured
-    (nonirrigation-first everywhere).
+    loaded via ``Grid.from_files`` and was written with return flow off, so it
+    carries no ``irrigation_first_mask``; with return flow enabled at
+    initialization, ``Grid.validate`` defaults the mask to nonirrigation-first
+    everywhere, exactly as ``Grid.__init__`` does for a freshly built grid with
+    no mask path configured.
     """
 
     GRID_FILE = str(importlib.resources.files('mosartwmpy').joinpath('tests', 'grid.zip'))
@@ -61,24 +63,38 @@ class ReturnFlowTest(unittest.TestCase):
             )
             disagg.to_netcdf(cls.DISAGG_DEMAND_FILE)
 
+        # return flow must be enabled when the model initializes, so that the cached grid's
+        # missing irrigation-first mask is defaulted there rather than patched in afterwards
+        config = {
+            'simulation': {
+                'name': 'unit_tests_return_flow',
+                'start_date': datetime.date(1981, 1, 1),
+                'end_date': datetime.date(1981, 1, 31),
+                'output_path': str(Path(cls._tmpdir.name) / 'output'),
+                'log_to_std_out': False,
+                'log_to_file': False,
+            },
+            'runoff': {'path': cls.RUNOFF_FILE},
+            'water_management': {
+                'demand': {
+                    'path': cls.DISAGG_DEMAND_FILE,
+                    'return_flow_enabled': True,
+                    'farmer_abm': {'enabled': False},
+                },
+                'reservoirs': {
+                    'parameters': {'path': cls.RESERVOIRS_FILE},
+                    'dependencies': {'path': str(importlib.resources.files('mosartwmpy').joinpath('tests', 'dependency_database.parquet'))},
+                    'streamflow': {'path': str(importlib.resources.files('mosartwmpy').joinpath('tests', 'mean_flow.parquet'))},
+                    'demand': {'path': str(importlib.resources.files('mosartwmpy').joinpath('tests', 'mean_demand.parquet'))},
+                },
+            },
+        }
+        cls.CONFIG_FILE = str(Path(cls._tmpdir.name) / 'config_return_flow.yaml')
+        Path(cls.CONFIG_FILE).write_text(yaml.safe_dump(config))
+
         cls.model = Model()
         cls.grid = Grid.from_files(cls.GRID_FILE)
         cls.model.initialize(cls.CONFIG_FILE, grid=cls.grid)
-
-        # point inputs at the packaged test data
-        cls.model.config['runoff.path'] = cls.RUNOFF_FILE
-        cls.model.config['water_management.reservoirs.path'] = cls.RESERVOIRS_FILE
-
-        # enable return flow and point at the disaggregated demand file
-        cls.model.config['water_management.demand.path'] = cls.DISAGG_DEMAND_FILE
-        cls.model.config['water_management.demand.return_flow_enabled'] = True
-
-        # the packaged grid was serialized with return flow off, so the mask is
-        # empty; set it to zeros (nonirrigation-first everywhere), matching the
-        # Grid.__init__ fallback. initialize() has already trimmed grid/state
-        # arrays to the mosart mask, so size this to the trimmed grid, not the
-        # full grid.
-        cls.model.grid.irrigation_first_mask = np.zeros(int(cls.model.mask.sum()))
 
     @classmethod
     def tearDownClass(cls):

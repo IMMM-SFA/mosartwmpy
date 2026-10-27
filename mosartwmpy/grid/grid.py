@@ -458,7 +458,18 @@ class Grid:
                 # arrays that are legitimately empty because their feature is off
                 if key.startswith('reservoir_') and not water_management:
                     continue
-                if key == 'irrigation_first_mask' and not return_flow:
+                if key == 'irrigation_first_mask':
+                    if not return_flow:
+                        continue
+                    # a cache written with return flow off carries no mask, because `to_files` skips
+                    # empty arrays; a freshly built grid with no mask path defaults every cell to
+                    # nonirrigation-first, so apply the same default here rather than fail
+                    logging.info(
+                        'Grid cache has no `irrigation_first_mask` (it was written with return flow off); defaulting '
+                        'every cell to nonirrigation-first. To use a mask, set '
+                        '`water_management.demand.irrigation_first_mask_path` and rebuild the grid cache with return flow enabled.'
+                    )
+                    self.irrigation_first_mask = np.zeros(n)
                     continue
                 # before this array existed, every reservoir's minimum storage was this product
                 if key == 'reservoir_minimum_storage' and self.reservoir_storage_capacity.size == n:
@@ -469,10 +480,18 @@ class Grid:
                     )
                     self.reservoir_minimum_storage = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
                     continue
+            if self.cache_version < self.CACHE_VERSION:
+                reason = f'the grid cache (version {self.cache_version}, current {self.CACHE_VERSION}) predates this array'
+            elif size == 0:
+                # `to_files` skips empty arrays, so a current cache lacks exactly the arrays that were
+                # empty when it was written, i.e. the feature that fills them was disabled at the time
+                reason = 'the grid cache was written with the feature that fills this array disabled'
+            else:
+                reason = 'the array is not sized to the grid'
             raise ValueError(
-                f'Grid array `{key}` has {size} values but the grid has {n} active cells (cache version '
-                f'{self.cache_version}, current {self.CACHE_VERSION}); the grid cache predates this attribute, '
-                f'rebuild the grid cache from the domain file with `Grid(config, parameters).to_files(...)`.'
+                f'Grid array `{key}` has {size} values but the grid has {n} active cells; {reason}. '
+                f'Rebuild the grid cache from the domain file with the current configuration, '
+                f'`Grid(config, parameters).to_files(...)`.'
             )
 
     def to_files(self, path: str, mask: np.ndarray) -> None:

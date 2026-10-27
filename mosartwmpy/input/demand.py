@@ -11,6 +11,33 @@ from mosartwmpy.state.state import State
 from mosartwmpy.utilities.timing import timing
 
 
+def _open_error(error: Exception, path: str) -> Exception:
+    """Builds the error to raise when the demand file cannot be opened.
+
+    The original type is kept where it can be rebuilt, since that is what a caller branches on:
+    an OSError subclass (FileNotFoundError, PermissionError, ...) keeps its errno and gets the
+    path as its filename; a ValueError, which xarray raises for a file it cannot read as netCDF,
+    keeps its type unless the subclass has its own constructor signature (UnicodeDecodeError),
+    in which case a plain ValueError is returned. The original is chained by the caller.
+
+    Args:
+        error (Exception): the exception raised by open_dataset
+        path (str): the demand file path
+
+    Returns:
+        Exception: the exception to raise, naming the path
+    """
+
+    message = 'Unable to open demand file'
+    if isinstance(error, OSError) and error.errno is not None:
+        detail = f'{message}: {error.strerror}' if error.strerror else message
+        return type(error)(error.errno, detail, path)
+    try:
+        return type(error)(f'{message}: {path}')
+    except TypeError:
+        return ValueError(f'{message}: {path}')
+
+
 # @timing
 def load_demand(name: str, state: State, config: Benedict, current_time: datetime, farmer_abm: FarmerABM, mask: np.ndarray) -> None:
     """Loads water demand from file into the state for each grid cell.
@@ -38,14 +65,11 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     path = re.sub(r'\{(?:D|d)[^}]*}', current_time.strftime('%d'), path)
 
     # raise rather than exit: this runs inside a BMI host process, and a typed error with the cause
-    # chained lets Model.update log the failure and the caller tell a missing file from a bad name.
-    # the original type is kept (FileNotFoundError, PermissionError, or the ValueError xarray raises
-    # for a file it cannot read as netCDF), since that is what a caller branches on; the message
-    # adds the path and the chained cause keeps the detail
+    # chained lets Model.update log the failure and the caller tell a missing file from a bad name
     try:
         demand = open_dataset(path)
     except (OSError, ValueError) as e:
-        raise type(e)(f'Unable to open demand file: {path}') from e
+        raise _open_error(e, path) from e
     # outside the try so a wrong coordinate name surfaces as its own KeyError naming the coordinate
     demand = demand.sortby([
         config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')

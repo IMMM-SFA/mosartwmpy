@@ -48,7 +48,11 @@ class DemandLoadingTest(unittest.TestCase):
         self.set_config('water_management.demand.path', missing)
         with self.assertRaises(FileNotFoundError) as context:
             self.load()
-        self.assertIn(missing, str(context.exception))
+        # the path is the filename attribute, so it is in the message as well; errno survives
+        self.assertEqual(context.exception.filename, missing)
+        self.assertIn('Unable to open demand file', str(context.exception))
+        self.assertEqual(context.exception.errno, context.exception.__cause__.errno)
+        self.assertIsNotNone(context.exception.errno)
 
     def test_unreadable_file_keeps_permission_error(self):
         """An OSError subclass other than a missing file must not be reported as a missing file."""
@@ -57,8 +61,20 @@ class DemandLoadingTest(unittest.TestCase):
             with self.assertRaises(PermissionError) as context:
                 self.load()
         self.assertNotIsInstance(context.exception, FileNotFoundError)
-        self.assertIn(self.DEMAND_FILE, str(context.exception))
+        self.assertEqual(context.exception.errno, 13)
+        self.assertEqual(context.exception.filename, self.DEMAND_FILE)
+        self.assertIn('Permission denied', str(context.exception))
         self.assertIsInstance(context.exception.__cause__, PermissionError)
+
+    def test_value_error_subclass_with_its_own_constructor_is_not_masked(self):
+        """A ValueError subclass that cannot be rebuilt from a message must not turn into a TypeError."""
+
+        original = UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid start byte')
+        with patch('mosartwmpy.input.demand.open_dataset', side_effect=original):
+            with self.assertRaises(ValueError) as context:
+                self.load()
+        self.assertIn(self.DEMAND_FILE, str(context.exception))
+        self.assertIs(context.exception.__cause__, original)
 
     def test_corrupt_file_raises_value_error_naming_the_path(self):
         """A file xarray cannot read as netCDF raises ValueError, which must carry the path."""
