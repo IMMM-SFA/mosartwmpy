@@ -40,7 +40,7 @@ class GridCacheTest(unittest.TestCase):
     def tearDownClass(cls):
         cls._tmpdir.cleanup()
 
-    def write_config(self, name):
+    def write_config(self, name, return_flow=False):
         """Write a config equivalent to tests/test_config.yaml with output under the temp dir."""
         config = {
             'simulation': {
@@ -55,6 +55,7 @@ class GridCacheTest(unittest.TestCase):
             'water_management': {
                 'demand': {
                     'path': str(self.TESTS.joinpath('demand_1981_01_01.nc')),
+                    'return_flow_enabled': return_flow,
                     'farmer_abm': {'enabled': False},
                 },
                 'reservoirs': {
@@ -69,13 +70,13 @@ class GridCacheTest(unittest.TestCase):
         path.write_text(yaml.safe_dump(config))
         return str(path)
 
-    def write_old_style_cache(self, name, drop_columns):
-        """Copy the packaged cache without its version stamp and without the given columns."""
+    def write_old_style_cache(self, name, drop_columns, keep_version=False):
+        """Copy the packaged cache without the given columns and, unless keep_version, without its version stamp."""
         path = self.workdir / f'{name}.zip'
         with zipfile.ZipFile(self.GRID_FILE) as source, zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as target:
             for entry in source.namelist():
                 data = source.read(entry)
-                if entry == 'special.pickle':
+                if entry == 'special.pickle' and not keep_version:
                     special = pickle.loads(data)
                     special.pop('cache_version', None)
                     data = pickle.dumps(special)
@@ -133,7 +134,43 @@ class GridCacheTest(unittest.TestCase):
             model.initialize(self.write_config('old_channel_width'), grid=grid)
         message = str(context.exception)
         self.assertIn('channel_width', message)
-        self.assertIn('rebuild the grid cache', message)
+        self.assertIn('predates this array', message)
+        self.assertIn('Rebuild the grid cache', message)
+
+    def test_current_cache_missing_required_array_is_not_called_outdated(self):
+        """A cache with the current version lacks an array only because it was empty when written."""
+
+        cache = self.write_old_style_cache('current_channel_width', ['channel_width'], keep_version=True)
+        with self.assertNoLogs(level='WARNING'):
+            grid = Grid.from_files(cache)
+        self.assertEqual(grid.cache_version, Grid.CACHE_VERSION)
+        model = Model()
+        with self.assertRaises(ValueError) as context:
+            model.initialize(self.write_config('current_channel_width'), grid=grid)
+        message = str(context.exception)
+        self.assertIn('channel_width', message)
+        self.assertNotIn('predates', message)
+        self.assertIn('written with the feature that fills this array disabled', message)
+        self.assertIn('Rebuild the grid cache', message)
+
+    def test_return_flow_on_a_cache_written_without_it_defaults_the_mask(self):
+        """The packaged cache was written with return flow off, so it has no irrigation-first mask.
+
+        With return flow enabled the mask must default to nonirrigation-first everywhere, as a
+        freshly built grid with no mask path does, instead of failing with a message that asks for
+        a rebuild that would produce the same cache.
+        """
+
+        grid = Grid.from_files(self.GRID_FILE)
+        self.assertEqual(grid.irrigation_first_mask.size, 0)
+        model = Model()
+        with self.assertLogs(level='INFO') as logs:
+            model.initialize(self.write_config('return_flow_mask_default', return_flow=True), grid=grid)
+        self.assertTrue(any('irrigation_first_mask' in line and 'return flow off' in line for line in logs.output))
+        n = int(model.mask.sum())
+        self.assertEqual(model.grid.irrigation_first_mask.shape, (n,))
+        self.assertFalse(model.grid.irrigation_first_mask.any())
+        model.finalize()
 
 
 if __name__ == '__main__':

@@ -138,6 +138,12 @@ Caches are now versioned and checked when the model initializes.
   the regulation kernel read past the end of the empty array silently (see the notice at the top
   of this release). The test suite now also runs under `NUMBA_BOUNDSCHECK=1` in CI, which catches
   this class of defect outright. (#143)
+- **Return flow on a cached grid written without a mask.** A grid cache saved with return flow off
+  carries no `irrigation_first_mask`, since empty arrays are not written. Enabling return flow on
+  such a cache used to fail at initialization with a message asking for a rebuild that would have
+  produced the same cache; the mask now defaults to nonirrigation-first everywhere, as a freshly
+  built grid does with no mask path, and the remaining cache errors state whether the cache is
+  outdated or was written with the relevant feature disabled. (#130)
 - **Return flow in cells with zero land fraction.** The irrigation return flow flux divided by
   area times land fraction, which is 0 / 0 in an active cell with no land and, with numpy errors
   ignored process-wide, a silent NaN in hillslope, subnetwork and channel storage. The flux is now
