@@ -9,6 +9,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import requests
+
 from mosartwmpy.utilities import download_data, msdlive
 from mosartwmpy.utilities.download_data import InstallSupplement
 
@@ -46,16 +48,17 @@ CREDENTIALS = {
 class FakeResponse:
     """Stand-in for a requests.Response."""
 
-    def __init__(self, text='', content=b'', status_code=200):
+    def __init__(self, text='', content=b'', status_code=200, url='https://example.invalid/a.zip'):
         self.text = text
         self._content = content
         self.status_code = status_code
+        self.url = url
         self.headers = {'content-length': str(len(content))}
         self.chunk_sizes = []
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise AssertionError(f'status {self.status_code}')
+            raise requests.HTTPError(f'{self.status_code} Client Error: for url: {self.url}', response=self)
 
     def iter_content(self, chunk_size=1):
         self.chunk_sizes.append(chunk_size)
@@ -302,6 +305,47 @@ class UnpackTest(unittest.TestCase):
                 self.fetch_plain(response, tmpdir)
             self.assertEqual(calls, [tmpdir])
             self.assertTrue((Path(tmpdir) / 'input' / 'hello.txt').is_file())
+
+
+class HttpErrorTest(unittest.TestCase):
+    """HTTP failures on the plain transport are reported as such, with the URL, not as a bad zip file."""
+
+    URL = 'https://zenodo.org/record/1/files/a.zip?download=1'
+    HTML = b'<!DOCTYPE html><html><head><title>404 Not Found</title></head><body>nope</body></html>'
+
+    def fetch(self, response):
+        with TemporaryDirectory() as tmpdir:
+            supplement = InstallSupplement(url=self.URL, destination=tmpdir)
+            with patch('mosartwmpy.utilities.download_data.requests.get', return_value=response) as get:
+                supplement.fetch()
+            return get
+
+    def test_http_error_status_raises_http_error_naming_the_url(self):
+        with self.assertRaises(requests.HTTPError) as context:
+            self.fetch(FakeResponse(content=self.HTML, status_code=404, url=self.URL))
+        self.assertIn('404', str(context.exception))
+        self.assertIn(self.URL, str(context.exception))
+
+    def test_error_page_with_success_status_raises_bad_zip_file_naming_the_url(self):
+        with self.assertRaises(zipfile.BadZipFile) as context:
+            self.fetch(FakeResponse(content=self.HTML, status_code=200, url=self.URL))
+        self.assertIn(self.URL, str(context.exception))
+        self.assertIsInstance(context.exception.__cause__, zipfile.BadZipFile)
+
+    def test_request_has_a_timeout(self):
+        get = self.fetch(FakeResponse(content=DownloadRoutingTest.zip_bytes(), url=self.URL))
+        self.assertEqual(get.call_args.kwargs.get('timeout'), download_data.REQUEST_TIMEOUT)
+        self.assertGreater(download_data.REQUEST_TIMEOUT, 0)
+
+    def test_msdlive_non_archive_raises_bad_zip_file_naming_the_url(self):
+        url = 'https://data.msdlive.org/records/abcde-12345'
+        with TemporaryDirectory() as tmpdir:
+            supplement = InstallSupplement(url=url, destination=tmpdir, filename='sample_data.zip')
+            with patch.object(msdlive, 'get_anonymous_credentials', return_value=CREDENTIALS), \
+                 patch.object(msdlive, '_signed_request', side_effect=[FakeResponse(text=LIST_RESPONSE), FakeResponse(content=self.HTML)]):
+                with self.assertRaises(zipfile.BadZipFile) as context:
+                    supplement.fetch()
+        self.assertIn(url, str(context.exception))
 
 
 class LoggerTest(unittest.TestCase):

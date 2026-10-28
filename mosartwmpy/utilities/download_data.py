@@ -22,6 +22,10 @@ from mosartwmpy.utilities.msdlive import (
 # hundred updates for the 700 MB sample archive rather than the 175,000 that 4 KiB chunks produced
 CHUNK_SIZE = 1024 * 1024
 
+# seconds to wait for the server to respond on the plain HTTP transport (the MSD-LIVE transport sets
+# its own in msdlive.py); without one a stalled connection hangs the download indefinitely
+REQUEST_TIMEOUT = 120
+
 # this module logs through its own logger and never adds to or removes from the root logger: the
 # download runs inside notebooks and coupled drivers whose root handlers (a model's log file, for
 # instance) must survive it. when nothing has configured logging at all, as in the standalone
@@ -126,20 +130,28 @@ class InstallSupplement:
         """Download and unpack an example data supplement served over plain HTTP."""
 
         # retrieve content from URL
+        msg = f"Unable to download data from {self.url}"
         try:
             logger.info(f"Downloading example data from {self.url}")
-            r = requests.get(self.url, stream=True)
+            # a timeout so a stalled server cannot hang the download forever, and raise_for_status so
+            # an HTTP error is reported as such instead of its HTML body failing later as a bad zip
+            r = requests.get(self.url, stream=True, timeout=REQUEST_TIMEOUT)
+            r.raise_for_status()
             self._unpack(
                 chunks=r.iter_content(chunk_size=CHUNK_SIZE),
                 total=int(r.headers.get('content-length', 0)),
                 description=self.url,
             )
 
-        except requests.exceptions.MissingSchema:
-            msg = f"Unable to download data from {self.url}"
+        except requests.exceptions.RequestException:
             logger.exception(msg)
             self.close_logger()
             raise
+        except zipfile.BadZipFile as e:
+            # a 200 response that is not a zip archive, i.e. an error page served with a success status
+            logger.exception(msg)
+            self.close_logger()
+            raise zipfile.BadZipFile(f"{msg}: the response is not a zip archive ({e})") from e
 
     def fetch_msdlive(self):
         """Download and unpack an example data supplement from a MSD-LIVE record.
@@ -149,6 +161,7 @@ class InstallSupplement:
         record's S3 access point. No MSD-LIVE account is required.
         """
 
+        msg = f"Unable to download data from {self.url}"
         try:
             record_id = record_id_from_url(self.url)
             logger.info(f"Downloading example data from MSD-LIVE record {record_id}")
@@ -164,10 +177,13 @@ class InstallSupplement:
             )
 
         except (requests.exceptions.RequestException, FileNotFoundError, ValueError, KeyError):
-            msg = f"Unable to download data from {self.url}"
             logger.exception(msg)
             self.close_logger()
             raise
+        except zipfile.BadZipFile as e:
+            logger.exception(msg)
+            self.close_logger()
+            raise zipfile.BadZipFile(f"{msg}: the response is not a zip archive ({e})") from e
 
     def _unpack(self, chunks, total, description):
         """Stream a zip archive from an iterator of chunks to a temporary file and extract it to the destination.

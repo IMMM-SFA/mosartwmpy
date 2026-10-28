@@ -172,6 +172,13 @@ Caches are now versioned and checked when the model initializes.
   the module logger for the duration of the download. The downloaded archive is also spooled into
   the destination directory rather than the system temporary directory, which on compute nodes is
   often small or RAM-backed. (#140)
+- **HTTP errors during a download are reported as such.** The plain HTTP transport sent its request
+  with no timeout and did not check the status, so a 404 or 500 body, or an error page served with
+  a 200, was buffered and only failed later as "File is not a zip file" with no mention of the URL
+  or the status. The request now has a 120 s timeout and checks the status, so an HTTP error raises
+  `requests.HTTPError` naming the URL, and a response that is not a zip archive raises
+  `zipfile.BadZipFile` naming the URL on both transports; both are logged before they propagate.
+  (#139)
 - **MSD-LIVE responses are validated.** Credentials missing a nested key, listing entries without a
   key or size, malformed listing XML, and a truncated listing without a continuation token each
   raise a typed error naming the problem, where before they surfaced as bare `KeyError`,
