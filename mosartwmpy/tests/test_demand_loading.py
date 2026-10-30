@@ -135,7 +135,7 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
         cls.model.finalize()
         cls._tmpdir.cleanup()
 
-    def disaggregated(self, name, consumption_factor=0.4, drop=None, no_time=False, over_cells=0, withdrawal_dtype=None):
+    def disaggregated(self, name, consumption_factor=0.4, drop=None, no_time=False, over_cells=0, withdrawal_dtype=None, as_coordinates=None):
         """Split the packaged total demand into the four return flow variables.
 
         `over_cells` sets irrigation consumption to 1.5 times withdrawal in that many of the
@@ -162,6 +162,8 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
             })
             if drop:
                 dataset = dataset.drop_vars(drop)
+            if as_coordinates:
+                dataset = dataset.set_coords(as_coordinates)
             if no_time:
                 dataset = dataset.isel(time=0, drop=True)
             dataset.to_netcdf(path)
@@ -186,6 +188,15 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
         self.assertIn('irrigation_consumption', message)
         self.assertIn('water_management.demand.irrigation_consumption', message)
         self.assertIn(path, message)
+
+    def test_variable_stored_as_a_coordinate_is_accepted(self):
+        path = self.disaggregated('demand_coordinate_variable', as_coordinates=['irrigation_consumption'])
+        with xr.open_dataset(path) as demand:
+            self.assertIn('irrigation_consumption', demand.coords)
+        with self.assertNoLogs(level='WARNING'):
+            self.load(path)
+        state = self.model.state
+        np.testing.assert_allclose(state.irrigation_consumption_rate, 0.4 * state.irrigation_withdrawal_rate)
 
     def test_file_without_a_time_axis_is_rejected(self):
         path = self.disaggregated('demand_no_time', no_time=True)

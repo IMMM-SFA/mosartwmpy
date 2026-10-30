@@ -124,10 +124,11 @@ def _read_demand(demand, state: State, config: Benedict, current_time: datetime,
         }
 
         # validate before reading, so a misnamed variable or a 2-D file is reported with the config
-        # key that controls it rather than as a bare KeyError from xarray
+        # key that controls it rather than as a bare KeyError from xarray. membership is tested on the
+        # dataset, not on data_vars, so a variable the producer stored as a coordinate still counts
         missing = [
             f'`{variable}` (config key `water_management.demand.{key}`)'
-            for key, variable in variables.items() if variable not in demand.data_vars
+            for key, variable in variables.items() if variable not in demand
         ]
         if missing:
             raise ValueError(
