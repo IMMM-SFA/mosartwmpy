@@ -1,9 +1,14 @@
+import logging
 import numpy as np
+import pandas as pd
 
+from pathlib import Path
 from benedict.dicts import benedict as Benedict
 
 from mosartwmpy.config.parameters import Parameters
 from mosartwmpy.grid.grid import Grid
+
+logger = logging.getLogger(__name__)
 
 
 def initialize_reservoir_state(self, grid: Grid, config: Benedict, parameters: Parameters) -> None:
@@ -18,10 +23,106 @@ def initialize_reservoir_state(self, grid: Grid, config: Benedict, parameters: P
     # reservoir storage at the start of the operation year
     self.reservoir_storage_operation_year_start = 0.85 * grid.reservoir_storage_capacity
 
-    # initial storage in each reservoir
-    self.reservoir_storage = 0.9 * grid.reservoir_storage_capacity
+    # initial storage in each reservoir — default to 90% of capacity
+    default_storage = 0.9 * grid.reservoir_storage_capacity
+    self.reservoir_storage = _load_initial_storage(grid, config, default_storage)
 
     initialize_reservoir_start_of_operation_year(self, grid, config, parameters)
+
+
+def _load_initial_storage(grid: Grid, config: Benedict, default_storage: np.ndarray) -> np.ndarray:
+    """Loads per-reservoir initial storage from an optional file, falling back to default for missing values.
+
+    The file (csv or parquet) must contain a CAP_INIT column [million m3] and at least one of:
+    GRAND_ID or GRID_CELL_INDEX as a join key. Matching is attempted in that priority order.
+    Reservoirs not matched in the file use default_storage.
+
+    Only a null path means "no file": a configured path that is missing, in an unsupported
+    format, without CAP_INIT, or without any identifier column is an error, as it is for the
+    reservoir parameter file, rather than a warning followed by a run on default storage.
+    """
+    init_path = config.get('water_management.reservoirs.initial_storage.path')
+    if not init_path:
+        return default_storage
+
+    path = Path(init_path)
+    if not path.exists():
+        raise FileNotFoundError(f'Reservoir initial storage file not found: {init_path}')
+
+    suffix = path.suffix.lower()
+    if suffix == '.parquet':
+        df = pd.read_parquet(path)
+    elif suffix == '.csv':
+        df = pd.read_csv(path)
+    else:
+        raise ValueError(
+            f'Unsupported reservoir initial storage file `{init_path}`: the extension `{suffix}` is not one of .csv, .parquet.'
+        )
+
+    if 'CAP_INIT' not in df.columns:
+        raise ValueError(f'Reservoir initial storage file `{init_path}` has no CAP_INIT column.')
+
+    # build a Series indexed by grid position, matching on the first available identifier
+    res_id_col = config.get('water_management.reservoirs.parameters.variables.reservoir_id', 'GRAND_ID')
+    grid_idx_col = config.get('water_management.reservoirs.parameters.grid_cell_index', 'GRID_CELL_INDEX')
+
+    identifiers = [
+        (join_key, grid_attr)
+        for join_key, grid_attr in [(res_id_col, 'reservoir_id'), (grid_idx_col, 'reservoir_grid_index')]
+        if join_key in df.columns
+    ]
+    if not identifiers:
+        raise ValueError(
+            f'Reservoir initial storage file `{init_path}` has no usable identifier column; '
+            f'expected `{res_id_col}` or `{grid_idx_col}`.'
+        )
+
+    storage = default_storage.copy()
+
+    for join_key, grid_attr in identifiers:
+        grid_vals = getattr(grid, grid_attr, None) if grid_attr else None
+        if grid_vals is None:
+            continue
+
+        deduped = df.dropna(subset=[join_key, 'CAP_INIT'])
+        n_dupes = deduped.duplicated(subset=[join_key]).sum()
+        if n_dupes:
+            logger.warning(
+                '%d duplicate "%s" value(s) in initial storage file — keeping last occurrence',
+                n_dupes, join_key,
+            )
+            deduped = deduped.drop_duplicates(subset=[join_key], keep='last')
+
+        lookup = deduped.set_index(join_key)['CAP_INIT']
+        matched = pd.Series(grid_vals).map(lookup)
+        valid = matched.notna().values
+
+        if not valid.any():
+            logger.info(
+                'Identifier column "%s" present but matched no reservoirs — trying next identifier',
+                join_key,
+            )
+            continue
+
+        storage[valid] = matched[valid].values.astype(np.float64) * 1.0e6
+
+        is_reservoir = np.isfinite(np.asarray(grid_vals, dtype=np.float64))
+        missing = int((is_reservoir & ~valid).sum())
+        if missing:
+            logger.info(
+                '%d reservoir(s) not matched in initial storage file — using default (0.9 * capacity)',
+                missing,
+            )
+        break
+    else:
+        # identifier columns exist but name no reservoir on this grid, which is legitimate for a
+        # file covering a larger domain than the run; every reservoir keeps the default
+        logger.warning(
+            'No reservoir on the grid matched any identifier in initial storage file %s — using default (0.9 * capacity)',
+            init_path,
+        )
+
+    return storage
 
 
 def initialize_reservoir_start_of_operation_year(self, grid: Grid, config: Benedict, parameters: Parameters) -> None:

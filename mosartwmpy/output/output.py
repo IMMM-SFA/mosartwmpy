@@ -17,6 +17,14 @@ def initialize_output(self):
     if self.config.get('simulation.output_resolution') % self.config.get('simulation.timestep') != 0 or self.config.get('simulation.output_resolution') < self.config.get('simulation.timestep'):
         raise Exception('The `simulation.output_resolution` must be greater than or equal to and evenly divisible by the `simulation.timestep`.')
     for output in self.config.get('simulation.output'):
+        # `aggregation` is optional and defaults to `mean`; user configs that list their own
+        # outputs replace the default list wholesale and typically omit the key
+        aggregation = output.get('aggregation', 'mean')
+        if aggregation not in ('mean', 'sum'):
+            raise ValueError(
+                f"Unsupported `aggregation: {aggregation}` for output `{output.get('name')}` "
+                f"(variable `{output.get('variable')}`); expected `mean` or `sum`."
+            )
         if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
             data = np.zeros_like(self.state.zeros)
             if self.config.get('grid.unmask_output', True):
@@ -42,8 +50,12 @@ def update_output(self):
 
     # if a new period has begun: average output buffer, write to file, and zero output buffer
     if self.current_time.replace(tzinfo=timezone.utc).timestamp() % self.config.get('simulation.output_resolution') == 0:
-        self.output_buffer = self.output_buffer / self.output_n
-        write_output(self)
+        for output in self.config.get('simulation.output'):
+            if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:
+                if output.get('aggregation', 'mean') == 'mean':
+                    self.output_buffer.loc[:, output.get('name')] = self.output_buffer.loc[:, output.get('name')] / self.output_n
+        if self.output_buffer is not None:
+            write_output(self)
         self.output_n = 0
         for output in self.config.get('simulation.output'):
             if getattr(self.state, output.get('variable'), None) is not None and len(getattr(self.state, output.get('variable'))) > 0:

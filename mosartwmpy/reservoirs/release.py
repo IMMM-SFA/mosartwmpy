@@ -95,13 +95,20 @@ def storage_targets(state: State, grid: Grid, current_time: datetime, mask: np.n
     flood_control_condition = (grid.reservoir_use_flood_control == True) & (state.reservoir_month_flood_control_start > 0)
     # modify release in order to maintain a certain storage level
     month_condition = state.reservoir_month_flood_control_start <= state.reservoir_month_flood_control_end
+    # note: the wraparound (not month_condition) disjunct must parenthesize its OR --
+    # `&` binds tighter than `|`, so the previous form `(NOT_MC & A | B)` parsed as
+    # `((NOT_MC & A) | B)`, letting the bare `B` term fire the flood-control
+    # adjustment for nearly all flood-control dams whenever the current month
+    # preceded the window end (e.g. any January cold start). The corrected grouping
+    # matches MOSART's WRM_storage_targets month-window logic (WRM_modules.F90) and
+    # the m_or_condition form used in the drop loop below.
     total_condition = flood_control_condition & (
         (month_condition &
         (current_time.month >= state.reservoir_month_flood_control_start) &
         (current_time.month < state.reservoir_month_flood_control_end)) |
         (np.logical_not(month_condition) &
-        (current_time.month >= state.reservoir_month_flood_control_start) |
-        (current_time.month < state.reservoir_month_flood_control_end))
+        ((current_time.month >= state.reservoir_month_flood_control_start) |
+        (current_time.month < state.reservoir_month_flood_control_end)))
     )
     drop = 0 * state.reservoir_month_flood_control_start
     n_month = 0 * drop
