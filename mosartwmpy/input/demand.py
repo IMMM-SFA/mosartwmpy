@@ -152,10 +152,12 @@ def _read_demand(demand, state: State, config: Benedict, current_time: datetime,
 
         # consumption cannot exceed withdrawal: their difference is the return flow, which would
         # otherwise be negative and be removed from the soil column and the channel without a check.
-        # cells over by more than round-off are clipped to withdrawal with a warning, so a few bad
-        # cells do not reject an otherwise usable file; a file where most cells with demand are over
-        # is rejected, since that is a misconfiguration (most likely the withdrawal and consumption
-        # variable names swapped) and clipping it would silently zero the return flow everywhere
+        # the clip to withdrawal is unconditional, so the return flow is non-negative whatever the
+        # file holds, including where the excess is round-off. cells over by more than round-off are
+        # also warned about, so a few bad cells do not reject an otherwise usable file; a file where
+        # most cells with demand are over is rejected, since that is a misconfiguration (most likely
+        # the withdrawal and consumption variable names swapped) and clipping it would silently zero
+        # the return flow everywhere
         for use in ('irrigation', 'nonirrigation'):
             withdrawal = getattr(state, f'{use}_withdrawal_rate')
             consumption = getattr(state, f'{use}_consumption_rate')
@@ -178,7 +180,7 @@ def _read_demand(demand, state: State, config: Benedict, current_time: datetime,
                     f'{count} cell(s) in demand file {path} have {use} consumption above withdrawal '
                     f'(largest excess {largest:.4g} m3/s); consumption clipped to withdrawal in those cells.'
                 )
-                setattr(state, f'{use}_consumption_rate', np.minimum(consumption, withdrawal))
+            setattr(state, f'{use}_consumption_rate', np.minimum(consumption, withdrawal))
 
         state.grid_cell_demand_rate = state.irrigation_withdrawal_rate + state.nonirrigation_withdrawal_rate
 

@@ -9,7 +9,7 @@ import xarray as xr
 
 from mosartwmpy import Model
 from mosartwmpy.grid.grid import Grid
-from mosartwmpy.input.demand import load_demand
+from mosartwmpy.input.demand import CONSUMPTION_TOLERANCE, load_demand
 
 
 class DemandLoadingTest(unittest.TestCase):
@@ -110,9 +110,9 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
 
     A missing variable or a file without a time axis is reported with the config key that
     controls it, and the file is closed on the way out. Consumption above withdrawal would make
-    the return flow negative and be removed from the soil column and channel unchecked: a few
-    such cells are clipped with a warning, differences within round-off between float32 and
-    float64 variables are not counted, and a file where most cells with demand are over is
+    the return flow negative and be removed from the soil column and channel unchecked, so
+    consumption is clipped to withdrawal everywhere. Cells over by more than round-off between
+    float32 and float64 variables also warn, and a file where most cells with demand are over is
     rejected as misconfigured rather than clipped to zero return flow everywhere.
     """
 
@@ -224,14 +224,21 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
     def test_round_off_between_float32_and_float64_variables_is_not_a_violation(self):
         """Withdrawal stored as float32 beside a float64 consumption that means "fully consumed"."""
         path = self.disaggregated('demand_mixed_precision', consumption_factor=1.0, withdrawal_dtype=np.float32)
+
+        # the round-off is really in the file, so an exact comparison would have fired, and all of
+        # it is inside the tolerance the loader applies
+        with xr.open_dataset(path) as demand:
+            withdrawal = np.nan_to_num(demand['irrigation_withdrawal'].values.astype(np.float64))
+            consumption = np.nan_to_num(demand['irrigation_consumption'].values.astype(np.float64))
+        excess = consumption - withdrawal
+        self.assertTrue(np.any(excess > 0.0))
+        self.assertTrue(np.all(excess <= CONSUMPTION_TOLERANCE * np.maximum(withdrawal, 1.0)))
+
         with self.assertNoLogs(level='WARNING'):
             self.load(path)
         state = self.model.state
-        excess = state.irrigation_consumption_rate - state.irrigation_withdrawal_rate
-        # the round-off is really there, so an exact comparison would have fired, and nothing was clipped
-        self.assertTrue(np.any(excess > 0.0))
-        self.assertLess(excess.max(), 1e-6)
-        self.assertTrue(np.all(state.irrigation_withdrawal_rate - state.irrigation_consumption_rate >= -1e-6))
+        # nothing was counted as a violation, and the clip still leaves no negative return flow
+        self.assertTrue(np.all(state.irrigation_withdrawal_rate - state.irrigation_consumption_rate >= 0.0))
 
     def test_file_where_most_cells_violate_is_rejected(self):
         path = self.disaggregated('demand_mostly_over', consumption_factor=1.5)
