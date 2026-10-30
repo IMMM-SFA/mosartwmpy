@@ -38,6 +38,16 @@ def _open_error(error: Exception, path: str) -> Exception:
         return ValueError(f'{message}: {path}')
 
 
+# consumption above withdrawal by less than this fraction of the withdrawal (of 1 m3/s where the
+# withdrawal is smaller) is round-off, not a violation: a float32 withdrawal beside a float64
+# consumption that mean the same value differ by up to about 6e-8 relative, which an exact
+# comparison flagged in a quarter of the cells of the packaged test file
+CONSUMPTION_TOLERANCE = 1e-6
+# the fraction of cells with demand that may have consumption above withdrawal before the file is
+# rejected as misconfigured instead of clipped
+MAX_CLIPPED_FRACTION = 0.5
+
+
 # @timing
 def load_demand(name: str, state: State, config: Benedict, current_time: datetime, farmer_abm: FarmerABM, mask: np.ndarray) -> None:
     """Loads water demand from file into the state for each grid cell.
@@ -67,10 +77,16 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
     # raise rather than exit: this runs inside a BMI host process, and a typed error with the cause
     # chained lets Model.update log the failure and the caller tell a missing file from a bad name
     try:
-        demand = open_dataset(path)
+        opened = open_dataset(path)
     except (OSError, ValueError) as e:
         raise _open_error(e, path) from e
-    # outside the try so a wrong coordinate name surfaces as its own KeyError naming the coordinate
+    # the context closes the file however the body exits, including the validation errors below
+    with opened:
+        _read_demand(opened, state, config, current_time, mask, path)
+
+
+def _read_demand(demand, state: State, config: Benedict, current_time: datetime, mask: np.ndarray, path: str) -> None:
+    # outside the open's try so a wrong coordinate name surfaces as its own KeyError naming the coordinate
     demand = demand.sortby([
         config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
     ])
@@ -110,8 +126,8 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
         # validate before reading, so a misnamed variable or a 2-D file is reported with the config
         # key that controls it rather than as a bare KeyError from xarray
         missing = [
-            f'`{name}` (config key `water_management.demand.{key}`)'
-            for key, name in variables.items() if name not in demand.data_vars
+            f'`{variable}` (config key `water_management.demand.{key}`)'
+            for key, variable in variables.items() if variable not in demand.data_vars
         ]
         if missing:
             raise ValueError(
@@ -136,16 +152,31 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
 
         # consumption cannot exceed withdrawal: their difference is the return flow, which would
         # otherwise be negative and be removed from the soil column and the channel without a check.
-        # clip to withdrawal and say so, rather than run on physically impossible input
+        # cells over by more than round-off are clipped to withdrawal with a warning, so a few bad
+        # cells do not reject an otherwise usable file; a file where most cells with demand are over
+        # is rejected, since that is a misconfiguration (most likely the withdrawal and consumption
+        # variable names swapped) and clipping it would silently zero the return flow everywhere
         for use in ('irrigation', 'nonirrigation'):
             withdrawal = getattr(state, f'{use}_withdrawal_rate')
             consumption = getattr(state, f'{use}_consumption_rate')
             excess = consumption - withdrawal
-            over = excess > 0
+            over = excess > CONSUMPTION_TOLERANCE * np.maximum(withdrawal, 1.0)
             if over.any():
+                count = int(over.sum())
+                demanding = int(((withdrawal > 0) | (consumption > 0)).sum())
+                largest = excess[over].max()
+                if count > MAX_CLIPPED_FRACTION * demanding:
+                    withdrawal_variable = variables[f'{use}_withdrawal']
+                    consumption_variable = variables[f'{use}_consumption']
+                    raise ValueError(
+                        f'{count} of {demanding} cell(s) with {use} demand in demand file {path} have consumption above '
+                        f'withdrawal (largest excess {largest:.4g} m3/s), more than the {MAX_CLIPPED_FRACTION:.0%} that would be '
+                        f'clipped; check that `{withdrawal_variable}` (config key `water_management.demand.{use}_withdrawal`) '
+                        f'and `{consumption_variable}` (config key `water_management.demand.{use}_consumption`) are not swapped.'
+                    )
                 logging.warning(
-                    f'{int(over.sum())} cell(s) in demand file {path} have {use} consumption above withdrawal '
-                    f'(largest excess {excess[over].max():.4g} m3/s); consumption clipped to withdrawal in those cells.'
+                    f'{count} cell(s) in demand file {path} have {use} consumption above withdrawal '
+                    f'(largest excess {largest:.4g} m3/s); consumption clipped to withdrawal in those cells.'
                 )
                 setattr(state, f'{use}_consumption_rate', np.minimum(consumption, withdrawal))
 
@@ -165,5 +196,3 @@ def load_demand(name: str, state: State, config: Benedict, current_time: datetim
             0,
             state.grid_cell_demand_rate
         )
-
-    demand.close()
