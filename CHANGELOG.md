@@ -93,7 +93,8 @@ Caches are now versioned and checked when the model initializes.
   The serial dependency loops then look each index up once and collect a cell's supplying
   reservoirs in one preallocated array instead of a typed list allocated per cell, for a further
   reduction with results unchanged; the water-management state after one day on the packaged
-  fixture is now pinned by a stored-reference test. (#145)
+  fixture is now pinned by a stored-reference test, and each of the kernel's three supply cases
+  by direct tests on hand-built inputs. (#145)
 - **Downloads stream to disk.** `mosartwmpy.download` writes the archive to a temporary file and
   extracts from it instead of holding the whole archive in memory, and reads 1 MiB chunks on both
   transports; peak memory for the 702 MB sample archive drops from roughly the archive size to a
