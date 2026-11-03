@@ -164,8 +164,10 @@ Caches are now versioned and checked when the model initializes.
   one `PermissionError`, a file that is not netCDF `ValueError`, all naming the path, and a wrong
   coordinate name raises its own `KeyError`. (#138)
 - **Return flow demand files are validated.** With return flow enabled, a demand file missing one of
-  the four disaggregated variables, or lacking a time axis, is rejected with a message naming the
-  variable, the config key that controls it and the file, instead of a bare xarray `KeyError`. A
+  the four disaggregated variables, lacking a time axis, or holding one of the four without a time
+  dimension, is rejected with a message naming the variable, the config key that controls it and the
+  file, instead of a bare xarray `KeyError`. A variable stored as a coordinate still counts as
+  present, so only a config key pointing at an actual coordinate is caught by the time check. A
   cell whose consumption exceeds its withdrawal made the return flow negative and removed water
   from the soil column and channel unchecked. Consumption is now clipped to withdrawal in every
   cell, so the return flow cannot be negative, and cells over by more than round-off also log a

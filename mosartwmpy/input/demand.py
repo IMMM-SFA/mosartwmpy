@@ -140,6 +140,18 @@ def _read_demand(demand, state: State, config: Benedict, current_time: datetime,
                 f'Return flow demand file {path} has no `{time_key}` coordinate (config key `water_management.demand.time`); '
                 f'return flow demand must have a time axis.'
             )
+        # a variable can be present and still not vary in time, either because the file holds a 2-D
+        # slice of it or because the config key names a coordinate, which the membership test accepts
+        timeless = [
+            f'`{variable}` (config key `water_management.demand.{key}`)'
+            for key, variable in variables.items() if time_key not in demand[variable].dims
+        ]
+        if timeless:
+            raise ValueError(
+                f'Return flow demand variable(s) {", ".join(timeless)} in demand file {path} have no `{time_key}` '
+                f'dimension; return flow demand must vary in time, so check that each config key names a demand '
+                f'variable rather than a coordinate.'
+            )
 
         def read(key):
             return np.array(

@@ -135,11 +135,14 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
         cls.model.finalize()
         cls._tmpdir.cleanup()
 
-    def disaggregated(self, name, consumption_factor=0.4, drop=None, no_time=False, over_cells=0, withdrawal_dtype=None, as_coordinates=None):
+    def disaggregated(self, name, consumption_factor=0.4, drop=None, no_time=False, over_cells=0, withdrawal_dtype=None,
+                      as_coordinates=None, timeless=None):
         """Split the packaged total demand into the four return flow variables.
 
         `over_cells` sets irrigation consumption to 1.5 times withdrawal in that many of the
-        cells with demand; `withdrawal_dtype` stores the two withdrawal variables in that type.
+        cells with demand; `withdrawal_dtype` stores the two withdrawal variables in that type;
+        `timeless` collapses those variables to a single time slice, leaving the file's time axis
+        in place via the variables that keep it.
         """
         path = self.workdir / f'{name}.nc'
         with xr.open_dataset(self.DEMAND_FILE) as demand:
@@ -164,6 +167,8 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
                 dataset = dataset.drop_vars(drop)
             if as_coordinates:
                 dataset = dataset.set_coords(as_coordinates)
+            if timeless:
+                dataset = dataset.assign({variable: dataset[variable].isel(time=0, drop=True) for variable in timeless})
             if no_time:
                 dataset = dataset.isel(time=0, drop=True)
             dataset.to_netcdf(path)
@@ -205,6 +210,31 @@ class ReturnFlowDemandValidationTest(unittest.TestCase):
         message = str(context.exception)
         self.assertIn('water_management.demand.time', message)
         self.assertIn(path, message)
+
+    def test_variable_without_a_time_dimension_is_rejected(self):
+        """The file has a time axis, but one of the four variables does not use it."""
+        path = self.disaggregated('demand_timeless_variable', timeless=['irrigation_consumption'])
+        with xr.open_dataset(path) as demand:
+            self.assertIn('time', demand.coords)
+            self.assertNotIn('time', demand['irrigation_consumption'].dims)
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        message = str(context.exception)
+        self.assertIn('irrigation_consumption', message)
+        self.assertIn('water_management.demand.irrigation_consumption', message)
+        self.assertIn(path, message)
+
+    def test_config_key_naming_a_coordinate_is_rejected(self):
+        """`lat` exists in the file, so only the time dimension distinguishes it from a demand variable."""
+        path = self.disaggregated('demand_key_names_a_coordinate')
+        original = self.model.config.get('water_management.demand.irrigation_withdrawal')
+        self.model.config['water_management.demand.irrigation_withdrawal'] = 'lat'
+        self.addCleanup(self.model.config.__setitem__, 'water_management.demand.irrigation_withdrawal', original)
+        with self.assertRaises(ValueError) as context:
+            self.load(path)
+        message = str(context.exception)
+        self.assertIn('`lat`', message)
+        self.assertIn('water_management.demand.irrigation_withdrawal', message)
 
     def test_file_is_closed_when_validation_fails(self):
         path = self.disaggregated('demand_closed_on_error', drop=['irrigation_consumption'])
