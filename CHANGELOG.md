@@ -202,6 +202,13 @@ Caches are now versioned and checked when the model initializes.
   `AttributeError` or `ParseError`, or as a silently partial file list. (#142)
 
 ### Notes
+- **Performance parity with `main` measured.** The serialised reservoir supply loops (#144, #145)
+  were benchmarked against the pre-release code (`54d715e`) on the bundled sample input with
+  `mosartwmpy/tests/benchmark_parity.py`, which is now part of the package: per-timestep wall time is
+  0.77x of the baseline at 1 thread and 1.02x at 20 threads, inside the 5%
+  gate, with water-management supply and deficit bit-identical to the release candidate and
+  repeat-stable at every thread count, where the baseline differs from itself between identical
+  20-thread runs. (#146)
 - The return-flow return-flux scaling in `update.py` (division factors applied when adding
   return flow back to the soil column and channel) and the default nonirrigation-first mask
   behavior are pending confirmation from the return-flow author; they only affect runs that
