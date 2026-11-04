@@ -114,9 +114,10 @@ mosart_wm.update_until(mosart_wm.get_end_time())
 
 Input for `mosartwmpy` consists of many files defining the characteristics of the discrete grid, the river network, surface and subsurface runoff, water demand, and dams/reservoirs.
 Currently, the gridded data is expected to be provided at the same spatial resolution.
-Runoff input can be provided at any time resolution; each timestep will select the runoff at the closest time in the past.
-Currently, demand input is read monthly but will also pad to the closest time in the past.
-Efforts are under way for more robust demand handling.
+`simulation.start_date` and `simulation.end_date` are inclusive calendar dates (`YYYY-MM-DD`, interpreted as naive UTC): the simulation begins at `start_date 00:00:00` and `update_until()` advances through the end of `end_date` (`23:59:59`, i.e. up to `00:00:00` of the following day).
+Runoff input can be provided at any time resolution; each timestep (`[t, t + timestep)`) selects the runoff record at the closest timestamp at or before `t`.
+Currently, demand input is read monthly at the start of the simulation and on the first of each month, and also pads to the closest timestamp at or before `t`.
+Daily output files aggregate across all timesteps of each calendar day `D` and record the daily value under timestamp `D 00:00:00`.
 
 Dams/reservoirs require four different input files: the physical characteristics, the average monthly flow expected during the simulation period, the average monthly demand expected during the simulation period, and a database mapping each GRanD ID to grid cell IDs allowed to extract water from it.
 These dam/reservoir input files can be generated from raw GRanD data, raw elevation data, and raw ISTARF data using the [provided utility](https://github.com/IMMM-SFA/mosartwmpy/blob/main/mosartwmpy/utilities/CREATE_GRAND_PARAMETERS.md).

@@ -20,6 +20,42 @@ RESERVOIR_PARAMETER_FORMATS = {
 }
 
 
+# Core reservoir parameter variables required whenever reservoirs are enabled
+REQUIRED_RESERVOIR_VARIABLES = (
+    'reservoir_id',
+    'reservoir_grid_index',
+    'reservoir_surface_area',
+    'reservoir_storage_capacity',
+    'reservoir_use_irrigation',
+    'reservoir_use_electricity',
+    'reservoir_use_flood_control',
+)
+
+# Additional reservoir parameter variables required only when ISTARF release rules are enabled (#109)
+ISTARF_RESERVOIR_VARIABLES = (
+    'reservoir_upper_alpha',
+    'reservoir_upper_beta',
+    'reservoir_upper_max',
+    'reservoir_upper_min',
+    'reservoir_upper_mu',
+    'reservoir_lower_alpha',
+    'reservoir_lower_beta',
+    'reservoir_lower_max',
+    'reservoir_lower_min',
+    'reservoir_lower_mu',
+    'reservoir_release_alpha_one',
+    'reservoir_release_alpha_two',
+    'reservoir_release_beta_one',
+    'reservoir_release_beta_two',
+    'reservoir_release_c',
+    'reservoir_release_max',
+    'reservoir_release_min',
+    'reservoir_release_p_one',
+    'reservoir_release_p_two',
+    'reservoir_behavior',
+)
+
+
 def reservoir_parameter_format(path: str) -> str:
     """Determines the reservoir parameter file format from the path's extension.
 
@@ -62,12 +98,19 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         reservoir_df = reservoirs_file.to_dataframe()
         reservoirs_file.close()
 
-    # every configured column must be present before the merge and the attribute loop below
-    # dereference them, so a renamed column is reported with the file and the config keys
+    # every required column must be present before the merge and the attribute loop below
+    # dereference them, so a renamed column is reported with the file and the config keys;
+    # ISTARF columns are only required when `enable_istarf` is True (#109)
     grid_cell_index = config.get('water_management.reservoirs.parameters.grid_cell_index')
     variables = config.get('water_management.reservoirs.parameters.variables')
-    required = dict.fromkeys([grid_cell_index] + list(variables.values()))
-    missing = [column for column in required if column not in reservoir_df.columns]
+    enable_istarf = bool(config.get('water_management.reservoirs.enable_istarf', False))
+    required_keys = list(REQUIRED_RESERVOIR_VARIABLES)
+    if enable_istarf:
+        required_keys.extend(ISTARF_RESERVOIR_VARIABLES)
+    required_columns = [grid_cell_index] + [
+        variables[k] for k in required_keys if k in variables and variables[k] is not None
+    ]
+    missing = [column for column in dict.fromkeys(required_columns) if column not in reservoir_df.columns]
     if missing:
         raise KeyError(
             f'Reservoir parameter file `{reservoir_path}` has no column(s) {missing}; check the '
@@ -78,7 +121,7 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
         reservoir_df,
         how='left',
         left_index=True,
-        right_on=config.get('water_management.reservoirs.parameters.grid_cell_index'),
+        right_on=grid_cell_index,
     )
 
     # load reservoir variables
@@ -86,8 +129,15 @@ def load_reservoirs(self, config: Benedict, parameters: Parameters) -> None:
     # reservoir behavior field) come back as an ArrowStringArray rather than an
     # ndarray, which the mask-trimming loop in model.py would then skip -- leaving
     # that array at full-grid size and breaking downstream broadcasts.
-    for key, value in config.get('water_management.reservoirs.parameters.variables').items():
-        setattr(self, key, np.asarray(reservoirs[value].values))
+    # Optional metadata or disabled-ISTARF variables absent from the file default to NaN
+    # (or 'generic' for reservoir_behavior) sized to the grid (#109).
+    for key, value in variables.items():
+        if value is not None and value in reservoirs.columns:
+            setattr(self, key, np.asarray(reservoirs[value].values))
+        elif key == 'reservoir_behavior':
+            setattr(self, key, np.full(self.id.size, 'generic', dtype=object))
+        else:
+            setattr(self, key, np.full(self.id.size, np.nan, dtype=np.float64))
 
     # correct the fields with different units
     # surface area from km^2 to m^2

@@ -106,6 +106,13 @@ Caches are now versioned and checked when the model initializes.
   `reservoirs/state.py` or reusing `reservoir_runoff_capacity_parameter` for the minimum-storage
   floor, removes unused constants (`small_value`, `effective_tracer_velocity`, `ICE_TRACER`), and
   documents units for all parameters. (#127)
+- **ISTARF columns are only required when ISTARF is enabled.** When
+  `water_management.reservoirs.enable_istarf` is `false`, `load_reservoirs` requires only the core
+  physical and use-type reservoir columns and fills absent ISTARF columns with `NaN` (`'generic'` for
+  `reservoir_behavior`), and `Grid` defaults a missing `NLDAS_ID` variable to `NaN` on non-NLDAS
+  domains. (#109)
+- **Start/end date and timestamp conventions documented** in `config_defaults.yaml` and `README.md`.
+  (#9)
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Four loops in
@@ -207,6 +214,15 @@ Caches are now versioned and checked when the model initializes.
   key or size, malformed listing XML, and a truncated listing without a continuation token each
   raise a typed error naming the problem, where before they surfaced as bare `KeyError`,
   `AttributeError` or `ParseError`, or as a silently partial file list. (#142)
+- **Boundary outlets with a nonnegative `dnID` outside the domain no longer hang `Grid` initialization.**
+  `Grid` now remaps `downstream_id` through `id_hashmap` before classifying `land_mask`, so a cell
+  whose `dnID` points outside the domain is marked as an outlet (`land_mask == 3`, `mosart_mask == 2`)
+  rather than `land_mask == 1` with `downstream_id == -1`, and the downstream traversal loop guards
+  against negative indices and cycles. (#108)
+- **`channel_outflow` output reports outflow on outlet grid cells.** In `config_defaults.yaml`,
+  `channel_outflow` now maps to `state.flow` (which includes ocean/boundary outlet cells,
+  `land_mask == 3`) instead of `state.runoff_land` (which zeros outlet cells for E3SM coupler
+  compatibility and remains mapped to `RIVER_DISCHARGE_OVER_LAND_LIQ`). (#103)
 
 ### Notes
 - **Performance parity with `main` measured.** The serialised reservoir supply loops (#144, #145)

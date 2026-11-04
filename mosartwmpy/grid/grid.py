@@ -155,23 +155,43 @@ class Grid:
         self.latitude = self.latitude.flatten()
         
         for key, value in config.get('grid.variables').items():
-            setattr(self, key, np.array(grid_dataset[value]).flatten())
+            if value is not None and value in grid_dataset:
+                setattr(self, key, np.array(grid_dataset[value]).flatten())
+            elif key == 'nldas_id':
+                setattr(self, key, np.full(self.cell_count, np.nan))
+            else:
+                grid_dataset.close()
+                raise KeyError(
+                    f"Grid file `{config.get('grid.path')}` has no variable `{value}` "
+                    f"(configured under `grid.variables.{key}`)."
+                )
         
         # free memory
         grid_dataset.close()
         
         # use ID and dnID field to calculate masks, upstream, downstream, and outlet indices, as well as count of upstream cells
-    
+        # first remap cell ids into cell indices for the (reshaped) 1d grid so that any downstream_id
+        # pointing outside the domain becomes -1 before land_mask and outlet_id are constructed (#108)
+        id_hashmap = {}
+        for i, _id in enumerate(self.id):
+            id_hashmap[int(_id)] = int(i)
+        raw_has_downstream = self.downstream_id >= 0
+        # convert downstream ids into downstream indices
+        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=np.int64)
+        # update the id to be zero-indexed (note this makes them one less than fortran mosart ids)
+        self.id = np.arange(self.id.size).astype(np.int64)
+
         # ocean/land mask
-        # 1 == land
+        # 1 == land (drains to an active cell inside the domain)
         # 2 == ocean
-        # 3 == ocean outlet from land
+        # 3 == ocean/boundary outlet from land (drains out of the domain and either receives upstream flow or had a nonnegative dnID outside the domain)
         # rtmCTL%mask
+        is_outlet_from_land = np.isin(self.id, self.downstream_id) | (raw_has_downstream & (self.land_fraction > 0))
         self.land_mask = np.where(
             self.downstream_id >= 0,
             1,
             np.where(
-                np.isin(self.id, self.downstream_id),
+                is_outlet_from_land,
                 3,
                 2
             )
@@ -195,24 +215,14 @@ class Grid:
                 2,
                 np.where(
                     np.array(self.flow_direction) > 0,
-                    1,
+                    np.where(self.downstream_id >= 0, 1, 2),
                     0
                 )
             )
         ).astype(np.int64)
         
-        # determine final downstream outlet of each cell
-        # this essentially slices up the grid into discrete basins
-        # first remap cell ids into cell indices for the (reshaped) 1d grid
-        id_hashmap = {}
-        for i, _id in enumerate(self.id):
-            id_hashmap[int(_id)] = int(i)
-        # convert downstream ids into downstream indices
-        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=np.int64)
-        # update the id to be zero-indexed (note this makes them one less than fortran mosart ids)
-        self.id = np.arange(self.id.size).astype(np.int64)
-        
         # follow each cell downstream to compute outlet id
+        # this essentially slices up the grid into discrete basins
         size = self.downstream_id.size
         self.outlet_id = np.full(size, -1, dtype=np.int64)
         self.upstream_id = np.full(size, -1, dtype=np.int64)
@@ -224,15 +234,19 @@ class Grid:
             if self.land_mask[i] == 1:
                 # land
                 j = i
-                while self.land_mask[j] == 1:
+                steps = 0
+                while j >= 0 and self.land_mask[j] == 1:
                     self.upstream_cell_count[j] += 1
                     j = int(self.downstream_id[j])
-                if self.land_mask[j] == 3:
+                    steps += 1
+                    if steps > size:
+                        raise ValueError(f'Cycle detected in downstream_id starting from grid cell index {i}.')
+                if j >= 0 and self.land_mask[j] == 3:
                     # found the ocean outlet
                     self.upstream_cell_count[j] += 1
                     self.outlet_id[i] = j
             else:
-                # ocean
+                # ocean or outlet
                 self.upstream_cell_count[i] += 1
                 self.outlet_id[i] = i
 

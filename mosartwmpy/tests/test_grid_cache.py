@@ -172,6 +172,69 @@ class GridCacheTest(unittest.TestCase):
         self.assertFalse(model.grid.irrigation_first_mask.any())
         model.finalize()
 
+    def test_outlet_with_nonexistent_nonnegative_downstream_id_does_not_loop(self):
+        """An outlet cell whose raw dnID >= 0 points outside the domain is treated as an outlet (#108).
+
+        Previously, `land_mask` was computed before `downstream_id` was remapped through `id_hashmap`,
+        leaving `land_mask == 1` with `downstream_id == -1`. In the downstream traversal loop `j = -1`
+        then indexed the last grid cell (`self.land_mask[-1]`), causing an infinite loop when the last
+        cell drained into the boundary cell.
+        """
+        import xarray as xr
+        from benedict.dicts import benedict as Benedict
+        from mosartwmpy.config.parameters import Parameters
+
+        # 2x2 synthetic domain: cell 3 (last cell) drains to cell 1, and cell 1 has dnID=999
+        # (nonnegative, but absent from ID=[10, 20, 30, 40]). Under the old code:
+        # cell 1 got land_mask=1 and downstream_id=-1, so tracing cell 1 or cell 3 jumped to
+        # j=-1 (cell 3, land_mask=1) -> cell 1 -> j=-1 in an infinite loop.
+        lat = np.array([45.0, 46.0])
+        lon = np.array([-120.0, -119.0])
+        ones = np.ones((2, 2), dtype=np.float64)
+        ds = xr.Dataset(
+            data_vars={
+                'ID': (('lat', 'lon'), np.array([[10, 20], [30, 40]], dtype=np.int64)),
+                'dnID': (('lat', 'lon'), np.array([[-9999, 999], [-9999, 20]], dtype=np.int64)),
+                'fdir': (('lat', 'lon'), np.array([[0, 1], [-1, 1]], dtype=np.int64)),
+                'frac': (('lat', 'lon'), np.array([[0.0, 1.0], [0.0, 1.0]], dtype=np.float64)),
+                'area': (('lat', 'lon'), 1.0e8 * ones),
+                'areaTotal': (('lat', 'lon'), 2.0e8 * ones),
+                'areaTotal2': (('lat', 'lon'), 2.0e8 * ones),
+                'nh': (('lat', 'lon'), 0.1 * ones),
+                'nt': (('lat', 'lon'), 0.05 * ones),
+                'nr': (('lat', 'lon'), 0.03 * ones),
+                'hslp': (('lat', 'lon'), 0.01 * ones),
+                'gxr': (('lat', 'lon'), 1.0e-3 * ones),
+                'tslp': (('lat', 'lon'), 0.005 * ones),
+                'twid': (('lat', 'lon'), 10.0 * ones),
+                'rlen': (('lat', 'lon'), 1.0e4 * ones),
+                'rslp': (('lat', 'lon'), 0.001 * ones),
+                'rwid': (('lat', 'lon'), 50.0 * ones),
+                'rwid0': (('lat', 'lon'), 150.0 * ones),
+                'rdep': (('lat', 'lon'), 2.0 * ones),
+            },
+            coords={'lat': lat, 'lon': lon},
+        )
+        grid_nc = self.workdir / 'boundary_outlet_grid.nc'
+        ds.to_netcdf(grid_nc)
+
+        defaults = Path(str(importlib.resources.files('mosartwmpy').joinpath('config_defaults.yaml')))
+        config = Benedict(yaml.safe_load(defaults.read_text()))
+        config['grid.path'] = str(grid_nc)
+        config['water_management.enabled'] = False
+
+        grid = Grid(config, Parameters())
+        # Cell 1 (ID=20, dnID=999 outside domain) must be classified as an outlet (land_mask=3, mosart_mask=2)
+        # and both cell 3 (ID=40 -> ID=20) and cell 1 must have outlet_id == 1.
+        self.assertEqual(grid.downstream_id[1], -1)
+        self.assertEqual(grid.downstream_id[3], 1)
+        self.assertEqual(grid.land_mask[1], 3)
+        self.assertEqual(grid.land_mask[3], 1)
+        self.assertEqual(grid.mosart_mask[1], 2)
+        self.assertEqual(grid.outlet_id[1], 1)
+        self.assertEqual(grid.outlet_id[3], 1)
+        self.assertEqual(grid.upstream_cell_count[1], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

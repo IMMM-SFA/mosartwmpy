@@ -116,6 +116,31 @@ class OutputAggregationTest(unittest.TestCase):
         self.assertIn('median', message)
         self.assertIn('WRM_DEMAND', message)
 
+    def test_channel_outflow_reports_outlet_cells(self):
+        """Default `channel_outflow` (`variable: flow`) reports outflow on outlet cells (`land_mask == 3`) (#103)."""
+        output = [
+            {
+                'variable': 'flow',
+                'name': 'channel_outflow',
+                'units': 'm3/s',
+                'aggregation': 'mean',
+            },
+            {
+                'variable': 'runoff_land',
+                'name': 'RIVER_DISCHARGE_OVER_LAND_LIQ',
+                'units': 'm3/s',
+                'aggregation': 'mean',
+            },
+        ]
+        model = Model()
+        model.initialize(self.write_config('outlet_channel_outflow', output), grid=Grid.from_files(self.GRID_FILE))
+        model.update()
+        outlets = model.grid.land_mask == 3
+        self.assertGreater(outlets.sum(), 0, 'grid contains outlet cells')
+        self.assertTrue(np.any(model.state.flow[outlets] > 0.0), 'outlet cells have positive channel outflow in `flow`')
+        self.assertTrue(np.all(model.state.runoff_land[outlets] == 0.0), '`runoff_land` masks out outlet cells')
+        model.finalize()
+
 
 if __name__ == '__main__':
     unittest.main()

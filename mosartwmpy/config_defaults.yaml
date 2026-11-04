@@ -11,11 +11,13 @@
 simulation:
     # name this simulation
     name: mosartwmpy
-    # date to begin the simulation
+    # date to begin the simulation (YYYY-MM-DD); simulation starts at 00:00:00 (naive UTC) on this date
     start_date: 1981-01-01
-    # date to end the simulation
+    # inclusive date to end the simulation (YYYY-MM-DD); `update_until()` runs through 23:59:59 of this date
+    # (i.e. up to 00:00:00 of the following day)
     end_date: 1981-01-31
-    # mosart timestep in seconds
+    # mosart timestep in seconds; each step integrates over [current_time, current_time + timestep),
+    # selecting the closest input forcing timestamp at or before `current_time`
     timestep: 10800
     # subcycles - subtimestep will be timestep / subcycles
     subcycles: 3
@@ -27,13 +29,15 @@ simulation:
     log_to_std_out: true
     # whether or not to log to file; slightly more efficient to disable, but useful for keeping a record of experiment
     log_to_file: true
-    # resume simulation from restart file
+    # resume simulation from restart file; if the filename contains a `YYYY_MM_DD` date suffix, simulation
+    # resumes at `YYYY-MM-DD 00:00:00`
     restart_file: ~
     # how often to write a restart file; one of 'daily', 'monthly', 'yearly' -- a restart file is also always written at the end of the simulation
     restart_file_frequency: yearly
     # path to a directory for writing output files; will be created if doesn't exist
     output_path: ./output
-    # output write frequency in simulation seconds; must be a multiple of simulation timestep; values will be averaged across the intervening timesteps
+    # output write frequency in simulation seconds; must be a multiple of simulation timestep; values are aggregated
+    # (`mean` or `sum`) across the timesteps of each day and stamped with that day's 00:00:00 timestamp
     # TODO only daily (86400) is currently supported
     output_resolution: 86400 # output values once each day, averaged across the timesteps
     # how often to write a new output file; one of 'daily', 'monthly', 'yearly'
@@ -57,7 +61,7 @@ simulation:
           aggregation: mean
         - variable: runoff_land
           name: RIVER_DISCHARGE_OVER_LAND_LIQ
-          long_name: Mosart river basin flow (same as channel_outflow)
+          long_name: Mosart river basin flow over land (excludes ocean outlets)
           units: m3/s
           aggregation: mean
         - variable: channel_inflow_upstream
@@ -65,7 +69,7 @@ simulation:
           long_name: Mosart main channel inflow to grid cell
           units: m3/s
           aggregation: mean
-        - variable: runoff_land
+        - variable: flow
           name: channel_outflow
           long_name: Mosart main channel outflow from grid cell
           units: m3/s

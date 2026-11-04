@@ -251,6 +251,33 @@ class ReservoirParametersTest(unittest.TestCase):
             reservoir_parameter_format('reservoirs.xlsx')
         self.assertIn('.xlsx', str(context.exception))
 
+    def test_istarf_columns_not_required_when_istarf_disabled(self):
+        """When enable_istarf is False, a reservoir file with only core physical/use columns loads cleanly (#109)."""
+
+        core_columns = [
+            'GRAND_ID',
+            'GRID_CELL_INDEX',
+            'AREA_SKM',
+            'CAP_MCM',
+            'USE_IRRI',
+            'USE_ELEC',
+            'USE_FCON',
+        ]
+        frame = pd.read_csv(self.paths_with_cap_min['.csv'])[core_columns]
+        path = str(Path(self.tmpdir.name) / 'reservoirs_generic_only.csv')
+        frame.to_csv(path, index=False)
+
+        config = self.make_config(path)
+        config['water_management.reservoirs.enable_istarf'] = False
+        grid = Grid(empty=True)
+        grid.id = np.arange(self.GRID_SIZE)
+        load_reservoirs(grid, config, Parameters())
+
+        self.assertEqual(grid.reservoir_storage_capacity.size, self.GRID_SIZE)
+        self.assertEqual(grid.reservoir_upper_alpha.size, self.GRID_SIZE)
+        self.assertTrue(np.all(np.isnan(grid.reservoir_upper_alpha)))
+        self.assertTrue(np.all(grid.reservoir_behavior == 'generic'))
+
 
 class InitialStorageTest(unittest.TestCase):
     """Test the optional initial reservoir storage file."""
