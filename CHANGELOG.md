@@ -36,9 +36,9 @@ Caches are now versioned and checked when the model initializes.
   files with no such column, fall back to the previous 10% of capacity, so existing input keeps
   working unchanged. A `CAP_MIN` of zero or below counts as no value rather than a real zero floor,
   so it also takes the 10% default — the published sample data carries `CAP_MIN = 0` for 13 of its
-  1860 reservoirs, and honoring that literally would have let them draw down to empty. Note that
-  ISTARF release rules still derive their normal operating range from storage capacity alone and do
-  not respect `CAP_MIN` (tracked in #124). (Dan Broman)
+  1860 reservoirs, and honoring that literally would have let them draw down to empty. ISTARF
+  release rules keep their fitted normal operating range relative to storage capacity and cap each
+  day's release at the active storage above `CAP_MIN` plus daily inflow (#124). (Dan Broman)
 - **Reservoir parameter files in Parquet or CSV.** The reservoir parameter file holds static
   per-reservoir values with a single dimension, so netCDF is no longer required; `.parquet` and
   `.csv` are now accepted and selected by file extension, which makes the values easier to inspect
@@ -99,6 +99,13 @@ Caches are now versioned and checked when the model initializes.
   extracts from it instead of holding the whole archive in memory, and reads 1 MiB chunks on both
   transports; peak memory for the 702 MB sample archive drops from roughly the archive size to a
   few megabytes. (#141)
+- **Model parameters cleaned up and documented.** `Parameters` in `config/parameters.py` now names
+  the reservoir cold-start and fallback storage fractions
+  (`reservoir_initial_op_year_storage_fraction`, `reservoir_default_initial_storage_fraction`, and
+  `reservoir_default_minimum_storage_fraction`) instead of hardcoding `0.85` and `0.9` in
+  `reservoirs/state.py` or reusing `reservoir_runoff_capacity_parameter` for the minimum-storage
+  floor, removes unused constants (`small_value`, `effective_tracer_velocity`, `ICE_TRACER`), and
+  documents units for all parameters. (#127)
 
 ### Fixed
 - **Reservoir regulation numba race condition.** Four loops in

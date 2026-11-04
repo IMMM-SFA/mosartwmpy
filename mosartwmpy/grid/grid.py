@@ -475,10 +475,10 @@ class Grid:
                 if key == 'reservoir_minimum_storage' and self.reservoir_storage_capacity.size == n:
                     logging.warning(
                         f'Grid cache (version {self.cache_version}) has no `reservoir_minimum_storage`; falling back to '
-                        f'{parameters.reservoir_runoff_capacity_parameter} * reservoir_storage_capacity for every reservoir. '
+                        f'{parameters.reservoir_default_minimum_storage_fraction} * reservoir_storage_capacity for every reservoir. '
                         f'Rebuild the grid cache to use the minimum storage from the reservoir parameter file.'
                     )
-                    self.reservoir_minimum_storage = parameters.reservoir_runoff_capacity_parameter * self.reservoir_storage_capacity
+                    self.reservoir_minimum_storage = parameters.reservoir_default_minimum_storage_fraction * self.reservoir_storage_capacity
                     continue
             if self.cache_version < self.CACHE_VERSION:
                 reason = f'the grid cache (version {self.cache_version}, current {self.CACHE_VERSION}) predates this array'

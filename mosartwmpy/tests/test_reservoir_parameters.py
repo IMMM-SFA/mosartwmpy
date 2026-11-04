@@ -133,7 +133,7 @@ class ReservoirParametersTest(unittest.TestCase):
         self.assertGreater(is_reservoir.sum(), 0, 'sample data contains reservoirs')
         np.testing.assert_allclose(
             grid.reservoir_minimum_storage[is_reservoir],
-            Parameters().reservoir_runoff_capacity_parameter * grid.reservoir_storage_capacity[is_reservoir],
+            Parameters().reservoir_default_minimum_storage_fraction * grid.reservoir_storage_capacity[is_reservoir],
         )
 
     def test_minimum_storage_falls_back_per_reservoir(self):
@@ -155,7 +155,7 @@ class ReservoirParametersTest(unittest.TestCase):
         self.assertGreater(blanked.sum(), 0, 'blanked reservoirs are present on the grid')
         np.testing.assert_allclose(
             grid.reservoir_minimum_storage[blanked],
-            Parameters().reservoir_runoff_capacity_parameter * capacity[blanked],
+            Parameters().reservoir_default_minimum_storage_fraction * capacity[blanked],
         )
 
         supplied = np.isfinite(capacity) & (capacity > 0) & ~blanked
@@ -185,7 +185,7 @@ class ReservoirParametersTest(unittest.TestCase):
 
         grid = self.load(path)
         capacity = grid.reservoir_storage_capacity
-        expected = Parameters().reservoir_runoff_capacity_parameter
+        expected = Parameters().reservoir_default_minimum_storage_fraction
 
         for label, ids in (('zeroed', zeroed_ids), ('negative', negative_ids)):
             selected = np.isin(grid.reservoir_id, ids)
@@ -362,6 +362,16 @@ class InitialStorageTest(unittest.TestCase):
         default = self.default.copy()
         _load_initial_storage(self.grid, self.make_config(path), default)
         np.testing.assert_array_equal(default, self.default)
+
+    def test_reservoir_parameters_clean_and_distinct(self):
+        """Named storage-fraction parameters exist and unused legacy entries are gone (#127)."""
+        params = Parameters()
+        self.assertEqual(params.reservoir_initial_op_year_storage_fraction, 0.85)
+        self.assertEqual(params.reservoir_default_initial_storage_fraction, 0.9)
+        self.assertEqual(params.reservoir_default_minimum_storage_fraction, 0.1)
+        self.assertEqual(params.reservoir_runoff_capacity_parameter, 0.1)
+        for removed in ('small_value', 'effective_tracer_velocity', 'ICE_TRACER'):
+            self.assertFalse(hasattr(params, removed), f'{removed} should not be defined on Parameters')
 
 
 if __name__ == '__main__':

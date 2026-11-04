@@ -21,10 +21,12 @@ def initialize_reservoir_state(self, grid: Grid, config: Benedict, parameters: P
     """
 
     # reservoir storage at the start of the operation year
-    self.reservoir_storage_operation_year_start = 0.85 * grid.reservoir_storage_capacity
+    self.reservoir_storage_operation_year_start = (
+        parameters.reservoir_initial_op_year_storage_fraction * grid.reservoir_storage_capacity
+    )
 
     # initial storage in each reservoir — default to 90% of capacity
-    default_storage = 0.9 * grid.reservoir_storage_capacity
+    default_storage = parameters.reservoir_default_initial_storage_fraction * grid.reservoir_storage_capacity
     self.reservoir_storage = _load_initial_storage(grid, config, default_storage)
 
     initialize_reservoir_start_of_operation_year(self, grid, config, parameters)

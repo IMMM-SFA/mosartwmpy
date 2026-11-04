@@ -110,7 +110,7 @@ class GridCacheTest(unittest.TestCase):
         self.assertEqual(model.grid.reservoir_minimum_storage.size, n)
         np.testing.assert_array_equal(
             model.grid.reservoir_minimum_storage,
-            model.parameters.reservoir_runoff_capacity_parameter * model.grid.reservoir_storage_capacity,
+            model.parameters.reservoir_default_minimum_storage_fraction * model.grid.reservoir_storage_capacity,
             'fallback is the historical fraction of storage capacity',
         )
         # the regulation kernel reads the array on the first step; the packaged reservoir fixture has

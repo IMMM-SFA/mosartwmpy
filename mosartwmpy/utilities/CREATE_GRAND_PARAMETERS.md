@@ -39,7 +39,7 @@ parameters.loc[curated.index, 'CAP_MIN'] = curated['CAP_MIN']
 ```
 
 Thirteen of the 31 are zero. `mosartwmpy` treats a non-positive `CAP_MIN` as absent and falls back to
-`reservoir_runoff_capacity_parameter` times capacity, so those reservoirs get the 10% floor rather than
+`reservoir_default_minimum_storage_fraction` times capacity, so those reservoirs get the 10% floor rather than
 being allowed to draw down to empty; the zeros are kept here to record what the published file contains.
 The same values are preserved in the MSD-LIVE sample input (see `sample_input` in
 [`data_manifest.yaml`](../data_manifest.yaml)), which remains the canonical source for the full parameter set.
