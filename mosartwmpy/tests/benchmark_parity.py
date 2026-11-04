@@ -5,13 +5,15 @@ Compares a *baseline* git ref (default: the merge base of HEAD and origin/main)
 against a *candidate* ref (default: HEAD) on the bundled sample input, the same
 number of simulated days, and the same thread counts, then reports:
 
-  * mean / median / spread of wall time per model timestep for each variant
+  * mean / median wall time per model timestep for each variant, with the spread
+    within a run and the spread across runs reported separately
   * the candidate/baseline ratio per thread count, with PASS/FAIL at a tolerance
-    (default: the candidate may be at most 5 % slower)
+    (default: the candidate may be at most 5 % slower) and the range of the
+    paired per-repeat ratios, so a verdict can be read against measurement noise
   * thread scaling (1 thread -> N threads) for each variant
-  * an output comparison on a few state arrays, including repeat-to-repeat
-    differences within each variant (a data race shows up as a variant that
-    differs from itself between identical runs)
+  * an output comparison on the state arrays in TRACKED_ARRAYS, including
+    repeat-to-repeat differences within each variant (a data race shows up as a
+    variant that differs from itself between identical runs)
 
 The two refs may declare incompatible dependency pins (for example numpy<2 before
 the 1.0.0 release and numpy>=2 after it), so each ref is installed into its own
@@ -20,20 +22,25 @@ downloaded once, using the candidate environment.
 
 Typical use (Windows, from the repository root):
 
-    py -3.12 mosartwmpy\\tests\\benchmark_parity.py --python "C:\\Python312\\python.exe" --uv --days 10 --repeats 3
+    py -3.12 mosartwmpy\\tests\\benchmark_parity.py --python "C:\\Python312\\python.exe" --uv --interleave --days 10 --repeats 3
 
 Typical use (Linux/macOS, from the repository root):
 
-    python3.12 mosartwmpy/tests/benchmark_parity.py --python python3.12 --uv --days 10 --repeats 3
+    python3.12 mosartwmpy/tests/benchmark_parity.py --python python3.12 --uv --interleave --days 10 --repeats 3
 
-Useful options: --uv installs with uv (much faster than pip); --interleave
-alternates baseline and candidate repeats so machine drift affects both equally;
---skip-install reuses existing environments and worktrees; --threads 1,8 chooses
-the thread counts (default: 1 and the machine's core count); --work-dir and
---data-dir place the worktrees, environments, outputs and the sample data;
---keep leaves the worktrees in place for inspection. Note that --skip-install
-also reuses an existing candidate worktree as is; check it out at the ref you
-want to measure before rerunning.
+Useful options: --uv installs with uv (much faster than pip, and requires uv on
+PATH); --interleave alternates baseline and candidate repeats so machine drift
+affects both equally; --skip-install reuses existing environments; --threads 1,8
+chooses the thread counts (default: 1 and the machine's core count); --work-dir
+and --data-dir place the worktrees, environments, outputs and the sample data;
+--keep leaves the worktrees in place for inspection; --note adds a bullet to the
+report, which is where to say what the candidate changes and so which output
+differences are expected.
+
+An existing worktree is reused only when it is already at the requested ref;
+otherwise the script stops and says so, rather than measuring leftover code
+under the requested ref's name. To measure a worktree deliberately left at some
+other state, pass its sha as --candidate-ref.
 
 The script needs only the standard library in the interpreter that runs it.
 Everything model-related runs inside the per-variant virtual environments.
@@ -45,22 +52,26 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import statistics
 import subprocess
 import sys
 import textwrap
-import time
 from pathlib import Path
+
+# state arrays collected at the end of each run and compared across runs and variants; passed to
+# the driver on the command line so this list is the single place that names them
+TRACKED_ARRAYS = ('channel_storage', 'reservoir_storage', 'grid_cell_supply', 'grid_cell_deficit', 'runoff_land')
 
 # --------------------------------------------------------------------------------------
 # driver executed inside each variant's venv; must stay compatible with both code versions
 # --------------------------------------------------------------------------------------
 DRIVER = r'''
 import json, sys, time
+from pathlib import Path
 import numpy as np
 
 config_path, result_path, days = sys.argv[1], sys.argv[2], int(sys.argv[3])
+tracked = sys.argv[4].split(',')
 
 from mosartwmpy import Model
 import numba
@@ -79,12 +90,23 @@ for _ in range(steps):
     model.update()
     step_seconds.append(time.perf_counter() - t)
 
-arrays = {}
-for name in ('channel_storage', 'reservoir_storage', 'grid_cell_supply', 'grid_cell_deficit', 'runoff_land'):
-    value = getattr(model.state, name, None)
-    if value is not None and getattr(value, 'size', 0) > 0:
-        arrays[name] = np.asarray(value, dtype=np.float64)
-np.savez(result_path[:-5] + '.npz', **arrays)
+# a missing attribute is an error: silently dropping it would report "no differences" for an
+# array nobody compared, which is exactly the signal this benchmark exists to produce
+missing = [name for name in tracked if not hasattr(model.state, name)]
+if missing:
+    raise SystemExit(
+        'model.state has no attribute(s) %s; update TRACKED_ARRAYS in benchmark_parity.py'
+        % ', '.join(missing)
+    )
+
+arrays, empty = {}, []
+for name in tracked:
+    value = np.asarray(getattr(model.state, name), dtype=np.float64)
+    if value.size:
+        arrays[name] = value
+    else:
+        empty.append(name)
+np.savez(Path(result_path).with_suffix('.npz'), **arrays)
 
 with open(result_path, 'w') as f:
     json.dump({
@@ -92,6 +114,7 @@ with open(result_path, 'w') as f:
         'step_seconds': step_seconds,
         'steps': steps,
         'timestep': timestep,
+        'empty_arrays': empty,
         'numba_threads': numba.get_num_threads(),
         'numba_threading_layer': numba.threading_layer(),
         'numba_version': numba.__version__,
@@ -167,12 +190,27 @@ def prepare_variant(repo: Path, name: str, ref: str, work: Path, python: str, us
     if not worktree.exists():
         print(f'\n== {name}: worktree at {ref}')
         git(repo, 'worktree', 'add', '--detach', str(worktree), ref, capture=False)
+    else:
+        # a leftover worktree would otherwise be measured in place of the requested ref, with only
+        # the sha in the report to give it away
+        wanted, have = git(repo, 'rev-parse', ref), git(worktree, 'rev-parse', 'HEAD')
+        if wanted != have:
+            sys.exit(
+                f'{name}: worktree {worktree} is at {have[:9]} but --{name}-ref asks for {ref} '
+                f'({wanted[:9]}). Remove it with "git worktree remove --force {worktree}", or pass '
+                f'--{name}-ref {have[:9]} to measure what is already there.'
+            )
+
     sha = git(worktree, 'rev-parse', '--short', 'HEAD')
+    # tracked files only; the editable install leaves egg-info and caches behind in the worktree
+    dirty = bool(git(worktree, 'status', '--porcelain', '--untracked-files=no'))
+    if dirty:
+        print(f'== {name}: worktree has uncommitted changes; they are part of the measurement')
 
     py = venv_python(venv)
     if skip_install and py.exists():
         print(f'== {name}: reusing {venv}')
-        return worktree, py, sha
+        return worktree, py, sha, dirty
 
     specs = [s for s in extra_specs if s]
     print(f'== {name}: creating venv and installing (this is the slow part)' + (f'; extra pins {specs}' if specs else ''))
@@ -183,7 +221,7 @@ def prepare_variant(repo: Path, name: str, ref: str, work: Path, python: str, us
         run([python, '-m', 'venv', str(venv)])
         run([py, '-m', 'pip', 'install', '--upgrade', 'pip', 'wheel'])
         run([py, '-m', 'pip', 'install', '-e', str(worktree), *specs])
-    return worktree, py, sha
+    return worktree, py, sha, dirty
 
 
 def ensure_sample_data(data_dir: Path, candidate_python: Path):
@@ -222,15 +260,20 @@ def thread_env(threads: int) -> dict:
     env = dict(os.environ)
     for key in ('NUMBA_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS'):
         env[key] = str(threads)
-    # keep numba's on-disk cache per worktree so compile cost is paid once per variant
+
+    # an inherited NUMBA_DISABLE_JIT would time the pure-python fallback instead of the kernels
     env.pop('NUMBA_DISABLE_JIT', None)
+
     return env
 
 
 def run_once(py: Path, data_dir: Path, cfg: Path, result: Path, days: int, threads: int):
     driver = result.parent / 'driver.py'
     driver.write_text(DRIVER)
-    run([py, str(driver), str(cfg), str(result), str(days)], cwd=data_dir, env=thread_env(threads))
+    run(
+        [py, str(driver), str(cfg), str(result), str(days), ','.join(TRACKED_ARRAYS)],
+        cwd=data_dir, env=thread_env(threads),
+    )
     with open(result) as f:
         return json.load(f)
 
@@ -248,8 +291,11 @@ def summarize(step_seconds, skip: int):
 
 
 def compare_arrays(a_path: Path, b_path: Path):
-    """Max absolute and relative difference per array; needs numpy in the *running* interpreter
-    only if available, otherwise falls back to a pure-python comparison on the raw data."""
+    """Max absolute and relative difference per array.
+
+    Reading the `.npz` files needs numpy in the interpreter running this script, which is the only
+    thing here that does. Without it the timing results still stand and the comparison is skipped.
+    """
     try:
         import numpy as np
     except ImportError:
@@ -305,6 +351,10 @@ def main():
     ap.add_argument('--uv', action='store_true', help='use uv for venv creation and installs')
     ap.add_argument('--skip-install', action='store_true', help='reuse existing venvs/worktrees')
     ap.add_argument('--keep', action='store_true', help='do not remove worktrees afterwards')
+    ap.add_argument('--note', action='append', default=[], metavar='TEXT',
+                    help='add a bullet to the report\'s Notes section, repeatable. Use it to record what the '
+                         'candidate changes and so which output differences are expected, which the script '
+                         'cannot know from the refs alone')
     args = ap.parse_args()
 
     work = Path(args.work_dir).resolve()
@@ -326,8 +376,12 @@ def main():
     }
     variants = {}
     for name, ref in (('baseline', baseline_ref), ('candidate', args.candidate_ref)):
-        worktree, py, sha = prepare_variant(repo, name, ref, work, args.python, args.uv, args.skip_install, pins[name])
-        variants[name] = {'worktree': worktree, 'python': py, 'sha': sha, 'ref': ref, 'pins': pins[name]}
+        worktree, py, sha, dirty = prepare_variant(
+            repo, name, ref, work, args.python, args.uv, args.skip_install, pins[name]
+        )
+        variants[name] = {
+            'worktree': worktree, 'python': py, 'sha': sha, 'ref': ref, 'pins': pins[name], 'dirty': dirty,
+        }
 
     ensure_sample_data(data_dir, variants['candidate']['python'])
 
@@ -340,13 +394,13 @@ def main():
 
     # schedule: warm-up every (variant, threads) cell first, then the timed repeats either grouped by
     # variant (default) or interleaved B C B C ... within each thread count (--interleave)
-    cells = [(name, threads) for name in variants for threads in threads_list]
+    warmup_cells = [(name, threads) for name in variants for threads in threads_list]
     if args.interleave:
         timed = [(name, threads, r) for threads in threads_list for r in range(args.repeats) for name in variants]
     else:
         timed = [(name, threads, r) for name in variants for threads in threads_list for r in range(args.repeats)]
 
-    for name, threads in cells:
+    for name, threads in warmup_cells:
         print(f'\n== {name} @ {threads} thread(s): warm-up (compiles numba kernels into the on-disk cache)')
         run_once(variants[name]['python'], data_dir, configs[name], run_dirs[name, threads] / 'warmup.json', 1, threads)
 
@@ -369,6 +423,7 @@ def main():
             f'- {name}: `{v["ref"]}` ({v["sha"]}), python {r0["python_version"]}, '
             f'numpy {r0["numpy_version"]}, numba {r0["numba_version"]}, threading layer `{r0["numba_threading_layer"]}`'
             + (f', extra pins {v["pins"]}' if v['pins'] else '')
+            + (', **worktree dirty** (uncommitted changes measured)' if v['dirty'] else '')
         )
     lines.append(f'- run: {args.days} simulated days from {args.start}, {args.repeats} repeats per cell, '
                  f'steady-state excludes the first {args.skip_steps} steps, '
@@ -376,31 +431,44 @@ def main():
     lines.append(f'- tolerance: candidate may be at most {args.tolerance:.0%} slower than baseline\n')
 
     lines.append('## Wall time per timestep (seconds, steady state)\n')
-    lines.append('| threads | variant | mean | median | stdev | total run | first step |')
-    lines.append('|---|---|---|---|---|---|---|')
+    lines.append('The two spread columns separate step-to-step variation inside one run from the '
+                 'variation between whole runs. The second is what the verdict ratio rests on.\n')
+    lines.append('| threads | variant | mean | median | within-run stdev | across-run stdev | total run | first step |')
+    lines.append('|---|---|---|---|---|---|---|---|')
     verdicts = []
     for threads in threads_list:
-        means = {}
+        run_means = {}
         for name in variants:
             s = [r['summary'] for r in results[name][threads]]
-            mean = statistics.mean(x['mean_s'] for x in s)
-            means[name] = mean
+            per_run = [x['mean_s'] for x in s]
+            run_means[name] = per_run
             lines.append(
-                f'| {threads} | {name} | {fmt(mean)} | {fmt(statistics.mean(x["median_s"] for x in s))} | '
-                f'{fmt(statistics.mean(x["stdev_s"] for x in s))} | {fmt(statistics.mean(x["total_s"] for x in s))} | '
+                f'| {threads} | {name} | {fmt(statistics.mean(per_run))} | '
+                f'{fmt(statistics.mean(x["median_s"] for x in s))} | '
+                f'{fmt(statistics.mean(x["stdev_s"] for x in s))} | '
+                f'{fmt(statistics.pstdev(per_run) if len(per_run) > 1 else 0.0)} | '
+                f'{fmt(statistics.mean(x["total_s"] for x in s))} | '
                 f'{fmt(statistics.mean(x["first_step_s"] for x in s))} |'
             )
-        ratio = means['candidate'] / means['baseline'] if means['baseline'] else float('nan')
-        ok = ratio <= 1.0 + args.tolerance
-        verdicts.append((threads, ratio, ok))
+        base, cand = statistics.mean(run_means['baseline']), statistics.mean(run_means['candidate'])
+        ratio = cand / base if base else float('nan')
+
+        # paired per-repeat ratios bound the ratio by run-to-run noise; under --interleave the
+        # repeats at a given index ran back to back, so the pairing is meaningful
+        paired = [c / b for c, b in zip(run_means['candidate'], run_means['baseline']) if b]
+        verdicts.append((threads, ratio, min(paired, default=ratio), max(paired, default=ratio),
+                         ratio <= 1.0 + args.tolerance))
     lines.append('')
 
     lines.append('## Parity verdict\n')
-    lines.append('| threads | candidate / baseline | verdict |')
-    lines.append('|---|---|---|')
-    for threads, ratio, ok in verdicts:
-        lines.append(f'| {threads} | {ratio:.3f} | {"PASS" if ok else "FAIL"} |')
+    lines.append('| threads | candidate / baseline | per-repeat range | verdict |')
+    lines.append('|---|---|---|---|')
+    for threads, ratio, low, high, ok in verdicts:
+        lines.append(f'| {threads} | {ratio:.3f} | {low:.3f} - {high:.3f} | {"PASS" if ok else "FAIL"} |')
     lines.append('')
+    lines.append(f'The verdict compares the mean of the per-run means against a {args.tolerance:.0%} tolerance. '
+                 'A ratio inside the tolerance with a per-repeat range straddling it is noise rather than '
+                 'parity; add repeats before reading it either way.\n')
 
     if len(threads_list) > 1:
         lines.append('## Thread scaling (mean step time at 1 thread / at N threads)\n')
@@ -408,20 +476,23 @@ def main():
         lines.append('|---|' + '---|' * len(threads_list))
         for name in variants:
             base = statistics.mean(r['summary']['mean_s'] for r in results[name][threads_list[0]])
-            cells = []
+            scaling = []
             for t in threads_list:
                 m = statistics.mean(r['summary']['mean_s'] for r in results[name][t])
-                cells.append(f'{base / m:.2f}x')
-            lines.append(f'| {name} | ' + ' | '.join(cells) + ' |')
+                scaling.append(f'{base / m:.2f}x')
+            lines.append(f'| {name} | ' + ' | '.join(scaling) + ' |')
         lines.append('')
 
     lines.append('## Output comparison (final state after the run)\n')
     lines.append(textwrap.dedent('''\
-        Differences between candidate and baseline are **expected** on this PR and are not by
-        themselves a defect: the candidate reads `CAP_MIN` as the reservoir minimum storage, fixes the
-        flood-control month-window precedence, and removes a data race in reservoir supply. The useful
-        signals are (a) whether the *baseline* differs from itself between repeats, which is the race
-        showing up, and (b) whether the candidate is repeat-stable, and (c) any non-finite values.
+        Three signals, in order of how much they tell you:
+
+        1. A variant that differs from **itself** between identical repeats has a data race. Both code
+           paths are deterministic, so repeated runs of one variant must agree bit for bit.
+        2. Non-finite values in either variant are a defect regardless of what changed.
+        3. Candidate against baseline differs whenever the candidate intentionally changes model
+           behavior, so it is only readable against a statement of what the change was meant to do.
+           Record that with `--note`; the refs alone do not say.
     '''))
     for threads in threads_list:
         lines.append(f'### {threads} thread(s)\n')
@@ -450,13 +521,21 @@ def main():
 
     lines.append('## Notes\n')
     lines.append(textwrap.dedent('''\
-        - Return flow is off in both variants (it does not exist on the baseline and the sample data has
-          no disaggregated demand), so this measures the default path only. The opt-in return flow path
-          has no baseline to compare against; its cost is assessed statically in the review.
-        - Both versions pin numba's threading layer to `workqueue` in `mosartwmpy/__init__.py`.
-        - Per-step times include daily output writing and monthly demand loading, which are the same
-          work in both variants.
-    '''))
+        - Per-step times are end to end and include daily output writing and monthly demand loading.
+          Both variants do that same work, so the comparison is fair, but a change confined to one
+          kernel shows up diluted here: the measured ratio is nearer 1.0 than the kernel's own ratio.
+        - Only code paths the sample input and this config exercise are measured. A path that is off
+          in both variants, or that exists on only one of them, has no number here.
+    ''').rstrip('\n'))
+    empty = sorted({
+        name for per_thread in results.values() for runs in per_thread.values()
+        for r in runs for name in r.get('empty_arrays', ())
+    })
+    if empty:
+        lines.append(f'- Tracked but empty in at least one run, so not compared: {", ".join(empty)}.')
+    for note in args.note:
+        lines.append(f'- {note}')
+    lines.append('')
 
     report = work / 'parity_report.md'
     report.write_text('\n'.join(lines))
