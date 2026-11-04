@@ -4,7 +4,7 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-08-18
+## [1.0.0] - 2026-11-04
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
@@ -209,9 +209,5 @@ Caches are now versioned and checked when the model initializes.
   gate, with water-management supply and deficit bit-identical to the release candidate and
   repeat-stable at every thread count, where the baseline differs from itself between identical
   20-thread runs. (#146)
-- The return-flow return-flux scaling in `update.py` (division factors applied when adding
-  return flow back to the soil column and channel) and the default nonirrigation-first mask
-  behavior are pending confirmation from the return-flow author; they only affect runs that
-  explicitly enable return flow.
 
 [1.0.0]: https://github.com/IMMM-SFA/mosartwmpy/compare/v0.6.2...v1.0.0
