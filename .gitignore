@@ -146,3 +146,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/.vscode
+/testing
+
+# internal engineering records, kept local rather than published in a public repo
+docs/review-*.md
+
+# reservoir parameter sets written by create_grand_parameters; regenerate them or fetch
+# the published set from MSD-LIVE (see mosartwmpy/data_manifest.yaml)
+grand_reservoir_parameters*

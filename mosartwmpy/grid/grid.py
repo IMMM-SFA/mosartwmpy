@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -9,7 +10,7 @@ import xarray as xr
 from benedict.dicts import benedict as Benedict
 from numba.core import types
 from numba.typed import Dict
-from xarray import open_dataset
+from xarray import open_dataset, open_dataarray
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from mosartwmpy.config.parameters import Parameters
@@ -22,7 +23,15 @@ np.seterr(all='ignore')
 
 class Grid:
     """Class to store grid related values that are constant throughout a simulation."""
-    
+
+    # schema version written to grid cache files by `to_files` and read back by `from_files`;
+    # bump it whenever a per-cell array that the model reads is added, so older caches are detected
+    CACHE_VERSION: int = 1
+    # version of the cache file this instance was loaded from; 0 means the cache predates versioning
+    cache_version: int = 0
+    # ndarray attributes that are not indexed by grid cell
+    NON_CELL_ARRAYS = ('unique_longitudes', 'unique_latitudes')
+
     # initialize all properties
     id: np.ndarray = np.empty(0)
     nldas_id: np.ndarray = np.empty(0)
@@ -63,6 +72,7 @@ class Grid:
     channel_floodplain_width: np.ndarray = np.empty(0)
     total_channel_length: np.ndarray = np.empty(0)
     grid_channel_depth: np.ndarray = np.empty(0)
+    irrigation_first_mask: np.ndarray = np.empty(0)
     
     # Reservoir related properties
     reservoir_id: np.ndarray = np.empty(0)
@@ -72,6 +82,7 @@ class Grid:
     reservoir_length: np.ndarray = np.empty(0)
     reservoir_surface_area: np.ndarray = np.empty(0)
     reservoir_storage_capacity: np.ndarray = np.empty(0)
+    reservoir_minimum_storage: np.ndarray = np.empty(0)
     reservoir_depth: np.ndarray = np.empty(0)
     reservoir_use_irrigation: np.ndarray = np.empty(0)
     reservoir_use_electricity: np.ndarray = np.empty(0)
@@ -126,7 +137,9 @@ class Grid:
             return
         
         # open dataset
-        grid_dataset = open_dataset(config.get('grid.path'))
+        grid_dataset = open_dataset(config.get('grid.path')).sortby([
+            config.get('grid.latitude'), config.get('grid.longitude')
+        ])
     
         # create grid from longitude and latitude dimensions
         self.unique_longitudes = np.array(grid_dataset[config.get('grid.longitude')])
@@ -142,23 +155,43 @@ class Grid:
         self.latitude = self.latitude.flatten()
         
         for key, value in config.get('grid.variables').items():
-            setattr(self, key, np.array(grid_dataset[value]).flatten())
+            if value is not None and value in grid_dataset:
+                setattr(self, key, np.array(grid_dataset[value]).flatten())
+            elif key == 'nldas_id':
+                setattr(self, key, np.full(self.cell_count, np.nan))
+            else:
+                grid_dataset.close()
+                raise KeyError(
+                    f"Grid file `{config.get('grid.path')}` has no variable `{value}` "
+                    f"(configured under `grid.variables.{key}`)."
+                )
         
         # free memory
         grid_dataset.close()
         
         # use ID and dnID field to calculate masks, upstream, downstream, and outlet indices, as well as count of upstream cells
-    
+        # first remap cell ids into cell indices for the (reshaped) 1d grid so that any downstream_id
+        # pointing outside the domain becomes -1 before land_mask and outlet_id are constructed (#108)
+        id_hashmap = {}
+        for i, _id in enumerate(self.id):
+            id_hashmap[int(_id)] = int(i)
+        raw_has_downstream = self.downstream_id >= 0
+        # convert downstream ids into downstream indices
+        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=np.int64)
+        # update the id to be zero-indexed (note this makes them one less than fortran mosart ids)
+        self.id = np.arange(self.id.size).astype(np.int64)
+
         # ocean/land mask
-        # 1 == land
+        # 1 == land (drains to an active cell inside the domain)
         # 2 == ocean
-        # 3 == ocean outlet from land
+        # 3 == ocean/boundary outlet from land (drains out of the domain and either receives upstream flow or had a nonnegative dnID outside the domain)
         # rtmCTL%mask
+        is_outlet_from_land = np.isin(self.id, self.downstream_id) | (raw_has_downstream & (self.land_fraction > 0))
         self.land_mask = np.where(
             self.downstream_id >= 0,
             1,
             np.where(
-                np.isin(self.id, self.downstream_id),
+                is_outlet_from_land,
                 3,
                 2
             )
@@ -182,24 +215,14 @@ class Grid:
                 2,
                 np.where(
                     np.array(self.flow_direction) > 0,
-                    1,
+                    np.where(self.downstream_id >= 0, 1, 2),
                     0
                 )
             )
         ).astype(np.int64)
         
-        # determine final downstream outlet of each cell
-        # this essentially slices up the grid into discrete basins
-        # first remap cell ids into cell indices for the (reshaped) 1d grid
-        id_hashmap = {}
-        for i, _id in enumerate(self.id):
-            id_hashmap[int(_id)] = int(i)
-        # convert downstream ids into downstream indices
-        self.downstream_id = np.array([id_hashmap[int(i)] if int(i) in id_hashmap else -1 for i in self.downstream_id], dtype=np.int64)
-        # update the id to be zero-indexed (note this makes them one less than fortran mosart ids)
-        self.id = np.arange(self.id.size).astype(np.int64)
-        
         # follow each cell downstream to compute outlet id
+        # this essentially slices up the grid into discrete basins
         size = self.downstream_id.size
         self.outlet_id = np.full(size, -1, dtype=np.int64)
         self.upstream_id = np.full(size, -1, dtype=np.int64)
@@ -211,15 +234,19 @@ class Grid:
             if self.land_mask[i] == 1:
                 # land
                 j = i
-                while self.land_mask[j] == 1:
+                steps = 0
+                while j >= 0 and self.land_mask[j] == 1:
                     self.upstream_cell_count[j] += 1
                     j = int(self.downstream_id[j])
-                if self.land_mask[j] == 3:
+                    steps += 1
+                    if steps > size:
+                        raise ValueError(f'Cycle detected in downstream_id starting from grid cell index {i}.')
+                if j >= 0 and self.land_mask[j] == 3:
                     # found the ocean outlet
                     self.upstream_cell_count[j] += 1
                     self.outlet_id[i] = j
             else:
-                # ocean
+                # ocean or outlet
                 self.upstream_cell_count[i] += 1
                 self.outlet_id[i] = i
 
@@ -235,7 +262,7 @@ class Grid:
                 index = np.argmin(distance)
                 outlet_ids.add(self.outlet_id[index])
             self.mosart_mask = np.where(
-                np.in1d(self.outlet_id, list(outlet_ids)),
+                np.isin(self.outlet_id, list(outlet_ids)),
                 self.mosart_mask,
                 0
             )
@@ -378,8 +405,108 @@ class Grid:
         if config.get('water_management.enabled', False):
             load_reservoirs(self, config, parameters)
 
+            # if returnflow is enabled, build the irrigation-first priority mask
+            if config.get('water_management.demand.return_flow_enabled', False):
+                self.load_irrigation_first_mask(config)
+
+    def load_irrigation_first_mask(self, config: Benedict) -> None:
+        """Loads the irrigation-first priority mask used by return flow, or defaults it to nonirrigation-first.
+
+        Args:
+            config (Benedict): the model configuration
+        """
+
+        mask_path = config.get('water_management.demand.irrigation_first_mask_path', None)
+        if mask_path is None:
+            # no mask supplied: default every cell to nonirrigation-first (mask == 0).
+            # without this the mask stays size 0 and the update.py returnflow loop
+            # broadcasts it against full-grid arrays, raising a shape mismatch.
+            self.irrigation_first_mask = np.zeros_like(self.id, dtype=float)
+            return
+
+        # read the mask from file: cells > 0 give irrigation withdrawal priority
+        with open_dataarray(mask_path) as mask_array:
+            mask = np.array(
+                mask_array.sortby([
+                    config.get('water_management.demand.latitude'), config.get('water_management.demand.longitude')
+                ])
+            ).flatten()
+
+        # a mask on a different grid flattens to a different size; left unchecked it would pass
+        # the size-gated trim in Model.initialize and only fail on the first timestep, with a
+        # broadcast error that does not name the file
+        if mask.size != self.id.size:
+            raise ValueError(
+                f'Irrigation-first mask `{mask_path}` has {mask.size} cells but the grid has {self.id.size}; '
+                f'the mask must be on the model grid.'
+            )
+        self.irrigation_first_mask = mask
+
     def __getitem__(self, item):
         return getattr(self, item)
+
+    def validate(self, n: int, config: Benedict, parameters: Parameters) -> None:
+        """Checks that every per-cell array the model reads has one value per active grid cell.
+
+        A grid cache written by an older mosartwmpy lacks the arrays added since, and `from_files`
+        leaves those at their size-0 class default. The numba kernels do no bounds checking, so
+        they would read past the end of such an array silently. Arrays with a well defined
+        historical value are filled in with a warning; anything else is an error asking the user
+        to rebuild the cache.
+
+        Args:
+            n (int): the number of active grid cells, i.e. the size the arrays were trimmed to
+            config (Benedict): the model configuration
+            parameters (Parameters): the model parameters
+        """
+
+        water_management = config.get('water_management.enabled', False)
+        return_flow = water_management and config.get('water_management.demand.return_flow_enabled', False)
+        for key in [key for key in dir(self) if isinstance(getattr(self, key), np.ndarray)]:
+            if key in self.NON_CELL_ARRAYS:
+                continue
+            size = getattr(self, key).size
+            if size == n:
+                continue
+            if size == 0:
+                # arrays that are legitimately empty because their feature is off
+                if key.startswith('reservoir_') and not water_management:
+                    continue
+                if key == 'irrigation_first_mask':
+                    if not return_flow:
+                        continue
+                    # a cache written with return flow off carries no mask, because `to_files` skips
+                    # empty arrays; a freshly built grid with no mask path defaults every cell to
+                    # nonirrigation-first, so apply the same default here rather than fail
+                    logging.info(
+                        'Grid cache has no `irrigation_first_mask` (it was written with return flow off); defaulting '
+                        'every cell to nonirrigation-first. To use a mask, set '
+                        '`water_management.demand.irrigation_first_mask_path` and rebuild the grid cache with return flow enabled.'
+                    )
+                    self.irrigation_first_mask = np.zeros(n)
+                    continue
+                # before this array existed, every reservoir's minimum storage was this product
+                if key == 'reservoir_minimum_storage' and self.reservoir_storage_capacity.size == n:
+                    logging.warning(
+                        f'Grid cache (version {self.cache_version}) has no `reservoir_minimum_storage`; falling back to '
+                        f'{parameters.reservoir_default_minimum_storage_fraction} * reservoir_storage_capacity for every reservoir. '
+                        f'Rebuild the grid cache to use the minimum storage from the reservoir parameter file.'
+                    )
+                    self.reservoir_minimum_storage = parameters.reservoir_default_minimum_storage_fraction * self.reservoir_storage_capacity
+                    continue
+            if self.cache_version < self.CACHE_VERSION:
+                reason = f'the grid cache (version {self.cache_version}, current {self.CACHE_VERSION}) predates this array'
+            elif size == 0:
+                # `to_files` skips empty arrays, so a current cache lacks exactly the arrays that were
+                # empty when it was written, i.e. the feature that fills them was disabled at the time
+                reason = 'the grid cache was written with the feature that fills this array disabled'
+            else:
+                reason = 'the array is not sized to the grid'
+            raise ValueError(
+                f'Grid array `{key}` has {size} values but the grid has {n} active cells; {reason}. '
+                f'Rebuild the grid cache from the domain file with the current configuration, '
+                f'`Grid(config, parameters).to_files(...)`.'
+            )
 
     def to_files(self, path: str, mask: np.ndarray) -> None:
         """Builds a dataframe from all the grid values.
@@ -403,7 +530,8 @@ class Grid:
         for key in special:
             keys.remove(key)
             to_pickle[key] = getattr(self, key)
-        
+        to_pickle['cache_version'] = Grid.CACHE_VERSION
+
         # handle numpy arrrays
         npdf = pd.DataFrame()
         for key in [key for key in keys if isinstance(getattr(self, key), np.ndarray)]:
@@ -416,7 +544,7 @@ class Grid:
                     unmasked[:] = -9999
                 elif vector.dtype == bool:
                     unmasked[:] = False
-                elif vector.dtype == np.object:
+                elif vector.dtype == object:
                     unmasked[:] = np.nan
                 unmasked[mask] = vector
                 npdf[key] = unmasked
@@ -485,7 +613,11 @@ class Grid:
                     if filename.endswith('np.feather'):
                         npdf = pd.read_feather(file)
                         for key in npdf.columns:
-                            setattr(grid, key, npdf[key].values)
+                            # coerce to ndarray: pandas with pyarrow returns extension
+                            # arrays (e.g. ArrowStringArray) for string columns, which
+                            # the mask-trimming loop in model.py skips, leaving the array
+                            # at full-grid size and breaking downstream broadcasts.
+                            setattr(grid, key, np.asarray(npdf[key].values))
                     if filename.endswith('df.nc'):
                         key = filename.split('.')[0]
                         ds = xr.open_dataset(file, engine='h5netcdf')
@@ -498,10 +630,23 @@ class Grid:
                         setattr(grid, key, ds)
                         ds.close()
 
+        # a cache written before an array was added leaves that array at its size-0 class default;
+        # `Grid.validate` (called from Model.initialize) decides whether that is recoverable
+        if grid.cache_version < Grid.CACHE_VERSION:
+            missing = [
+                key for key in dir(grid)
+                if isinstance(getattr(grid, key), np.ndarray) and getattr(grid, key).size == 0 and key not in Grid.NON_CELL_ARRAYS
+            ]
+            logging.warning(
+                f'Grid cache `{path}` was written by an older mosartwmpy (cache version {grid.cache_version}, '
+                f'current {Grid.CACHE_VERSION}) and does not contain: {", ".join(missing)}. '
+                f'Rebuild the grid cache from the domain file to include them.'
+            )
+
         # recreate the numba grid to reservoir map
         if grid.reservoir_dependency_database.size > 0:
             for grid_cell_id, group in grid.reservoir_dependency_database.reset_index().groupby('grid_cell_id'):
-                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values
+                grid.grid_index_to_reservoirs_map[grid_cell_id] = group.reservoir_id.values.copy()
         
         return grid
 

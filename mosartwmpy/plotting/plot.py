@@ -170,7 +170,7 @@ def plot_reservoir(
     inflow_variable = next((o for o in model.config.get('simulation.output') if
                             o.get('variable', '') == 'channel_inflow_upstream'), {}).get('name', None)
     outflow_variable = next((o for o in model.config.get('simulation.output') if
-                             o.get('variable', '') == 'runoff_land'), {}).get('name', None)
+                             o.get('variable', '') in ('flow', 'runoff', 'runoff_land')), {}).get('name', None)
     results = xr.open_mfdataset(f"{model.config.get('simulation.output_path')}/{model.name}/*.nc")[
         [storage_variable, inflow_variable, outflow_variable]]
 

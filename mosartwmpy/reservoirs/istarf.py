@@ -48,6 +48,7 @@ def istarf_release(state: State, grid: Grid, current_time: datetime):
         grid.reservoir_release_p_two,
         grid.reservoir_release_c,
         grid.reservoir_storage_capacity,
+        grid.reservoir_minimum_storage,
         grid.reservoir_computed_meanflow_cumecs,
         state.reservoir_storage,
         state.channel_inflow_upstream,
@@ -67,7 +68,7 @@ def istarf_release(state: State, grid: Grid, current_time: datetime):
     "void("
         "float64, boolean[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], "
         "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], "
-        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:]"
+        "float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:]"
     ")",
     parallel=True,
     nopython=True,
@@ -98,6 +99,7 @@ def compute_istarf_release(
     release_p_two,
     release_c,
     capacity,
+    minimum_storage,
     inflow_mean,
     storage,
     inflow,
@@ -172,5 +174,13 @@ def compute_istarf_release(
             elif release[i] > release_max:
                 # shouldn't release more than max
                 release[i] = release_max
+
+            # cap daily release at active storage above minimum_storage (CAP_MIN) plus daily inflow
+            if np.isfinite(minimum_storage[i]):
+                max_available_release = np.maximum(
+                    0.0, storage[i] - minimum_storage[i] + forecasted_weekly_volume / 7.0
+                )
+                if release[i] > max_available_release:
+                    release[i] = max_available_release
 
             # storage update and boundaries are enforced during the regulation step
