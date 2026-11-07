@@ -4,7 +4,7 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-11-04
+## [1.0.0] - 2026-11-07
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
@@ -38,7 +38,11 @@ Caches are now versioned and checked when the model initializes.
   so it also takes the 10% default — the published sample data carries `CAP_MIN = 0` for 13 of its
   1860 reservoirs, and honoring that literally would have let them draw down to empty. ISTARF
   release rules keep their fitted normal operating range relative to storage capacity and cap each
-  day's release at the active storage above `CAP_MIN` plus daily inflow (#124). (Dan Broman)
+  day's release at the active storage above `CAP_MIN` plus daily inflow (#124): where subdaily
+  regulation previously froze release as soon as a step would cross `CAP_MIN`, an ISTARF reservoir
+  whose rule overshoots now drains to `CAP_MIN` over the day, and one starting below `CAP_MIN`
+  releases nothing until a day's inflow covers the shortfall (changing day-one releases for 21 of
+  1,824 fixture reservoirs in `regulated_flow_reference.npz`). (Dan Broman)
 - **Reservoir parameter files in Parquet or CSV.** The reservoir parameter file holds static
   per-reservoir values with a single dimension, so netCDF is no longer required; `.parquet` and
   `.csv` are now accepted and selected by file extension, which makes the values easier to inspect
@@ -106,11 +110,12 @@ Caches are now versioned and checked when the model initializes.
   `reservoirs/state.py` or reusing `reservoir_runoff_capacity_parameter` for the minimum-storage
   floor, removes unused constants (`small_value`, `effective_tracer_velocity`, `ICE_TRACER`), and
   documents units for all parameters. (#127)
-- **ISTARF columns are only required when ISTARF is enabled.** When
-  `water_management.reservoirs.enable_istarf` is `false`, `load_reservoirs` requires only the core
-  physical and use-type reservoir columns and fills absent ISTARF columns with `NaN` (`'generic'` for
-  `reservoir_behavior`), and `Grid` defaults a missing `NLDAS_ID` variable to `NaN` on non-NLDAS
-  domains. (#109)
+- **ISTARF and unused metadata columns are no longer required unconditionally.** When
+  `water_management.reservoirs.enable_istarf` is `false`, `load_reservoirs` requires only the seven
+  core physical and use-type reservoir columns and fills absent ISTARF columns with `NaN`
+  (`'generic'` for `reservoir_behavior`); nine configured metadata and secondary use-flag columns that
+  are not read by the model are now optional even when ISTARF is enabled, and `Grid` defaults a
+  missing `NLDAS_ID` variable to `NaN` on non-NLDAS domains. (#109)
 - **Start/end date and timestamp conventions documented** in `config_defaults.yaml` and `README.md`.
   (#9)
 
@@ -219,10 +224,11 @@ Caches are now versioned and checked when the model initializes.
   whose `dnID` points outside the domain is marked as an outlet (`land_mask == 3`, `mosart_mask == 2`)
   rather than `land_mask == 1` with `downstream_id == -1`, and the downstream traversal loop guards
   against negative indices and cycles. (#108)
-- **`channel_outflow` output reports outflow on outlet grid cells.** In `config_defaults.yaml`,
-  `channel_outflow` now maps to `state.flow` (which includes ocean/boundary outlet cells,
-  `land_mask == 3`) instead of `state.runoff_land` (which zeros outlet cells for E3SM coupler
-  compatibility and remains mapped to `RIVER_DISCHARGE_OVER_LAND_LIQ`). (#103)
+- **`channel_outflow` output and `plot_reservoir` report outflow on outlet grid cells.** In
+  `config_defaults.yaml`, `channel_outflow` now maps to `state.flow` (which includes ocean/boundary
+  outlet cells, `land_mask == 3`) instead of `state.runoff_land` (which zeros outlet cells for E3SM
+  coupler compatibility and remains mapped to `RIVER_DISCHARGE_OVER_LAND_LIQ`), and `plot_reservoir`
+  prefers `flow` over `runoff_land` regardless of config entry order. (#103)
 
 ### Notes
 - **Performance parity with `main` measured.** The serialised reservoir supply loops (#144, #145)
@@ -232,5 +238,13 @@ Caches are now versioned and checked when the model initializes.
   gate, with water-management supply and deficit bit-identical to the release candidate and
   repeat-stable at every thread count, where the baseline differs from itself between identical
   20-thread runs. (#146)
+- **User-visible output changes.** `channel_outflow` on ocean and boundary outlet cells (`land_mask == 3`)
+  changes from `0` to positive outflow (#103; `RIVER_DISCHARGE_OVER_LAND_LIQ` is unchanged), and ISTARF
+  reservoirs operating near or below `CAP_MIN` drain to `CAP_MIN` over the day rather than freezing
+  above it (#124).
+- **Return-flow caveats.** The return-flow return-flux scaling in `update.py` (division factors applied
+  when adding return flow back to the soil column and channel) and the default nonirrigation-first mask
+  behavior are pending confirmation from the return-flow author; they only affect runs that explicitly
+  enable return flow.
 
 [1.0.0]: https://github.com/IMMM-SFA/mosartwmpy/compare/v0.6.2...v1.0.0

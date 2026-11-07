@@ -165,12 +165,20 @@ def plot_reservoir(
 
     ctx.add_basemap(ax_map, source=ctx.providers.CartoDB.Voyager)
 
-    storage_variable = next((o for o in model.config.get('simulation.output') if
-                             o.get('variable', '') == 'reservoir_storage'), {}).get('name', None)
-    inflow_variable = next((o for o in model.config.get('simulation.output') if
-                            o.get('variable', '') == 'channel_inflow_upstream'), {}).get('name', None)
-    outflow_variable = next((o for o in model.config.get('simulation.output') if
-                             o.get('variable', '') in ('flow', 'runoff', 'runoff_land')), {}).get('name', None)
+    outputs = model.config.get('simulation.output') or []
+    storage_variable = next((o.get('name') for o in outputs if
+                             o.get('variable', '') == 'reservoir_storage'), None)
+    inflow_variable = next((o.get('name') for o in outputs if
+                            o.get('variable', '') == 'channel_inflow_upstream'), None)
+    outflow_variable = next(
+        (
+            o.get('name')
+            for var in ('flow', 'runoff', 'runoff_land')
+            for o in outputs
+            if o.get('variable', '') == var
+        ),
+        None,
+    )
     results = xr.open_mfdataset(f"{model.config.get('simulation.output_path')}/{model.name}/*.nc")[
         [storage_variable, inflow_variable, outflow_variable]]
 
