@@ -18,13 +18,14 @@ class RegulatedFlowReferenceTest(unittest.TestCase):
     """The water-management state after one simulated day on the packaged fixture is pinned.
 
     `tests/regulated_flow_reference.npz` holds supply, deficit, channel outflow and reservoir
-    storage after 8 steps of 3 h with the default configuration, written by
-    `extraction_regulated_flow` as it stood when the dense index landed (#144), which was
-    bit-identical to the typed-dict kernel before it. A change to the regulated flow kernels
-    that alters results fails here instead of passing a suite that only checks the model runs.
-    Only case 1 of the supply algorithm fires on this fixture; cases 2 and 3 are pinned by
-    `ExtractionCasesTest` below. Regenerate the file only for an intended, understood result change
-    (`mosartwmpy/tests/regenerate_regulated_flow_reference.py` holds the recipe: this test's configuration,
+    storage after 8 steps of 3 h with the default configuration, originally written by
+    `extraction_regulated_flow` as it stood when the dense index landed (#144, bit-identical to
+    the typed-dict kernel before it) and regenerated at `9dd9caf` when `istarf_release` was
+    capped at active storage above `CAP_MIN` plus daily inflow (#124). A change to the regulated
+    flow kernels that alters results fails here instead of passing a suite that only checks the
+    model runs. Only case 1 of the supply algorithm fires on this fixture; cases 2 and 3 are
+    pinned by `ExtractionCasesTest` below. Regenerate the file only for an intended, understood
+    result change (`mosartwmpy/tests/regenerate_regulated_flow_reference.py` holds the recipe: this test's configuration,
     eight steps, `np.savez_compressed`).
     """
 

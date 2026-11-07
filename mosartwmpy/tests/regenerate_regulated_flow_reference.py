@@ -6,10 +6,11 @@ packaged test grid, runoff, demand and reservoir fixtures with the default confi
 flow kernels that changes results fails the suite instead of passing silently.
 
 The script writes whatever the kernel at the current commit produces, so run it only at a
-commit whose results are known to be correct. The committed file was written by
-`extraction_regulated_flow` as it stood when the dense index landed (#144), which was
-bit-identical to the typed-dict kernel before it. Regenerate ONLY when a result change is
-intended and understood:
+commit whose results are known to be correct. The committed file was originally written by
+`extraction_regulated_flow` as it stood when the dense index landed (#144, bit-identical to
+the typed-dict kernel before it) and regenerated at `9dd9caf` when `istarf_release` was
+capped at active storage above `CAP_MIN` plus daily inflow (#124). Regenerate ONLY when a
+result change is intended and understood:
     python -m mosartwmpy.tests.regenerate_regulated_flow_reference
 """
 
