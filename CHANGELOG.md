@@ -4,7 +4,7 @@ All notable changes to `mosartwmpy` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-11-07
+## [1.0.0] - 2026-11-08
 
 First release since v0.6.2. Consolidates the numpy 2 migration, two validated reservoir
 bug fixes, and the new opt-in return-flow feature. The `0.7.0` version that briefly lived
