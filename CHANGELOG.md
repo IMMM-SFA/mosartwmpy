@@ -75,7 +75,7 @@ Caches are now versioned and checked when the model initializes.
   longer satisfies `python_requires>=3.10` as of this release, so the image could not be built
   at all. It now uses `ghcr.io/msd-live/jupyter/python-notebook:latest` (Python 3.11) and
   installs the published `mosartwmpy` from PyPI rather than the source in the build context;
-  it no longer downloads the sample dataset or sets a command to run the model. (Emily Rexer)
+  it no longer downloads the sample dataset or sets a command to run the model. (Em Rexer)
 - **Output `aggregation` defaults to `mean`.** Each `simulation.output` entry accepts an
   `aggregation` of `mean` or `sum`; a missing key now means `mean`, which is how every output was
   written before the key existed, and any other value is rejected when the model initializes. The
